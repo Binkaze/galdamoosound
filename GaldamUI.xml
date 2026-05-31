@@ -150,6 +150,7 @@ end
 
 function GaldamUI.cycleStep(gen)
   if gen ~= GaldamUI.cycleGen then return end
+  GaldamUI.tick = (GaldamUI.tick or 0) + 1
   GaldamUI.cyclePhase = (GaldamUI.cyclePhase or 0) + 0.05
   GaldamUI.renderWanted()
   tempTimer(0.1, "GaldamUI.cycleStep("..gen..")")
@@ -159,15 +160,32 @@ function GaldamUI.renderWanted()
   if not (GaldamUI.built and GaldamUI.wanted) then return end
   local tier = GaldamUI.curTier or 0
   if tier <= 0 then GaldamUI.wanted:hide(); return end
+  local tick = GaldamUI.tick or 0
+  local bl = GaldamUI.blink
+  if bl and tick >= bl.endTick then GaldamUI.blink = nil; bl = nil end
+  -- 수배 글자 (빨강<->파랑 순환, 크게)
   local t = (math.sin(GaldamUI.cyclePhase or 0) + 1) / 2
   local col = string.format("#%02x%02x%02x", math.floor(204+(43-204)*t), math.floor(43+(107-43)*t), math.floor(43+(204-43)*t))
-  -- 표시 줄 목록 (항목 늘면 창이 자동으로 커짐)
+  -- 별 6개 (자리별 깜빡 처리)
+  local stars = ""
+  for i = 1, 6 do
+    local ch, c
+    if bl and bl.set[i] then
+      local on = (math.floor(tick / bl.interval) % 2) == 0
+      ch = "★"
+      if bl.kind == "add" then c = on and "#f1c40f" or "#473807"
+      else c = on and "#f1c40f" or "#ffffff" end
+    elseif i <= tier then ch = "★"; c = "#f1c40f"
+    else ch = "☆"; c = "#444444" end
+    stars = stars .. "<span style='font-size:26pt;color:"..c..";'>"..ch.."</span>"
+  end
+  -- 표시 줄 (항목 늘면 창 자동 확장)
   local lines = {}
-  lines[#lines+1] = "<span style='font-size:15pt;color:"..col..";'><b>수배</b></span>"
-  lines[#lines+1] = "<span style='font-size:17pt;color:#f1c40f;'>"..string.rep("★",tier).."</span><span style='font-size:17pt;color:#444;'>"..string.rep("☆",6-tier).."</span>"
-  -- (미래) 죄목/경찰대응: table.insert(lines, "...") 추가하면 창 자동 확장
-  local h = 16 + #lines * 32
-  if GaldamUI.wantedH ~= h then pcall(function() GaldamUI.wanted:resize("20%", h) end); GaldamUI.wantedH = h end
+  lines[#lines+1] = "<span style='font-size:21pt;color:"..col..";'><b>수배</b></span>"
+  lines[#lines+1] = stars
+  -- (미래) 죄목/경찰대응: table.insert(lines, "...")
+  local h = 18 + #lines * 42
+  if GaldamUI.wantedH ~= h then pcall(function() GaldamUI.wanted:resize("21%", h) end); GaldamUI.wantedH = h end
   GaldamUI.wanted:echo("<center>"..table.concat(lines, "<br>").."</center>")
   GaldamUI.wanted:show()
 end
@@ -181,7 +199,17 @@ function GaldamUI.onVitals()
   if v.stress then local s=tonumber(v.stress) or 0; GaldamUI.stress:setValue(math.min(s,500),500,string.format("<b>스트레스 %d</b>",math.floor(s))) end
   if v.wanted then
     local w = tonumber(v.wanted) or 0
-    GaldamUI.curTier = (w>=171 and 6) or (w>=141 and 5) or (w>=101 and 4) or (w>=61 and 3) or (w>=31 and 2) or (w>=1 and 1) or 0
+    local nt = (w>=171 and 6) or (w>=141 and 5) or (w>=101 and 4) or (w>=61 and 3) or (w>=31 and 2) or (w>=1 and 1) or 0
+    local prev = GaldamUI.prevTier or 0
+    if nt > prev then
+      local set = {}; for i = prev+1, nt do set[i] = true end
+      GaldamUI.blink = {set=set, interval=5, endTick=(GaldamUI.tick or 0)+30, kind="add"}
+    elseif nt < prev and nt > 0 then
+      local set = {}; for i = 1, nt do set[i] = true end
+      GaldamUI.blink = {set=set, interval=2, endTick=(GaldamUI.tick or 0)+20, kind="remove"}
+    end
+    GaldamUI.prevTier = nt
+    GaldamUI.curTier = nt
     GaldamUI.renderWanted()
   end
 end
