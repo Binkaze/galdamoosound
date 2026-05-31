@@ -21,7 +21,7 @@ end
 GaldamUI._handlers = {}
 
 local PANEL_W = 0.20      -- 우측 탭 패널 폭
-local BOTTOM_H = 108      -- 하단 HUD 바 높이
+local BOTTOM_H = 120      -- 하단 HUD 바 높이
 
 -- 커스텀 이미지
 GaldamUI.imgDir = getMudletHomeDir() .. "/galdamui"
@@ -40,6 +40,37 @@ local CSS_OFF = "background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0.42 r
 -- 상태 아이콘: 한글 이름(툴팁) + severity 색(경고/심함/위험)
 GaldamUI.STNAME = {cold="추위/저체온", heat="더위", wet="젖음", drunk="취함", caffeine="카페인", smoke="흡연", nausea="메스꺼움", bleeding="출혈", stunned="감전/기절", broken="골절", hunger="배고픔", thirst="목마름", fatigue="피로", heavy="과적재"}
 GaldamUI.STSEV = {[1]={b="#f1c40f", bg="rgba(60,52,12,210)"}, [2]={b="#e67e22", bg="rgba(72,42,12,215)"}, [3]={b="#e74c3c", bg="rgba(74,20,20,225)"}}
+
+-- 스킬/능력치 한글 라벨
+GaldamUI.SKNAME = {
+  brawn="완력", brains="지능", cool="침착", reflexes="반사", endurance="지구력", senses="감각",
+  pistols="권총", rifles="소총", quickdraw="속사", dodge="회피", craft="제작", repair="수리",
+  locksmith="자물쇠", climb="등반", appraise="감정", medic="의술", swim="수영", blades="도검",
+  scavenge="수색", hack="해킹", clubs="둔기", fists="격투", pilot="조종", throw="투척",
+  steal="소매치기", track="추적", chemistry="화학", linguist="언어", sneak="은신", fuck="정사",
+  persuade="설득", whip="채찍", spears="창", teach="교육", fish="낚시", bombs="폭탄",
+  torture="고문", wrestle="레슬링", science="과학", flails="철퇴", ride="승마", focus="집중",
+}
+
+-- 즉시 뜨는 커스텀 툴팁 (네이티브는 표시 지연이 길어 hover 핸들러로 대체)
+function GaldamUI.showTip(txt)
+  if not GaldamUI.tip then return end
+  local x, y = 0, 0
+  if not pcall(function() x, y = getMousePosition() end) then return end
+  local wpx = math.max(60, math.min(240, #txt * 6 + 24))
+  pcall(function() GaldamUI.tip:resize(wpx, 26); GaldamUI.tip:move(x + 14, y + 18) end)
+  GaldamUI.tip:echo("<center style='margin-top:3px;'><b>"..txt.."</b></center>")
+  GaldamUI.tip:show()
+  pcall(function() raiseWindow("GaldamTip") end)
+end
+function GaldamUI.hideTip() pcall(function() GaldamUI.tip:hide() end) end
+function GaldamUI.attachTip(w, txt)
+  local ok = pcall(function()
+    w:setOnEnter(function() GaldamUI.showTip(txt) end)
+    w:setOnLeave(function() GaldamUI.hideTip() end)
+  end)
+  if not ok then pcall(function() w:setToolTip("<b>"..txt.."</b>") end) end
+end
 
 function GaldamUI.downloadImages()
   for _, f in ipairs(IMGFILES) do
@@ -67,16 +98,16 @@ function GaldamUI.build()
 
   -- ===== 하단 HUD 바 (전체폭, 최하단) =====
   GaldamUI.bottom = Geyser.Container:new({name="GaldamBottom", x=0, y=0, width="100%", height=BOTTOM_H})
-  -- 상태 아이콘 슬롯 (작은 셀, onStatus 에서 px 배치)
+  -- 상태 아이콘 슬롯 (onStatus 에서 px 배치)
   GaldamUI.statusSlots = {}
   for i = 1, 14 do
-    local s = Geyser.Label:new({name="stSlot"..i, x=4, y=2, width=34, height=34}, GaldamUI.bottom)
+    local s = Geyser.Label:new({name="stSlot"..i, x=4, y=4, width=46, height=46}, GaldamUI.bottom)
     s:hide(); GaldamUI.statusSlots[i] = s
   end
   -- 게이지 4 (가로, 좌측 78%)
   GaldamUI.gauges = {}
   local function gauge(name, label, color, gx)
-    local g = Geyser.Gauge:new({name=name, x=gx, y=44, width="19%", height=56}, GaldamUI.bottom)
+    local g = Geyser.Gauge:new({name=name, x=gx, y=58, width="19%", height=56}, GaldamUI.bottom)
     g.front:setStyleSheet("background-color:"..color.."; border-radius:5px;")
     g.back:setStyleSheet("background-color: rgba(40,40,40,200); border-radius:5px;")
     g.text:setStyleSheet("color:#ffffff; font-size:18px; padding-left:6px;")
@@ -100,7 +131,7 @@ function GaldamUI.build()
     local bw = math.floor(100 / n)
     local b = Geyser.Label:new({name="tab_"..t.key, x=((i-1)*bw) .."%", y=44, width=(bw-1) .."%", height=38}, GaldamUI.rpanel)
     b:setClickCallback(function() GaldamUI.selectTab(t.key) end)
-    pcall(function() b:setToolTip("<b>"..t.name.."</b>") end)
+    GaldamUI.attachTip(b, t.name)
     GaldamUI.tabBtns[t.key] = b
   end
   -- 콘텐츠 (스크롤 가능)
@@ -119,7 +150,7 @@ function GaldamUI.build()
     local b = Geyser.Label:new({name=nm, x=x, y=y, width=50, height=50}, GaldamUI.dpadWin)
     b:setClickCallback(function() send(cmd) end)
     b:setStyleSheet(CSS_BTN); b:echo(imgTag(img, 34))
-    pcall(function() b:setToolTip("<b>"..name.."</b>") end)
+    GaldamUI.attachTip(b, name)
     table.insert(GaldamUI.dirBtns, {btn=b, aliases=aliases, img=img, name=name})
     return b
   end
@@ -134,7 +165,7 @@ function GaldamUI.build()
   GaldamUI.lookBtn = Geyser.Label:new({name="dpLook", x=60, y=58, width=50, height=50}, GaldamUI.dpadWin)
   GaldamUI.lookBtn:setStyleSheet(CSS_ACT); GaldamUI.lookBtn:echo(imgTag("look.png", 34))
   GaldamUI.lookBtn:setClickCallback(function() send("look") end)
-  pcall(function() GaldamUI.lookBtn:setToolTip("<b>둘러보기</b>") end)
+  GaldamUI.attachTip(GaldamUI.lookBtn, "둘러보기")
 
   -- 수배 오버레이 (좌상단)
   if GaldamUI.wanted then GaldamUI.wanted:hide() end
@@ -152,6 +183,14 @@ function GaldamUI.build()
     end
     GaldamUI.mapWin:setFontSize(14)
     GaldamUI.mapWin:cecho("\n  <grey>지도 없음")
+  end)
+
+  -- 커스텀 툴팁 라벨 (최상위, 마지막 생성 → z순서 위)
+  pcall(function()
+    if GaldamUI.tip then GaldamUI.tip:hide() end
+    GaldamUI.tip = Geyser.Label:new({name="GaldamTip", x=0, y=0, width=140, height=26})
+    GaldamUI.tip:setStyleSheet("background-color: rgba(16,20,28,245); border:1px solid #6fbf80; border-radius:5px; color:#eafff0;")
+    GaldamUI.tip:hide()
   end)
 
   GaldamUI.built = true
@@ -181,11 +220,11 @@ function GaldamUI.setExits(elist)
     for _, al in ipairs(d.aliases) do if avail[al] then on = true; break end end
     if on then
       d.btn:setStyleSheet(CSS_BTN); d.btn:echo(imgTag(d.img, 34))
-      pcall(function() d.btn:setToolTip("<b>"..d.name.."</b>") end)
+      GaldamUI.attachTip(d.btn, d.name)
     else
       d.btn:setStyleSheet(CSS_OFF)
       d.btn:echo("<center><font color='#9a7478'><s>"..d.name.."</s></font></center>")
-      pcall(function() d.btn:setToolTip("<b>"..d.name.."</b><br><font color='#cc6666'>막힌 길</font>") end)
+      GaldamUI.attachTip(d.btn, d.name.." · 막힌 길")
     end
   end
 end
@@ -233,17 +272,25 @@ end
 
 function GaldamUI.renderSkills()
   GaldamUI.content:clear()
-  GaldamUI.content:cecho("\n  <yellow>● 능력치 / 스킬\n\n")
   local d = gmcp.Galdam and gmcp.Galdam.Skills
-  local cnt = 0
+  local stats, skills = {}, {}
   if d and d.list and d.list ~= "" then
     for entry in tostring(d.list):gmatch("[^;]+") do
-      local nm, sc = entry:match("([^|]*)|(.*)")
-      GaldamUI.content:cecho("  <cyan>"..(nm or entry).."  <white>"..(sc or "").."\n")
-      cnt = cnt + 1
+      local nm, v, k = entry:match("([^|]*)|([^|]*)|([^|]*)")
+      if nm then
+        local kor = GaldamUI.SKNAME[nm] or nm
+        if k == "S" then stats[#stats+1] = {kor, v} else skills[#skills+1] = {kor, v} end
+      end
     end
   end
-  if cnt == 0 then GaldamUI.content:cecho("  <grey>아직 배운 스킬이 없습니다.\n") end
+  GaldamUI.content:cecho("\n  <yellow>● 능력치\n\n")
+  if #stats > 0 then
+    for _, e in ipairs(stats) do GaldamUI.content:cecho("  <white>"..e[1].."   <cyan>"..e[2].."\n") end
+  else GaldamUI.content:cecho("  <grey>(정보 없음)\n") end
+  GaldamUI.content:cecho("\n  <yellow>● 스킬\n\n")
+  if #skills > 0 then
+    for _, e in ipairs(skills) do GaldamUI.content:cecho("  <white>"..e[1].."   <green>"..e[2].."\n") end
+  else GaldamUI.content:cecho("  <grey>(배운 스킬 없음)\n") end
 end
 
 function GaldamUI.renderHelp()
@@ -334,15 +381,15 @@ function GaldamUI.onStatus()
     local k, sv = tok:match("(%a+):(%d+)")
     if k then list[#list+1] = {k=k, sv=tonumber(sv) or 1} end
   end
-  local cell, step = 34, 38
+  local cell, step = 46, 50
   for i, slot in ipairs(GaldamUI.statusSlots) do
     local it = list[i]
     if it then
       local sev = GaldamUI.STSEV[it.sv] or GaldamUI.STSEV[1]
-      pcall(function() slot:move(6 + (i-1)*step, 2); slot:resize(cell, cell) end)
-      slot:setStyleSheet("background-color:"..sev.bg.."; border:2px solid "..sev.b.."; border-radius:7px; qproperty-alignment:'AlignCenter';")
-      slot:echo(imgTag("status_"..it.k..".png", 28))
-      pcall(function() slot:setToolTip(GaldamUI.STNAME[it.k] or it.k) end)
+      pcall(function() slot:move(6 + (i-1)*step, 4); slot:resize(cell, cell) end)
+      slot:setStyleSheet("background-color:"..sev.bg.."; border:2px solid "..sev.b.."; border-radius:8px; qproperty-alignment:'AlignCenter';")
+      slot:echo(imgTag("status_"..it.k..".png", 38))
+      GaldamUI.attachTip(slot, GaldamUI.STNAME[it.k] or it.k)
       slot:show()
     else
       slot:hide()
