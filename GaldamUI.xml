@@ -98,15 +98,8 @@ function GaldamUI.build()
   GaldamUI.wanted:hide()
   -- "수배" 글자색 천천히 빨강<->파랑 순환 (generation guard 로 재로드 시 옛 타이머 중단)
   GaldamUI.cycleGen = (GaldamUI.cycleGen or 0) + 1
-  local myGen = GaldamUI.cycleGen
   GaldamUI.cyclePhase = 0
-  local function cycleTick()
-    if GaldamUI.cycleGen ~= myGen then return end
-    GaldamUI.cyclePhase = (GaldamUI.cyclePhase or 0) + 0.05
-    GaldamUI.renderWanted()
-    tempTimer(0.1, cycleTick)
-  end
-  cycleTick()
+  GaldamUI.cycleStep(GaldamUI.cycleGen)
 
   -- 지도창
   pcall(function()
@@ -155,15 +148,28 @@ function GaldamUI.onRoom()
   GaldamUI.setExits(r.exits or {})
 end
 
+function GaldamUI.cycleStep(gen)
+  if gen ~= GaldamUI.cycleGen then return end
+  GaldamUI.cyclePhase = (GaldamUI.cyclePhase or 0) + 0.05
+  GaldamUI.renderWanted()
+  tempTimer(0.1, "GaldamUI.cycleStep("..gen..")")
+end
+
 function GaldamUI.renderWanted()
   if not (GaldamUI.built and GaldamUI.wanted) then return end
   local tier = GaldamUI.curTier or 0
   if tier <= 0 then GaldamUI.wanted:hide(); return end
-  GaldamUI.wanted:show()
   local t = (math.sin(GaldamUI.cyclePhase or 0) + 1) / 2
   local col = string.format("#%02x%02x%02x", math.floor(204+(43-204)*t), math.floor(43+(107-43)*t), math.floor(43+(204-43)*t))
-  local stars = "<span style='font-size:17pt;color:#f1c40f;'>"..string.rep("★",tier).."</span><span style='font-size:17pt;color:#444;'>"..string.rep("☆",6-tier).."</span>"
-  GaldamUI.wanted:echo("<center><span style='font-size:14pt;color:"..col..";'><b>수배</b></span><br>"..stars.."</center>")
+  -- 표시 줄 목록 (항목 늘면 창이 자동으로 커짐)
+  local lines = {}
+  lines[#lines+1] = "<span style='font-size:15pt;color:"..col..";'><b>수배</b></span>"
+  lines[#lines+1] = "<span style='font-size:17pt;color:#f1c40f;'>"..string.rep("★",tier).."</span><span style='font-size:17pt;color:#444;'>"..string.rep("☆",6-tier).."</span>"
+  -- (미래) 죄목/경찰대응: table.insert(lines, "...") 추가하면 창 자동 확장
+  local h = 16 + #lines * 32
+  if GaldamUI.wantedH ~= h then pcall(function() GaldamUI.wanted:resize("20%", h) end); GaldamUI.wantedH = h end
+  GaldamUI.wanted:echo("<center>"..table.concat(lines, "<br>").."</center>")
+  GaldamUI.wanted:show()
 end
 
 function GaldamUI.onVitals()
