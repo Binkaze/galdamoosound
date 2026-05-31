@@ -93,10 +93,20 @@ function GaldamUI.build()
 
   -- 수배: 패널 밖 좌상단 독립 오버레이 (GTA식) — 수배>0 일 때만
   if GaldamUI.wanted then GaldamUI.wanted:hide() end
-  GaldamUI.wanted = Geyser.Label:new({name="GaldamWan", x="-43%", y=4, width="20%", height=46})
+  GaldamUI.wanted = Geyser.Label:new({name="GaldamWan", x="-43%", y=4, width="20%", height=66})
   GaldamUI.wanted:setStyleSheet("background-color: rgba(22,14,28,235); border:1px solid #5a3a6a; border-radius:6px; qproperty-alignment:'AlignCenter';")
-  GaldamUI.wanted:echo("")
   GaldamUI.wanted:hide()
+  -- "수배" 글자색 천천히 빨강<->파랑 순환 (generation guard 로 재로드 시 옛 타이머 중단)
+  GaldamUI.cycleGen = (GaldamUI.cycleGen or 0) + 1
+  local myGen = GaldamUI.cycleGen
+  GaldamUI.cyclePhase = 0
+  local function cycleTick()
+    if GaldamUI.cycleGen ~= myGen then return end
+    GaldamUI.cyclePhase = (GaldamUI.cyclePhase or 0) + 0.05
+    GaldamUI.renderWanted()
+    tempTimer(0.1, cycleTick)
+  end
+  cycleTick()
 
   -- 지도창
   pcall(function()
@@ -145,6 +155,17 @@ function GaldamUI.onRoom()
   GaldamUI.setExits(r.exits or {})
 end
 
+function GaldamUI.renderWanted()
+  if not (GaldamUI.built and GaldamUI.wanted) then return end
+  local tier = GaldamUI.curTier or 0
+  if tier <= 0 then GaldamUI.wanted:hide(); return end
+  GaldamUI.wanted:show()
+  local t = (math.sin(GaldamUI.cyclePhase or 0) + 1) / 2
+  local col = string.format("#%02x%02x%02x", math.floor(204+(43-204)*t), math.floor(43+(107-43)*t), math.floor(43+(204-43)*t))
+  local stars = "<span style='font-size:17pt;color:#f1c40f;'>"..string.rep("★",tier).."</span><span style='font-size:17pt;color:#444;'>"..string.rep("☆",6-tier).."</span>"
+  GaldamUI.wanted:echo("<center><span style='font-size:14pt;color:"..col..";'><b>수배</b></span><br>"..stars.."</center>")
+end
+
 function GaldamUI.onVitals()
   local v = gmcp.Char and gmcp.Char.Vitals
   if not (GaldamUI.built and v) then return end
@@ -154,13 +175,8 @@ function GaldamUI.onVitals()
   if v.stress then local s=tonumber(v.stress) or 0; GaldamUI.stress:setValue(math.min(s,500),500,string.format("<b>스트레스 %d</b>",math.floor(s))) end
   if v.wanted then
     local w = tonumber(v.wanted) or 0
-    local tier = (w>=171 and 6) or (w>=141 and 5) or (w>=101 and 4) or (w>=61 and 3) or (w>=31 and 2) or (w>=1 and 1) or 0
-    if tier > 0 then
-      GaldamUI.wanted:echo("<center><span style='font-size:18pt;color:#f1c40f;'>"..string.rep("★",tier).."</span><span style='font-size:18pt;color:#444;'>"..string.rep("☆",6-tier).."</span></center>")
-      GaldamUI.wanted:show()
-    else
-      GaldamUI.wanted:hide()
-    end
+    GaldamUI.curTier = (w>=171 and 6) or (w>=141 and 5) or (w>=101 and 4) or (w>=61 and 3) or (w>=31 and 2) or (w>=1 and 1) or 0
+    GaldamUI.renderWanted()
   end
 end
 
