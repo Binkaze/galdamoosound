@@ -19,16 +19,16 @@ end
 GaldamUI._handlers = {}
 
 local PANEL_W = 0.22
-local CSS_ON  = "background-color: rgba(34,84,116,245); border:2px solid #4fa3c7; border-radius:6px; color:#eaf6fb; font-size:15px; qproperty-alignment:'AlignCenter';"
-local CSS_OFF = "background-color: rgba(26,30,36,235); border:1px solid #353a42; border-radius:6px; color:#565e68; font-size:15px; qproperty-alignment:'AlignCenter';"
-local CSS_ACT = "background-color: rgba(38,70,48,245); border:2px solid #5fae6f; border-radius:6px; color:#eafbea; font-size:15px; qproperty-alignment:'AlignCenter';"
+local CSS_ON  = "background-color: rgba(34,84,116,245); border:2px solid #4fa3c7; border-radius:6px; color:#eaf6fb; font-size:26px; qproperty-alignment:'AlignCenter';"
+local CSS_OFF = "background-color: rgba(13,15,18,255); border:2px dashed #2b2f36; border-radius:6px; color:#454c55; font-size:26px; qproperty-alignment:'AlignCenter';"
+local CSS_ACT = "background-color: rgba(38,70,48,245); border:2px solid #5fae6f; border-radius:6px; color:#eafbea; font-size:26px; qproperty-alignment:'AlignCenter';"
 
 function GaldamUI.build()
   if GaldamUI.panel then GaldamUI.panel:hide() end
   GaldamUI.panel = Geyser.Container:new({name="GaldamPanel", x="-22%", y=0, width="22%", height="100%"})
 
   GaldamUI.info = Geyser.Label:new({name="GaldamInfo", x=0, y=0, width="100%", height=58}, GaldamUI.panel)
-  GaldamUI.info:setStyleSheet("background-color: rgba(15,25,35,235); border:1px solid #2a4a5a; border-radius:6px; color:#cfe8f0; font-size:15px; qproperty-alignment:'AlignCenter';")
+  GaldamUI.info:setStyleSheet("background-color: rgba(15,25,35,235); border:1px solid #2a4a5a; border-radius:6px; color:#cfe8f0; font-size:26px; qproperty-alignment:'AlignCenter';")
   GaldamUI.info:echo("<center>갯담마을</center>")
 
   local gy = 64
@@ -36,7 +36,7 @@ function GaldamUI.build()
     local g = Geyser.Gauge:new({name=name, x=0, y=gy, width="100%", height=28}, GaldamUI.panel)
     g.front:setStyleSheet("background-color:"..color.."; border-radius:5px;")
     g.back:setStyleSheet("background-color: rgba(40,40,40,200); border-radius:5px;")
-    g.text:setStyleSheet("color:#ffffff; font-size:13px; padding-left:6px;")
+    g.text:setStyleSheet("color:#ffffff; font-size:16px; padding-left:6px;")
     g:setValue(100,100,"<b>"..label.."</b>"); gy = gy + 30; return g
   end
   GaldamUI.hp     = gauge("GaldamHP",  "체력",     "#c0392b")
@@ -45,31 +45,37 @@ function GaldamUI.build()
   GaldamUI.stress = gauge("GaldamStr", "스트레스", "#f1c40f")
   GaldamUI.wanted = gauge("GaldamWan", "수배",     "#7d3c98")
 
-  -- 클릭 d-pad (못 가는 방향은 회색)
-  GaldamUI.dpad = Geyser.Container:new({name="GaldamDpad", x=0, y=226, width="100%", height=176}, GaldamUI.panel)
+  -- 클릭 d-pad (못 가는 방향은 어둡게+취소선)
+  GaldamUI.dpad = Geyser.Container:new({name="GaldamDpad", x=0, y=226, width="100%", height=200}, GaldamUI.panel)
   GaldamUI.dirBtns = {}
-  local function dbtn(nm, lbl, cmd, aliases, x, y, css)
-    local b = Geyser.Label:new({name=nm, x=x, y=y, width="32%", height=52}, GaldamUI.dpad)
-    b:setStyleSheet(css or CSS_OFF)
-    b:echo("<center><b>"..lbl.."</b></center>")
+  local function dbtn(nm, name, emoji, cmd, aliases, x, y)
+    local b = Geyser.Label:new({name=nm, x=x, y=y, width="32%", height=58}, GaldamUI.dpad)
     b:setClickCallback(function() send(cmd) end)
-    if aliases then table.insert(GaldamUI.dirBtns, {btn=b, aliases=aliases}) end
+    local onL  = "<center><b>"..emoji.." "..name.."</b></center>"
+    local offL = "<center><font color='#454c55'><s>"..name.."</s></font></center>"
+    b:setStyleSheet(CSS_OFF); b:echo(offL)
+    table.insert(GaldamUI.dirBtns, {btn=b, aliases=aliases, onL=onL, offL=offL})
     return b
   end
-  dbtn("dpUp",  "🔼 위",       "위",      {"위","up","u","상"},               "0%",  0)
-  dbtn("dpN",   "⬆️ 북",       "북",      {"북","north","n"},                 "34%", 0)
-  dbtn("dpIn",  "🚪 들어가기",  "들어가기", {"들어가기","in","enter","안","입구"}, "68%", 0)
-  dbtn("dpW",   "⬅️ 서",       "서",      {"서","west","w"},                  "0%",  62)
-  dbtn("dpLook","🔍 보기",      "look",    nil,                                "34%", 62, CSS_ACT)
-  dbtn("dpE",   "➡️ 동",       "동",      {"동","east","e"},                  "68%", 62)
-  dbtn("dpDn",  "🔽 아래",      "아래",    {"아래","down","d","하"},            "0%",  124)
-  dbtn("dpS",   "⬇️ 남",       "남",      {"남","south","s"},                 "34%", 124)
-  dbtn("dpOut", "🚪 나가기",    "나가기",  {"나가기","out","밖","출구","exit"},  "68%", 124)
+  dbtn("dpUp",  "위",      "🔼", "위",      {"위","up","u","상"},               "0%",  0)
+  dbtn("dpN",   "북",      "⬆️", "북",      {"북","north","n"},                 "34%", 0)
+  dbtn("dpIn",  "들어가기", "🚪", "들어가기", {"들어가기","in","enter","안","입구"}, "68%", 0)
+  dbtn("dpW",   "서",      "⬅️", "서",      {"서","west","w"},                  "0%",  66)
+  dbtn("dpE",   "동",      "➡️", "동",      {"동","east","e"},                  "68%", 66)
+  dbtn("dpDn",  "아래",    "🔽", "아래",    {"아래","down","d","하"},            "0%",  132)
+  dbtn("dpS",   "남",      "⬇️", "남",      {"남","south","s"},                 "34%", 132)
+  dbtn("dpOut", "나가기",  "🚪", "나가기",  {"나가기","out","밖","출구","exit"},  "68%", 132)
+  -- 보기 (중앙, 항상 활성)
+  do
+    local lk = Geyser.Label:new({name="dpLook", x="34%", y=66, width="32%", height=58}, GaldamUI.dpad)
+    lk:setStyleSheet(CSS_ACT); lk:echo("<center><b>🔍 보기</b></center>")
+    lk:setClickCallback(function() send("look") end)
+  end
 
   -- 액션 행 (항상 활성)
-  GaldamUI.act = Geyser.Container:new({name="GaldamAct", x=0, y=410, width="100%", height=50}, GaldamUI.panel)
+  GaldamUI.act = Geyser.Container:new({name="GaldamAct", x=0, y=434, width="100%", height=52}, GaldamUI.panel)
   local function abtn(nm, lbl, cmd, x, w)
-    local b = Geyser.Label:new({name=nm, x=x, y=0, width=w, height=46}, GaldamUI.act)
+    local b = Geyser.Label:new({name=nm, x=x, y=0, width=w, height=48}, GaldamUI.act)
     b:setStyleSheet(CSS_ACT)
     b:echo("<center><b>"..lbl.."</b></center>")
     b:setClickCallback(function() send(cmd) end)
@@ -79,9 +85,9 @@ function GaldamUI.build()
   -- 지도: 별도 플로팅 창
   pcall(function()
     if not GaldamUI.mapWin then
-      GaldamUI.mapWin = Geyser.UserWindow:new({name="갯담지도", width=460, height=380, x=20, y=360})
+      GaldamUI.mapWin = Geyser.UserWindow:new({name="갯담지도", width=520, height=430, x=900, y=620})
     end
-    GaldamUI.mapWin:setFontSize(12)
+    GaldamUI.mapWin:setFontSize(14)
     GaldamUI.mapWin:cecho("\n  <grey>지도 없음")
   end)
 
@@ -97,7 +103,8 @@ function GaldamUI.setExits(elist)
   for _, d in ipairs(GaldamUI.dirBtns) do
     local on = false
     for _, al in ipairs(d.aliases) do if avail[al] then on = true; break end end
-    d.btn:setStyleSheet(on and CSS_ON or CSS_OFF)
+    if on then d.btn:setStyleSheet(CSS_ON); d.btn:echo(d.onL)
+    else d.btn:setStyleSheet(CSS_OFF); d.btn:echo(d.offL) end
   end
 end
 
