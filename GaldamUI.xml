@@ -74,6 +74,7 @@ function GaldamUI.build()
     local b = Geyser.Label:new({name=nm, x=x, y=y, width="32%", height=58}, GaldamUI.dpad)
     b:setClickCallback(function() send(cmd) end)
     b:setStyleSheet(CSS_BTN); b:echo(imgTag(img, 42))
+    pcall(function() b:setToolTip("<b>"..name.."</b>") end)
     table.insert(GaldamUI.dirBtns, {btn=b, aliases=aliases, img=img, name=name})
     return b
   end
@@ -89,12 +90,14 @@ function GaldamUI.build()
   GaldamUI.lookBtn = Geyser.Label:new({name="dpLook", x="34%", y=66, width="32%", height=58}, GaldamUI.dpad)
   GaldamUI.lookBtn:setStyleSheet(CSS_ACT); GaldamUI.lookBtn:echo(imgTag("look.png", 42))
   GaldamUI.lookBtn:setClickCallback(function() send("look") end)
+  pcall(function() GaldamUI.lookBtn:setToolTip("<b>둘러보기</b><br>현재 방을 다시 살펴봅니다") end)
 
   -- 찾기 (항상 활성)
   GaldamUI.act = Geyser.Container:new({name="GaldamAct", x=0, y=424, width="100%", height=52}, GaldamUI.panel)
   GaldamUI.searchBtn = Geyser.Label:new({name="acSearch", x=0, y=0, width="100%", height=48}, GaldamUI.act)
   GaldamUI.searchBtn:setStyleSheet(CSS_ACT); GaldamUI.searchBtn:echo(imgTag("search.png", 40))
   GaldamUI.searchBtn:setClickCallback(function() send("search") end)
+  pcall(function() GaldamUI.searchBtn:setToolTip("<b>찾기 / 수색</b><br>주변에 숨겨진 것을 뒤져봅니다") end)
 
   -- 상태 아이콘 바 (찾기 아래) — 활성 상태/욕구경고만 떠오름, severity 색 테두리, 4열 그리드
   GaldamUI.statusBar = Geyser.Container:new({name="GaldamStatus", x=0, y=484, width="100%", height=232}, GaldamUI.panel)
@@ -139,9 +142,11 @@ function GaldamUI.setExits(elist)
     if on then
       d.btn:setStyleSheet(CSS_BTN)
       d.btn:echo(imgTag(d.img, 42))
+      pcall(function() d.btn:setToolTip("<b>"..d.name.."</b>") end)
     else
       d.btn:setStyleSheet(CSS_OFF)
       d.btn:echo("<center><font color='#9a7478'><s>"..d.name.."</s></font></center>")
+      pcall(function() d.btn:setToolTip("<b>"..d.name.."</b><br><font color='#cc6666'>막힌 길</font>") end)
     end
   end
 end
