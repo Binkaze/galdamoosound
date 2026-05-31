@@ -1,10 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE MudletPackage>
 <!--
-  갯담마을 Mudlet GUI v6
-  - 우측 HUD: 정보바 + 게이지5 + 클릭 d-pad(못가는 방향=회색) + 액션(찾기) — 출구바 삭제
-  - 지도: 플로팅 UserWindow "갯담지도"
-  GMCP: Galdam.Room{name,area,exits(별칭들)} / Char.Vitals / Galdam.Map
+  갯담마을 Mudlet GUI v7 (커스텀 이미지 버튼)
+  - 우측 HUD: 정보바 + 게이지4(체력/목마름/배고픔/스트레스) + 이미지 d-pad + 찾기
+  - 수배: 패널 밖 좌상단 독립 오버레이 (GTA식 별, 수배>0일 때만)
+  - 지도: 플로팅 UserWindow
+  - 버튼 아이콘: galdamoosound 레포 png 자동 다운로드(로컬) 후 배경 적용
 -->
 <MudletPackage version="1.001">
  <ScriptPackage>
@@ -19,24 +20,36 @@ end
 GaldamUI._handlers = {}
 
 local PANEL_W = 0.22
-local CSS_ON  = "background-color: rgba(34,84,116,245); border:2px solid #4fa3c7; border-radius:6px; color:#eaf6fb; font-size:26px; qproperty-alignment:'AlignCenter';"
-local CSS_OFF = "background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0.42 rgba(20,13,15,255), stop:0.46 #cc2b2b, stop:0.54 #cc2b2b, stop:0.58 rgba(20,13,15,255)); border:2px solid #7a2e2e; border-radius:6px; color:#9a7478; font-size:26px; qproperty-alignment:'AlignCenter';"
-local CSS_ACT = "background-color: rgba(38,70,48,245); border:2px solid #5fae6f; border-radius:6px; color:#eafbea; font-size:26px; qproperty-alignment:'AlignCenter';"
+-- 못 가는 방향: 빨간 대각선 금지 빗금
+local CSS_OFF = "background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0.42 rgba(20,13,15,255), stop:0.46 #cc2b2b, stop:0.54 #cc2b2b, stop:0.58 rgba(20,13,15,255)); border:2px solid #7a2e2e; border-radius:6px; color:#9a7478; font-size:22px; qproperty-alignment:'AlignCenter';"
+
+-- 커스텀 이미지
+GaldamUI.imgDir = getMudletHomeDir() .. "/galdamui"
+pcall(function() lfs.mkdir(GaldamUI.imgDir) end)
+local IMGBASE = "https://cdn.jsdelivr.net/gh/Binkaze/galdamoosound@main/"
+local IMGFILES = {"up-arrow.png","down arrow.png","left-arrow.png","right-arrow.png","up.png","down.png","in.png","out.png","look.png","search.png"}
+local function imgPath(f) return GaldamUI.imgDir .. "/" .. f end
+local function imgStyle(f, bg, border)
+  return "background-color:"..bg.."; background-image: url('"..imgPath(f).."'); background-repeat:no-repeat; background-position:center; border:2px solid "..border.."; border-radius:8px;"
+end
+function GaldamUI.downloadImages()
+  for _, f in ipairs(IMGFILES) do
+    local lp = imgPath(f)
+    if not (io.exists and io.exists(lp)) then
+      downloadFile(lp, IMGBASE .. (f:gsub(" ", "%%20")))
+    end
+  end
+end
 
 function GaldamUI.build()
   if GaldamUI.panel then GaldamUI.panel:hide() end
   GaldamUI.panel = Geyser.Container:new({name="GaldamPanel", x="-22%", y=0, width="22%", height="100%"})
 
-  -- 수배: GTA식 별 6개 — 최상단 별도 표시 (티어 기반)
-  GaldamUI.wanted = Geyser.Label:new({name="GaldamWan", x=0, y=0, width="100%", height=38}, GaldamUI.panel)
-  GaldamUI.wanted:setStyleSheet("background-color: rgba(22,14,28,245); border:1px solid #5a3a6a; border-radius:6px; qproperty-alignment:'AlignCenter';")
-  GaldamUI.wanted:echo("<center><span style='font-size:20pt;color:#555;'>☆☆☆☆☆☆</span></center>")
-
-  GaldamUI.info = Geyser.Label:new({name="GaldamInfo", x=0, y=44, width="100%", height=84}, GaldamUI.panel)
-  GaldamUI.info:setStyleSheet("background-color: rgba(15,25,35,235); border:1px solid #2a4a5a; border-radius:6px; color:#cfe8f0; font-size:26px; qproperty-alignment:'AlignCenter';")
+  GaldamUI.info = Geyser.Label:new({name="GaldamInfo", x=0, y=0, width="100%", height=84}, GaldamUI.panel)
+  GaldamUI.info:setStyleSheet("background-color: rgba(15,25,35,235); border:1px solid #2a4a5a; border-radius:6px; color:#cfe8f0; qproperty-alignment:'AlignCenter';")
   GaldamUI.info:echo("<center><span style='font-size:22pt;'><b>갯담마을</b></span></center>")
 
-  local gy = 132
+  local gy = 88
   local function gauge(name, label, color)
     local g = Geyser.Gauge:new({name=name, x=0, y=gy, width="100%", height=28}, GaldamUI.panel)
     g.front:setStyleSheet("background-color:"..color.."; border-radius:5px;")
@@ -49,44 +62,42 @@ function GaldamUI.build()
   GaldamUI.hunger = gauge("GaldamHun", "배고픔",   "#d68910")
   GaldamUI.stress = gauge("GaldamStr", "스트레스", "#f1c40f")
 
-  -- 클릭 d-pad (못 가는 방향은 어둡게+취소선)
-  GaldamUI.dpad = Geyser.Container:new({name="GaldamDpad", x=0, y=258, width="100%", height=200}, GaldamUI.panel)
+  -- 이미지 d-pad
+  GaldamUI.dpad = Geyser.Container:new({name="GaldamDpad", x=0, y=216, width="100%", height=200}, GaldamUI.panel)
   GaldamUI.dirBtns = {}
-  local function dbtn(nm, name, emoji, cmd, aliases, x, y)
+  local function dbtn(nm, name, img, cmd, aliases, x, y)
     local b = Geyser.Label:new({name=nm, x=x, y=y, width="32%", height=58}, GaldamUI.dpad)
     b:setClickCallback(function() send(cmd) end)
-    local onL  = "<center><b>"..emoji.." "..name.."</b></center>"
-    local offL = "<center><font color='#454c55'><s>"..name.."</s></font></center>"
-    b:setStyleSheet(CSS_OFF); b:echo(offL)
-    table.insert(GaldamUI.dirBtns, {btn=b, aliases=aliases, onL=onL, offL=offL})
+    table.insert(GaldamUI.dirBtns, {btn=b, aliases=aliases, img=img, name=name})
     return b
   end
-  dbtn("dpUp",  "위",      "🔼", "위",      {"위","up","u","상"},               "0%",  0)
-  dbtn("dpN",   "북",      "⬆️", "북",      {"북","north","n"},                 "34%", 0)
-  dbtn("dpIn",  "들어가기", "🚪", "들어가기", {"들어가기","in","enter","안","입구"}, "68%", 0)
-  dbtn("dpW",   "서",      "⬅️", "서",      {"서","west","w"},                  "0%",  66)
-  dbtn("dpE",   "동",      "➡️", "동",      {"동","east","e"},                  "68%", 66)
-  dbtn("dpDn",  "아래",    "🔽", "아래",    {"아래","down","d","하"},            "0%",  132)
-  dbtn("dpS",   "남",      "⬇️", "남",      {"남","south","s"},                 "34%", 132)
-  dbtn("dpOut", "나가기",  "🚪", "나가기",  {"나가기","out","밖","출구","exit"},  "68%", 132)
+  dbtn("dpUp",  "위",      "up.png",          "위",      {"위","up","u","상"},               "0%",  0)
+  dbtn("dpN",   "북",      "up-arrow.png",    "북",      {"북","north","n"},                 "34%", 0)
+  dbtn("dpIn",  "들어가기", "in.png",          "들어가기", {"들어가기","in","enter","안","입구"}, "68%", 0)
+  dbtn("dpW",   "서",      "left-arrow.png",  "서",      {"서","west","w"},                  "0%",  66)
+  dbtn("dpE",   "동",      "right-arrow.png", "동",      {"동","east","e"},                  "68%", 66)
+  dbtn("dpDn",  "아래",    "down.png",        "아래",    {"아래","down","d","하"},            "0%",  132)
+  dbtn("dpS",   "남",      "down arrow.png",  "남",      {"남","south","s"},                 "34%", 132)
+  dbtn("dpOut", "나가기",  "out.png",         "나가기",  {"나가기","out","밖","출구","exit"},  "68%", 132)
   -- 보기 (중앙, 항상 활성)
-  do
-    local lk = Geyser.Label:new({name="dpLook", x="34%", y=66, width="32%", height=58}, GaldamUI.dpad)
-    lk:setStyleSheet(CSS_ACT); lk:echo("<center><b>🔍 보기</b></center>")
-    lk:setClickCallback(function() send("look") end)
-  end
+  GaldamUI.lookBtn = Geyser.Label:new({name="dpLook", x="34%", y=66, width="32%", height=58}, GaldamUI.dpad)
+  GaldamUI.lookBtn:setStyleSheet(imgStyle("look.png", "rgba(38,70,48,220)", "#5fae6f"))
+  GaldamUI.lookBtn:setClickCallback(function() send("look") end)
 
-  -- 액션 행 (항상 활성)
-  GaldamUI.act = Geyser.Container:new({name="GaldamAct", x=0, y=466, width="100%", height=52}, GaldamUI.panel)
-  local function abtn(nm, lbl, cmd, x, w)
-    local b = Geyser.Label:new({name=nm, x=x, y=0, width=w, height=48}, GaldamUI.act)
-    b:setStyleSheet(CSS_ACT)
-    b:echo("<center><b>"..lbl.."</b></center>")
-    b:setClickCallback(function() send(cmd) end)
-  end
-  abtn("acSearch", "🔎 찾기 (수색)", "search", "0%", "100%")
+  -- 찾기 (항상 활성)
+  GaldamUI.act = Geyser.Container:new({name="GaldamAct", x=0, y=424, width="100%", height=52}, GaldamUI.panel)
+  GaldamUI.searchBtn = Geyser.Label:new({name="acSearch", x=0, y=0, width="100%", height=48}, GaldamUI.act)
+  GaldamUI.searchBtn:setStyleSheet(imgStyle("search.png", "rgba(38,70,48,220)", "#5fae6f"))
+  GaldamUI.searchBtn:setClickCallback(function() send("search") end)
 
-  -- 지도: 별도 플로팅 창
+  -- 수배: 패널 밖 좌상단 독립 오버레이 (GTA식) — 수배>0 일 때만
+  if GaldamUI.wanted then GaldamUI.wanted:hide() end
+  GaldamUI.wanted = Geyser.Label:new({name="GaldamWan", x="-43%", y=4, width="20%", height=46})
+  GaldamUI.wanted:setStyleSheet("background-color: rgba(22,14,28,235); border:1px solid #5a3a6a; border-radius:6px; qproperty-alignment:'AlignCenter';")
+  GaldamUI.wanted:echo("")
+  GaldamUI.wanted:hide()
+
+  -- 지도창
   pcall(function()
     if not GaldamUI.mapWin then
       GaldamUI.mapWin = Geyser.UserWindow:new({name="갯담지도", width=520, height=430, x=900, y=620})
@@ -107,9 +118,23 @@ function GaldamUI.setExits(elist)
   for _, d in ipairs(GaldamUI.dirBtns) do
     local on = false
     for _, al in ipairs(d.aliases) do if avail[al] then on = true; break end end
-    if on then d.btn:setStyleSheet(CSS_ON); d.btn:echo(d.onL)
-    else d.btn:setStyleSheet(CSS_OFF); d.btn:echo(d.offL) end
+    if on then
+      d.btn:setStyleSheet(imgStyle(d.img, "rgba(34,84,116,220)", "#4fa3c7"))
+      d.btn:echo("")
+    else
+      d.btn:setStyleSheet(CSS_OFF)
+      d.btn:echo("<center><font color='#8a6a6a'><s>"..d.name.."</s></font></center>")
+    end
   end
+end
+
+function GaldamUI.refresh()
+  if not GaldamUI.built then return end
+  pcall(function()
+    GaldamUI.lookBtn:setStyleSheet(imgStyle("look.png", "rgba(38,70,48,220)", "#5fae6f"))
+    GaldamUI.searchBtn:setStyleSheet(imgStyle("search.png", "rgba(38,70,48,220)", "#5fae6f"))
+  end)
+  GaldamUI.onRoom()
 end
 
 function GaldamUI.onRoom()
@@ -129,7 +154,12 @@ function GaldamUI.onVitals()
   if v.wanted then
     local w = tonumber(v.wanted) or 0
     local tier = (w>=171 and 6) or (w>=141 and 5) or (w>=101 and 4) or (w>=61 and 3) or (w>=31 and 2) or (w>=1 and 1) or 0
-    GaldamUI.wanted:echo("<center><span style='font-size:20pt;color:#f1c40f;'>"..string.rep("★",tier).."</span><span style='font-size:20pt;color:#444;'>"..string.rep("☆",6-tier).."</span></center>")
+    if tier > 0 then
+      GaldamUI.wanted:echo("<center><span style='font-size:18pt;color:#f1c40f;'>"..string.rep("★",tier).."</span><span style='font-size:18pt;color:#444;'>"..string.rep("☆",6-tier).."</span></center>")
+      GaldamUI.wanted:show()
+    else
+      GaldamUI.wanted:hide()
+    end
   end
 end
 
@@ -147,10 +177,12 @@ end
 
 if not GaldamUI.built then GaldamUI.build() end
 GaldamUI.layout()
+GaldamUI.downloadImages()
 table.insert(GaldamUI._handlers, registerAnonymousEventHandler("gmcp.Galdam.Room", function() GaldamUI.onRoom() end))
 table.insert(GaldamUI._handlers, registerAnonymousEventHandler("gmcp.Char.Vitals", function() GaldamUI.onVitals() end))
 table.insert(GaldamUI._handlers, registerAnonymousEventHandler("gmcp.Galdam.Map", function() GaldamUI.onMap() end))
 table.insert(GaldamUI._handlers, registerAnonymousEventHandler("sysWindowResizeEvent", function() GaldamUI.layout() end))
+table.insert(GaldamUI._handlers, registerAnonymousEventHandler("sysDownloadDone", function() GaldamUI.refresh() end))
 GaldamUI.onRoom(); GaldamUI.onVitals(); GaldamUI.onMap()
 ]]></script>
    <eventHandlerList></eventHandlerList>
