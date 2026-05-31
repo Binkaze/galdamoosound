@@ -20,14 +20,14 @@ GaldamUI._handlers = {}
 
 local PANEL_W = 0.22
 local CSS_ON  = "background-color: rgba(34,84,116,245); border:2px solid #4fa3c7; border-radius:6px; color:#eaf6fb; font-size:26px; qproperty-alignment:'AlignCenter';"
-local CSS_OFF = "background-color: rgba(13,15,18,255); border:2px dashed #2b2f36; border-radius:6px; color:#454c55; font-size:26px; qproperty-alignment:'AlignCenter';"
+local CSS_OFF = "background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0.42 rgba(20,13,15,255), stop:0.46 #cc2b2b, stop:0.54 #cc2b2b, stop:0.58 rgba(20,13,15,255)); border:2px solid #7a2e2e; border-radius:6px; color:#9a7478; font-size:26px; qproperty-alignment:'AlignCenter';"
 local CSS_ACT = "background-color: rgba(38,70,48,245); border:2px solid #5fae6f; border-radius:6px; color:#eafbea; font-size:26px; qproperty-alignment:'AlignCenter';"
 
 function GaldamUI.build()
   if GaldamUI.panel then GaldamUI.panel:hide() end
   GaldamUI.panel = Geyser.Container:new({name="GaldamPanel", x="-22%", y=0, width="22%", height="100%"})
 
-  GaldamUI.info = Geyser.Label:new({name="GaldamInfo", x=0, y=0, width="100%", height=76}, GaldamUI.panel)
+  GaldamUI.info = Geyser.Label:new({name="GaldamInfo", x=0, y=0, width="100%", height=84}, GaldamUI.panel)
   GaldamUI.info:setStyleSheet("background-color: rgba(15,25,35,235); border:1px solid #2a4a5a; border-radius:6px; color:#cfe8f0; font-size:26px; qproperty-alignment:'AlignCenter';")
   GaldamUI.info:echo("<center><span style='font-size:22pt;'><b>갯담마을</b></span></center>")
 
@@ -43,7 +43,11 @@ function GaldamUI.build()
   GaldamUI.thirst = gauge("GaldamThi", "목마름",   "#2471a3")
   GaldamUI.hunger = gauge("GaldamHun", "배고픔",   "#d68910")
   GaldamUI.stress = gauge("GaldamStr", "스트레스", "#f1c40f")
-  GaldamUI.wanted = gauge("GaldamWan", "수배",     "#7d3c98")
+  -- 수배: GTA식 별 6개 (티어 기반: 1~30/31~60/61~100/101~140/141~170/171~200)
+  GaldamUI.wanted = Geyser.Label:new({name="GaldamWan", x=0, y=gy, width="100%", height=28}, GaldamUI.panel)
+  GaldamUI.wanted:setStyleSheet("background-color: rgba(40,40,40,200); border-radius:5px; color:#cfe8f0; font-size:20px; padding-left:8px; qproperty-alignment:'AlignVCenter';")
+  GaldamUI.wanted:echo("수배 <span style='color:#555;'>☆☆☆☆☆☆</span>")
+  gy = gy + 30
 
   -- 클릭 d-pad (못 가는 방향은 어둡게+취소선)
   GaldamUI.dpad = Geyser.Container:new({name="GaldamDpad", x=0, y=250, width="100%", height=200}, GaldamUI.panel)
@@ -111,7 +115,7 @@ end
 function GaldamUI.onRoom()
   local r = gmcp.Galdam and gmcp.Galdam.Room
   if not (GaldamUI.built and r) then return end
-  GaldamUI.info:echo(string.format("<center><span style='font-size:22pt;'><b>%s</b></span><br><span style='font-size:13pt;color:#8fb8c8;'>%s</span></center>", r.name or "?", r.area or ""))
+  GaldamUI.info:echo(string.format("<center><span style='font-size:20pt;'><b>%s</b></span><br><span style='font-size:11pt;color:#8fb8c8;'>%s</span></center>", r.name or "?", r.area or ""))
   GaldamUI.setExits(r.exits or {})
 end
 
@@ -122,7 +126,11 @@ function GaldamUI.onVitals()
   if v.thirst then local t=tonumber(v.thirst) or 0; GaldamUI.thirst:setValue(math.min(t,500),500,string.format("<b>목마름 %d</b>",math.floor(t))) end
   if v.hunger then local h=tonumber(v.hunger) or 0; GaldamUI.hunger:setValue(math.min(h,500),500,string.format("<b>배고픔 %d</b>",math.floor(h))) end
   if v.stress then local s=tonumber(v.stress) or 0; GaldamUI.stress:setValue(math.min(s,500),500,string.format("<b>스트레스 %d</b>",math.floor(s))) end
-  if v.wanted then local w=tonumber(v.wanted) or 0; GaldamUI.wanted:setValue(math.min(w,200),200,string.format("<b>수배 %d</b>",math.floor(w))) end
+  if v.wanted then
+    local w = tonumber(v.wanted) or 0
+    local tier = (w>=171 and 6) or (w>=141 and 5) or (w>=101 and 4) or (w>=61 and 3) or (w>=31 and 2) or (w>=1 and 1) or 0
+    GaldamUI.wanted:echo("<span style='color:#cfe8f0;'>수배 </span><span style='color:#f1c40f;'>"..string.rep("★",tier).."</span><span style='color:#555555;'>"..string.rep("☆",6-tier).."</span>")
+  end
 end
 
 function GaldamUI.onMap()
