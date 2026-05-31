@@ -27,11 +27,16 @@ local CSS_OFF = "background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0.42 r
 GaldamUI.imgDir = getMudletHomeDir() .. "/galdamui"
 pcall(function() lfs.mkdir(GaldamUI.imgDir) end)
 local IMGBASE = "https://cdn.jsdelivr.net/gh/Binkaze/galdamoosound@main/"
-local IMGFILES = {"up-arrow.png","down arrow.png","left-arrow.png","right-arrow.png","up.png","down.png","in.png","out.png","look.png","search.png"}
+local IMGFILES = {"up-arrow.png","down arrow.png","left-arrow.png","right-arrow.png","up.png","down.png","in.png","out.png","look.png","search.png",
+  "status_cold.png","status_heat.png","status_wet.png","status_drunk.png","status_caffeine.png","status_smoke.png","status_nausea.png",
+  "status_bleeding.png","status_stunned.png","status_broken.png","status_hunger.png","status_thirst.png","status_fatigue.png","status_heavy.png"}
 local function imgPath(f) return GaldamUI.imgDir .. "/" .. f end
 local CSS_BTN = "background-color: rgba(34,84,116,205); border:2px solid #4fa3c7; border-radius:8px; qproperty-alignment:'AlignCenter';"
 local CSS_ACT = "background-color: rgba(38,70,48,215); border:2px solid #5fae6f; border-radius:8px; qproperty-alignment:'AlignCenter';"
 local function imgTag(f, sz) return "<center><img src='"..imgPath(f).."' width='"..sz.."' height='"..sz.."'></center>" end
+-- 상태 아이콘: 한글 이름(툴팁) + severity 색(경고/심함/위험)
+GaldamUI.STNAME = {cold="추위/저체온", heat="더위", wet="젖음", drunk="취함", caffeine="카페인", smoke="흡연", nausea="메스꺼움", bleeding="출혈", stunned="감전/기절", broken="골절", hunger="배고픔", thirst="목마름", fatigue="피로", heavy="과적재"}
+GaldamUI.STSEV = {[1]={b="#f1c40f", bg="rgba(60,52,12,210)"}, [2]={b="#e67e22", bg="rgba(72,42,12,215)"}, [3]={b="#e74c3c", bg="rgba(74,20,20,225)"}}
 function GaldamUI.downloadImages()
   for _, f in ipairs(IMGFILES) do
     local lp = imgPath(f)
@@ -91,6 +96,15 @@ function GaldamUI.build()
   GaldamUI.searchBtn:setStyleSheet(CSS_ACT); GaldamUI.searchBtn:echo(imgTag("search.png", 40))
   GaldamUI.searchBtn:setClickCallback(function() send("search") end)
 
+  -- 상태 아이콘 바 (찾기 아래) — 활성 상태/욕구경고만 떠오름, severity 색 테두리, 4열 그리드
+  GaldamUI.statusBar = Geyser.Container:new({name="GaldamStatus", x=0, y=484, width="100%", height=232}, GaldamUI.panel)
+  GaldamUI.statusSlots = {}
+  for i = 1, 14 do
+    local s = Geyser.Label:new({name="stSlot"..i, x="0%", y=0, width="23%", height=52}, GaldamUI.statusBar)
+    s:hide()
+    GaldamUI.statusSlots[i] = s
+  end
+
   -- 수배: 패널 밖 좌상단 독립 오버레이 (GTA식) — 수배>0 일 때만
   if GaldamUI.wanted then GaldamUI.wanted:hide() end
   GaldamUI.wanted = Geyser.Label:new({name="GaldamWan", x="-43%", y=4, width="20%", height=66})
@@ -139,6 +153,8 @@ function GaldamUI.refresh()
     GaldamUI.searchBtn:setStyleSheet(CSS_ACT); GaldamUI.searchBtn:echo(imgTag("search.png", 40))
   end)
   GaldamUI.onRoom()
+  GaldamUI.onVitals()
+  GaldamUI.onStatus()
 end
 
 function GaldamUI.onRoom()
@@ -214,6 +230,30 @@ function GaldamUI.onVitals()
   end
 end
 
+function GaldamUI.onStatus()
+  local d = gmcp.Galdam and gmcp.Galdam.Status
+  if not (GaldamUI.built and d and GaldamUI.statusSlots) then return end
+  local list = {}
+  for tok in tostring(d.icons or ""):gmatch("[^,]+") do
+    local k, sv = tok:match("(%a+):(%d+)")
+    if k then list[#list+1] = {k=k, sv=tonumber(sv) or 1} end
+  end
+  for i, slot in ipairs(GaldamUI.statusSlots) do
+    local it = list[i]
+    if it then
+      local sev = GaldamUI.STSEV[it.sv] or GaldamUI.STSEV[1]
+      local col, row = (i-1) % 4, math.floor((i-1) / 4)
+      pcall(function() slot:move((col*25).."%", row*56); slot:resize("23%", 52) end)
+      slot:setStyleSheet("background-color:"..sev.bg.."; border:2px solid "..sev.b.."; border-radius:8px; qproperty-alignment:'AlignCenter';")
+      slot:echo(imgTag("status_"..it.k..".png", 38))
+      pcall(function() slot:setToolTip(GaldamUI.STNAME[it.k] or it.k) end)
+      slot:show()
+    else
+      slot:hide()
+    end
+  end
+end
+
 function GaldamUI.onMap()
   local d = gmcp.Galdam and gmcp.Galdam.Map
   if not (GaldamUI.built and GaldamUI.mapWin and d) then return end
@@ -232,9 +272,10 @@ GaldamUI.downloadImages()
 table.insert(GaldamUI._handlers, registerAnonymousEventHandler("gmcp.Galdam.Room", function() GaldamUI.onRoom() end))
 table.insert(GaldamUI._handlers, registerAnonymousEventHandler("gmcp.Char.Vitals", function() GaldamUI.onVitals() end))
 table.insert(GaldamUI._handlers, registerAnonymousEventHandler("gmcp.Galdam.Map", function() GaldamUI.onMap() end))
+table.insert(GaldamUI._handlers, registerAnonymousEventHandler("gmcp.Galdam.Status", function() GaldamUI.onStatus() end))
 table.insert(GaldamUI._handlers, registerAnonymousEventHandler("sysWindowResizeEvent", function() GaldamUI.layout() end))
 table.insert(GaldamUI._handlers, registerAnonymousEventHandler("sysDownloadDone", function() GaldamUI.refresh() end))
-GaldamUI.onRoom(); GaldamUI.onVitals(); GaldamUI.onMap()
+GaldamUI.onRoom(); GaldamUI.onVitals(); GaldamUI.onMap(); GaldamUI.onStatus()
 ]]></script>
    <eventHandlerList></eventHandlerList>
   </Script>
