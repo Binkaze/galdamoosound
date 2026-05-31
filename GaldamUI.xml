@@ -1,0 +1,124 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE MudletPackage>
+<!--
+  갯담마을 Mudlet GUI v4 (서버 GMCP 주도)
+  - 상단 정보바: 장소 / 지역
+  - 게이지: 체력/목마름/배고픔/스트레스/수배 (실시간)
+  - 지도 콘솔: 갯담 지도 소지 시 medmap-style 실시간 (이동마다)
+  - 클릭 d-pad: 마우스로 이동 (북/남/동/서/위/아래/들어/나가) + 중앙=보기
+  - 하단 출구바
+  GMCP: Galdam.Room / Char.Vitals / Galdam.Map (grid: ESC=<<E>>, NL=<<N>>)
+-->
+<MudletPackage version="1.001">
+ <ScriptPackage>
+  <Script isActive="yes" isFolder="no">
+   <name>GaldamUI</name>
+   <packageName>GaldamUI</packageName>
+   <script><![CDATA[
+GaldamUI = GaldamUI or {}
+if GaldamUI._handlers then
+  for _, id in ipairs(GaldamUI._handlers) do pcall(killAnonymousEventHandler, id) end
+end
+GaldamUI._handlers = {}
+
+local PANEL_W = 0.26  -- 패널 폭 비율
+
+function GaldamUI.build()
+  if GaldamUI.panel then GaldamUI.panel:hide() end
+  GaldamUI.panel = Geyser.Container:new({name="GaldamPanel", x="-26%", y=0, width="26%", height="100%"})
+
+  GaldamUI.info = Geyser.Label:new({name="GaldamInfo", x=0, y=0, width="100%", height=52}, GaldamUI.panel)
+  GaldamUI.info:setStyleSheet("background-color: rgba(15,25,35,235); border:1px solid #2a4a5a; border-radius:6px; color:#cfe8f0; font-size:12px; qproperty-alignment:'AlignCenter';")
+  GaldamUI.info:echo("<center>갯담마을</center>")
+
+  local gy = 56
+  local function gauge(name, label, color)
+    local g = Geyser.Gauge:new({name=name, x=0, y=gy, width="100%", height=24}, GaldamUI.panel)
+    g.front:setStyleSheet("background-color:"..color.."; border-radius:5px;")
+    g.back:setStyleSheet("background-color: rgba(40,40,40,200); border-radius:5px;")
+    g.text:setStyleSheet("color:#ffffff; font-size:10px; padding-left:6px;")
+    g:setValue(100,100,"<b>"..label.."</b>"); gy = gy + 26; return g
+  end
+  GaldamUI.hp     = gauge("GaldamHP",  "체력",     "#c0392b")
+  GaldamUI.thirst = gauge("GaldamThi", "목마름",   "#2471a3")
+  GaldamUI.hunger = gauge("GaldamHun", "배고픔",   "#d68910")
+  GaldamUI.stress = gauge("GaldamStr", "스트레스", "#f1c40f")
+  GaldamUI.wanted = gauge("GaldamWan", "수배",     "#7d3c98")
+
+  -- 지도 콘솔 (게이지 아래, d-pad 위) — 실패해도 패널 안 깨지게 pcall
+  pcall(function()
+    GaldamUI.map = Geyser.MiniConsole:new({name="GaldamMap", x=2, y=190, width="98%", height="48%"}, GaldamUI.panel)
+    GaldamUI.map:setColor(8,14,20)
+    GaldamUI.map:setFontSize(11)
+    GaldamUI.map:echo("\n  지도 없음")
+  end)
+
+  -- 클릭 d-pad (마우스 이동) — 하단, 3x3
+  GaldamUI.dpad = Geyser.Container:new({name="GaldamDpad", x=0, y="-150", width="100%", height=118}, GaldamUI.panel)
+  local function dbtn(nm, lbl, cmd, x, y)
+    local b = Geyser.Label:new({name=nm, x=x, y=y, width="32%", height=36}, GaldamUI.dpad)
+    b:setStyleSheet("background-color: rgba(30,48,64,235); border:1px solid #3a5f72; border-radius:5px; color:#cfe8f0; font-size:12px; qproperty-alignment:'AlignCenter';")
+    b:echo("<center><b>"..lbl.."</b></center>")
+    b:setClickCallback(function() send(cmd) end)
+    return b
+  end
+  dbtn("dpUp",  "위",   "위",   "0%",  0)
+  dbtn("dpN",   "북",   "북",   "34%", 0)
+  dbtn("dpIn",  "들어", "들어가기", "68%", 0)
+  dbtn("dpW",   "서",   "서",   "0%",  40)
+  dbtn("dpLook","보기", "look", "34%", 40)
+  dbtn("dpE",   "동",   "동",   "68%", 40)
+  dbtn("dpDn",  "아래", "아래", "0%",  80)
+  dbtn("dpS",   "남",   "남",   "34%", 80)
+  dbtn("dpOut", "나가", "나가기", "68%", 80)
+
+  GaldamUI.exits = Geyser.Label:new({name="GaldamExits", x=0, y="-30", width="100%", height=28}, GaldamUI.panel)
+  GaldamUI.exits:setStyleSheet("background-color: rgba(15,25,35,235); border:1px solid #2a4a5a; border-radius:6px; color:#aef0c0; font-size:11px; qproperty-alignment:'AlignCenter';")
+  GaldamUI.exits:echo("<center>출구: -</center>")
+
+  GaldamUI.built = true
+end
+
+function GaldamUI.layout() setBorderRight(math.floor((getMainWindowSize()) * PANEL_W)) end
+
+function GaldamUI.onRoom()
+  local r = gmcp.Galdam and gmcp.Galdam.Room
+  if not (GaldamUI.built and r) then return end
+  GaldamUI.info:echo(string.format("<center><b>%s</b><br><font color='#8fb8c8'>%s</font></center>", r.name or "?", r.area or ""))
+  GaldamUI.exits:echo("<center>출구: " .. table.concat(r.exits or {}, " ") .. "</center>")
+end
+
+function GaldamUI.onVitals()
+  local v = gmcp.Char and gmcp.Char.Vitals
+  if not (GaldamUI.built and v) then return end
+  if v.hp then GaldamUI.hp:setValue(tonumber(v.hp) or 0, tonumber(v.hp_max) or 100, "<b>체력 "..tostring(v.hp).."/"..tostring(v.hp_max).."</b>") end
+  if v.thirst then local t=tonumber(v.thirst) or 0; GaldamUI.thirst:setValue(math.min(t,500),500,string.format("<b>목마름 %d</b>",math.floor(t))) end
+  if v.hunger then local h=tonumber(v.hunger) or 0; GaldamUI.hunger:setValue(math.min(h,500),500,string.format("<b>배고픔 %d</b>",math.floor(h))) end
+  if v.stress then local s=tonumber(v.stress) or 0; GaldamUI.stress:setValue(math.min(s,500),500,string.format("<b>스트레스 %d</b>",math.floor(s))) end
+  if v.wanted then local w=tonumber(v.wanted) or 0; GaldamUI.wanted:setValue(math.min(w,200),200,string.format("<b>수배 %d</b>",math.floor(w))) end
+end
+
+function GaldamUI.onMap()
+  local d = gmcp.Galdam and gmcp.Galdam.Map
+  if not (GaldamUI.built and GaldamUI.map and d) then return end
+  GaldamUI.map:clear()
+  if d.has == 1 and d.grid then
+    local raw = d.grid:gsub("<<E>>", "\27"):gsub("<<N>>", "\n")
+    GaldamUI.map:decho(ansi2decho(raw))
+  else
+    GaldamUI.map:cecho("\n  <grey>지도 없음\n  <grey>(갯담 지도 필요)")
+  end
+end
+
+if not GaldamUI.built then GaldamUI.build() end
+GaldamUI.layout()
+table.insert(GaldamUI._handlers, registerAnonymousEventHandler("gmcp.Galdam.Room", function() GaldamUI.onRoom() end))
+table.insert(GaldamUI._handlers, registerAnonymousEventHandler("gmcp.Char.Vitals", function() GaldamUI.onVitals() end))
+table.insert(GaldamUI._handlers, registerAnonymousEventHandler("gmcp.Galdam.Map", function() GaldamUI.onMap() end))
+table.insert(GaldamUI._handlers, registerAnonymousEventHandler("sysWindowResizeEvent", function() GaldamUI.layout() end))
+GaldamUI.onRoom(); GaldamUI.onVitals(); GaldamUI.onMap()
+]]></script>
+   <eventHandlerList></eventHandlerList>
+  </Script>
+ </ScriptPackage>
+</MudletPackage>
