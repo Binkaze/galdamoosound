@@ -29,9 +29,9 @@ pcall(function() lfs.mkdir(GaldamUI.imgDir) end)
 local IMGBASE = "https://cdn.jsdelivr.net/gh/Binkaze/galdamoosound@main/"
 local IMGFILES = {"up-arrow.png","down arrow.png","left-arrow.png","right-arrow.png","up.png","down.png","in.png","out.png","look.png","search.png"}
 local function imgPath(f) return GaldamUI.imgDir .. "/" .. f end
-local function imgStyle(f, bg, border)
-  return "background-color:"..bg.."; background-image: url('"..imgPath(f).."'); background-repeat:no-repeat; background-position:center; border:2px solid "..border.."; border-radius:8px;"
-end
+local CSS_BTN = "background-color: rgba(34,84,116,205); border:2px solid #4fa3c7; border-radius:8px; qproperty-alignment:'AlignCenter';"
+local CSS_ACT = "background-color: rgba(38,70,48,215); border:2px solid #5fae6f; border-radius:8px; qproperty-alignment:'AlignCenter';"
+local function imgTag(f, sz) return "<center><img src='"..imgPath(f).."' width='"..sz.."' height='"..sz.."'></center>" end
 function GaldamUI.downloadImages()
   for _, f in ipairs(IMGFILES) do
     local lp = imgPath(f)
@@ -68,6 +68,7 @@ function GaldamUI.build()
   local function dbtn(nm, name, img, cmd, aliases, x, y)
     local b = Geyser.Label:new({name=nm, x=x, y=y, width="32%", height=58}, GaldamUI.dpad)
     b:setClickCallback(function() send(cmd) end)
+    b:setStyleSheet(CSS_BTN); b:echo(imgTag(img, 42))
     table.insert(GaldamUI.dirBtns, {btn=b, aliases=aliases, img=img, name=name})
     return b
   end
@@ -81,13 +82,13 @@ function GaldamUI.build()
   dbtn("dpOut", "나가기",  "out.png",         "나가기",  {"나가기","out","밖","출구","exit"},  "68%", 132)
   -- 보기 (중앙, 항상 활성)
   GaldamUI.lookBtn = Geyser.Label:new({name="dpLook", x="34%", y=66, width="32%", height=58}, GaldamUI.dpad)
-  GaldamUI.lookBtn:setStyleSheet(imgStyle("look.png", "rgba(38,70,48,220)", "#5fae6f"))
+  GaldamUI.lookBtn:setStyleSheet(CSS_ACT); GaldamUI.lookBtn:echo(imgTag("look.png", 42))
   GaldamUI.lookBtn:setClickCallback(function() send("look") end)
 
   -- 찾기 (항상 활성)
   GaldamUI.act = Geyser.Container:new({name="GaldamAct", x=0, y=424, width="100%", height=52}, GaldamUI.panel)
   GaldamUI.searchBtn = Geyser.Label:new({name="acSearch", x=0, y=0, width="100%", height=48}, GaldamUI.act)
-  GaldamUI.searchBtn:setStyleSheet(imgStyle("search.png", "rgba(38,70,48,220)", "#5fae6f"))
+  GaldamUI.searchBtn:setStyleSheet(CSS_ACT); GaldamUI.searchBtn:echo(imgTag("search.png", 40))
   GaldamUI.searchBtn:setClickCallback(function() send("search") end)
 
   -- 수배: 패널 밖 좌상단 독립 오버레이 (GTA식) — 수배>0 일 때만
@@ -119,11 +120,11 @@ function GaldamUI.setExits(elist)
     local on = false
     for _, al in ipairs(d.aliases) do if avail[al] then on = true; break end end
     if on then
-      d.btn:setStyleSheet(imgStyle(d.img, "rgba(34,84,116,220)", "#4fa3c7"))
-      d.btn:echo("")
+      d.btn:setStyleSheet(CSS_BTN)
+      d.btn:echo(imgTag(d.img, 42))
     else
       d.btn:setStyleSheet(CSS_OFF)
-      d.btn:echo("<center><font color='#8a6a6a'><s>"..d.name.."</s></font></center>")
+      d.btn:echo("<center><font color='#9a7478'><s>"..d.name.."</s></font></center>")
     end
   end
 end
@@ -131,8 +132,8 @@ end
 function GaldamUI.refresh()
   if not GaldamUI.built then return end
   pcall(function()
-    GaldamUI.lookBtn:setStyleSheet(imgStyle("look.png", "rgba(38,70,48,220)", "#5fae6f"))
-    GaldamUI.searchBtn:setStyleSheet(imgStyle("search.png", "rgba(38,70,48,220)", "#5fae6f"))
+    GaldamUI.lookBtn:setStyleSheet(CSS_ACT); GaldamUI.lookBtn:echo(imgTag("look.png", 42))
+    GaldamUI.searchBtn:setStyleSheet(CSS_ACT); GaldamUI.searchBtn:echo(imgTag("search.png", 40))
   end)
   GaldamUI.onRoom()
 end
