@@ -544,34 +544,28 @@ echo("[Galdam] 자물쇠 따기 QTE v2 로드됨. `따기 <방향>` 시작, 창 
       <name>GaldamFishingQTE</name>
       <packageName></packageName>
       <script><![CDATA[
--- ===== Galdam 낚시 QTE v5 =====
+-- ===== Galdam 낚시 QTE v6 =====
 GaldamFish = GaldamFish or {}
 local GF = GaldamFish
 GF.W = 48
--- 입질 효과음: 파일/URL 지정하면 입질 시 재생됨 (예: GaldamFish.biteSound = "https://.../bite.wav")
-GF.biteSound = GF.biteSound or nil
+GF.biteSound = GF.biteSound or nil  -- 입질 효과음 파일/URL 지정 시 재생
 
 function GaldamFish_hit() GaldamFish.hit() end
 function GaldamFish_press() GaldamFish.press() end
 function GaldamFish_release() GaldamFish.release() end
+function GaldamFish_closecard() GaldamFish.closeCard() end
 
 function GF.makeWindow()
   if not GF.win then
     GF.win = Geyser.Label:new({name = "GaldamFishWin", x = "26%", y = "28%", width = "48%", height = "24%"})
-    GF.win:setStyleSheet([[
-      background-color: rgba(10,22,34,243);
-      border: 2px solid #3a8fb7;
-      border-radius: 10px;
-    ]])
+    GF.win:setStyleSheet("background-color: rgba(10,22,34,243); border: 2px solid #3a8fb7; border-radius: 10px;")
     GF.win:setFontSize(13)
     GF.win:hide()
   end
 end
 
 function GF.playBiteSound()
-  if GF.biteSound then
-    pcall(function() playSoundFile({name = "galdamBite", file = GF.biteSound}) end)
-  end
+  if GF.biteSound then pcall(function() playSoundFile({name = "galdamBite", file = GF.biteSound}) end) end
 end
 
 -- ========== 입질 연출 (2초 뜸 + 사운드) ==========
@@ -646,30 +640,21 @@ function GF.hit()
   if not GF.active or GF.mode ~= "hook" then return end
   GF.active = false
   if GF.timer then killTimer(GF.timer); GF.timer = nil end
-  if GF.previewMode then
-    GF.onFight({boxsize = 18, diff = 44})
-    return
-  end
+  if GF.previewMode then GF.onFight({boxsize = 22, diff = 26}); return end
   send("qtefish " .. tostring(math.floor((GF.pos or 0) + 0.5)))
 end
 
--- ========== 힘겨루기 (스타듀식 세로막대) ==========
+-- ========== 힘겨루기 (스타듀 세로막대) ==========
 function GF.onFight(d)
   d = d or (gmcp and gmcp.Galdam and gmcp.Galdam.Fish and (gmcp.Galdam.Fish.Fight or gmcp.Galdam.Fish.Reel))
   if not d then return end
   GF.makeWindow()
   GF.mode = "fight"
   GF.win:resize("17%", "54%"); GF.win:move("42%", "20%")
-  GF.barHeight = tonumber(d.boxsize) or 20
-  GF.diff = tonumber(d.diff) or 36
-  GF.fishPos = 50
-  GF.fishTarget = 50
-  GF.fishMoveTimer = 10
-  GF.barPos = 38
-  GF.barVel = 0
-  GF.catch = 22
-  GF.held = false
-  GF.active = true
+  GF.barHeight = tonumber(d.boxsize) or 22
+  GF.diff = tonumber(d.diff) or 24
+  GF.fishPos = 50; GF.fishTarget = 50; GF.fishMoveTimer = 10
+  GF.barPos = 38; GF.barVel = 0; GF.catch = 26; GF.held = false; GF.active = true
   GF.win:setClickCallback("GaldamFish_press")
   GF.win:setReleaseCallback("GaldamFish_release")
   if GF.timer then killTimer(GF.timer) end
@@ -682,27 +667,24 @@ function GF.release() GF.held = false end
 
 function GF.fightTick()
   if not GF.active or GF.mode ~= "fight" then return end
-  -- 물고기 도망 (불규칙, diff 클수록 자주·멀리)
   GF.fishMoveTimer = GF.fishMoveTimer - 1
   if GF.fishMoveTimer <= 0 then
     GF.fishTarget = math.random(3, 97)
     GF.fishMoveTimer = math.random(8, 30)
     if math.random(100) <= (GF.diff * 0.7) then GF.fishMoveTimer = math.random(3, 9) end
   end
-  local fs = 1.3 + GF.diff / 32
+  local fs = 1.1 + GF.diff / 36
   if GF.fishPos < GF.fishTarget then GF.fishPos = math.min(GF.fishTarget, GF.fishPos + fs)
   elseif GF.fishPos > GF.fishTarget then GF.fishPos = math.max(GF.fishTarget, GF.fishPos - fs) end
-  -- 초록박스 물리 (누름=위, 중력=아래, 관성)
   if GF.held then GF.barVel = GF.barVel + 0.52 else GF.barVel = GF.barVel - 0.44 end
   GF.barVel = GF.barVel * 0.90
   GF.barPos = GF.barPos + GF.barVel
   if GF.barPos < 0 then GF.barPos = 0; GF.barVel = GF.barVel * -0.25 end
   if GF.barPos + GF.barHeight > 100 then GF.barPos = 100 - GF.barHeight; GF.barVel = GF.barVel * -0.25 end
-  -- 잡기 게이지 (벗어나면 더 빨리 빠짐 = 난이도↑)
   if GF.fishPos >= GF.barPos and GF.fishPos <= (GF.barPos + GF.barHeight) then
-    GF.catch = math.min(100, GF.catch + 1.0)
+    GF.catch = math.min(100, GF.catch + 1.1)
   else
-    GF.catch = math.max(0, GF.catch - 1.2)
+    GF.catch = math.max(0, GF.catch - 1.0)
   end
   if GF.catch >= 100 then return GF.endFight("land") end
   if GF.catch <= 0 then return GF.endFight("escape") end
@@ -722,11 +704,7 @@ function GF.renderFight()
     local inbox = (r >= boxTop and r <= boxBot)
     local seg
     if r == fishR then
-      if inbox then
-        seg = "<span style=\"background-color:#1d6b1d\">&#128031;</span>"
-      else
-        seg = "&#128031;"
-      end
+      seg = inbox and "<span style=\"background-color:#1d6b1d\">&#128031;</span>" or "&#128031;"
     elseif inbox then
       seg = "<span style=\"color:#46d846\">&#9608;</span>"
     else
@@ -745,44 +723,107 @@ function GF.endFight(outcome)
   if GF.win then GF.win:hide() end
   if GF.previewMode then
     GF.previewMode = false
-    cecho("\n<cyan>[낚시 프리뷰] 종료 — 결과: " .. outcome .. "\n")
+    cecho("\n<cyan>[낚시 프리뷰] 결과: " .. outcome .. "\n")
+    if outcome == "land" then GF.onCaught({name = "망둥어", image = ""}) end
     return
   end
   send("qtefish_result " .. outcome)
 end
 
 function GF.onEnd()
-  GF.active = false
-  GF.mode = nil
-  GF.previewMode = false
+  GF.active = false; GF.mode = nil; GF.previewMode = false
   if GF.timer then killTimer(GF.timer); GF.timer = nil end
   if GF.win then GF.win:hide() end
 end
 
--- ========== 프리뷰 (서버 무관, 단독 시연) ==========
+-- ========== 포획 카드 (어종 이미지 / 5초 / 클릭 닫기) ==========
+function GF.makeCard()
+  if not GF.cardWin then
+    GF.cardWin = Geyser.Label:new({name = "GaldamFishCard", x = "34%", y = "20%", width = "32%", height = "52%"})
+    GF.cardWin:setStyleSheet("background-color: rgba(8,18,28,250); border: 3px solid #d8b15a; border-radius: 12px;")
+    GF.cardWin:setClickCallback("GaldamFish_closecard")
+    GF.cardWin:hide()
+  end
+end
+
+function GF.renderCard(imgOk)
+  local nm = GF.cardName or "물고기"
+  local body
+  if imgOk then
+    body = "<br><br><br><br><br><br><br><br><br><br>"
+  else
+    body = "<br><br><br><span style=\"font-size:64px\">&#128031;</span><br><br>"
+  end
+  GF.cardWin:echo("<center><span style=\"color:#ffe066;font-size:16px\"><b>&#127907; 낚았다!</b></span>" .. body ..
+    "<span style=\"color:#fff;font-size:20px\"><b>" .. nm .. "</b></span><br><br>" ..
+    "<span style=\"color:#8aa;font-size:11px\">창을 클릭하면 닫힘 (5초 후 자동)</span></center>")
+end
+
+function GF.onCaught(d)
+  d = d or (gmcp and gmcp.Galdam and gmcp.Galdam.Fish and gmcp.Galdam.Fish.Caught)
+  if not d then return end
+  GF.makeCard()
+  GF.cardName = d.name or "물고기"
+  GF.cardWin:setStyleSheet("background-color: rgba(8,18,28,250); border: 3px solid #d8b15a; border-radius: 12px;")
+  local img = d.image or ""
+  if img ~= "" then
+    local base = img:match("([^/]+)$") or "fish.png"
+    local fn = getMudletHomeDir() .. "/galdamfish_" .. base
+    if io.exists(fn) then
+      GF.cardWin:setStyleSheet("background-color: rgba(8,18,28,250); border: 3px solid #d8b15a; border-radius: 12px; background-image: url(" .. fn .. "); background-repeat: no-repeat; background-position: center;")
+      GF.renderCard(true)
+    else
+      GF.pendingImg = {url = img, file = fn}
+      pcall(function() downloadFile(fn, img) end)
+      GF.renderCard(false)
+    end
+  else
+    GF.renderCard(false)
+  end
+  GF.cardWin:show()
+  if GF.cardTimer then killTimer(GF.cardTimer) end
+  GF.cardTimer = tempTimer(5.0, function() GF.closeCard() end)
+end
+
+function GF.closeCard()
+  if GF.cardTimer then killTimer(GF.cardTimer); GF.cardTimer = nil end
+  if GF.cardWin then GF.cardWin:hide() end
+end
+
+function GF.onDownload(_, path)
+  if GF.pendingImg and path == GF.pendingImg.file then
+    if GF.cardWin and GF.cardWin.shown ~= false then
+      GF.cardWin:setStyleSheet("background-color: rgba(8,18,28,250); border: 3px solid #d8b15a; border-radius: 12px; background-image: url(" .. path .. "); background-repeat: no-repeat; background-position: center;")
+      GF.renderCard(true)
+    end
+    GF.pendingImg = nil
+  end
+end
+
+-- ========== 프리뷰 ==========
 function GF.preview()
   GF.previewMode = true
   GF.onBite()
-  tempTimer(2.0, function() if GF.previewMode then GF.onHook({zone_start = 40, zone_size = 18, speed = 52}) end end)
-  cecho("\n<cyan>[낚시 프리뷰] 입질 연출 → 챔질(창 클릭) → 힘겨루기 순으로 시연합니다.\n")
+  tempTimer(2.0, function() if GF.previewMode then GF.onHook({zone_start = 40, zone_size = 20, speed = 52}) end end)
+  cecho("\n<cyan>[낚시 프리뷰] 입질 연출 → 챔질(창 클릭) → 힘겨루기 → 포획카드 순으로 시연합니다.\n")
 end
 function GF.onPreview() GF.preview() end
 
-if GF.h1 then killAnonymousEventHandler(GF.h1) end
-if GF.h2 then killAnonymousEventHandler(GF.h2) end
-if GF.h3 then killAnonymousEventHandler(GF.h3) end
-if GF.h4 then killAnonymousEventHandler(GF.h4) end
-if GF.h5 then killAnonymousEventHandler(GF.h5) end
-if GF.h6 then killAnonymousEventHandler(GF.h6) end
+for _, h in ipairs({"h1","h2","h3","h4","h5","h6","h7"}) do
+  if GF[h] then killAnonymousEventHandler(GF[h]) end
+end
 GF.h1 = registerAnonymousEventHandler("gmcp.Galdam.Fish.Hook", "GaldamFish.onHook")
 GF.h2 = registerAnonymousEventHandler("gmcp.Galdam.Fish.Fight", "GaldamFish.onFight")
 GF.h3 = registerAnonymousEventHandler("gmcp.Galdam.Fish.End", "GaldamFish.onEnd")
 GF.h4 = registerAnonymousEventHandler("gmcp.Galdam.Fish.Reel", "GaldamFish.onFight")
 GF.h5 = registerAnonymousEventHandler("gmcp.Galdam.Fish.Bite", "GaldamFish.onBite")
 GF.h6 = registerAnonymousEventHandler("gmcp.Galdam.Fish.Preview", "GaldamFish.onPreview")
+GF.h7 = registerAnonymousEventHandler("gmcp.Galdam.Fish.Caught", "GaldamFish.onCaught")
+if GF.hdl then killAnonymousEventHandler(GF.hdl) end
+GF.hdl = registerAnonymousEventHandler("sysDownloadDone", "GaldamFish.onDownload")
 
 GF.makeWindow()
-echo("[Galdam] 낚시 QTE v5 로드됨. 입질 2초연출→챔질→스타듀 힘겨루기(🐟). 미리보기: 낚시프리뷰\n")
+echo("[Galdam] 낚시 QTE v6 로드됨. 입질연출→챔질→힘겨루기(🐟)→포획카드. 미리보기: 낚시프리뷰\n")
 ]]></script>
       <eventHandlerList></eventHandlerList>
     </Script>
