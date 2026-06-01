@@ -544,105 +544,155 @@ echo("[Galdam] 자물쇠 따기 QTE v2 로드됨. `따기 <방향>` 시작, 창 
       <name>GaldamFishingQTE</name>
       <packageName></packageName>
       <script><![CDATA[
--- ===== Galdam 낚시 QTE (챔질/릴, 클릭 입력) =====
+-- ===== Galdam 낚시 QTE v3 (챔질 클릭 + 힘겨루기 hold) =====
 GaldamFish = GaldamFish or {}
 local GF = GaldamFish
 GF.W = 48
 
-function GaldamFish_hit()  -- 전역 클릭 콜백
-  GaldamFish.hit()
-end
+function GaldamFish_hit() GaldamFish.hit() end          -- 챔질 클릭
+function GaldamFish_press() GaldamFish.press() end       -- 힘겨루기 누름
+function GaldamFish_release() GaldamFish.release() end    -- 힘겨루기 놓음
 
 function GF.makeWindow()
   if not GF.win then
-    GF.win = Geyser.Label:new({
-      name = "GaldamFishWin",
-      x = "27%", y = "30%", width = "46%", height = "30%",
-    })
+    GF.win = Geyser.Label:new({name = "GaldamFishWin", x = "26%", y = "28%", width = "48%", height = "34%"})
     GF.win:setStyleSheet([[
-      background-color: rgba(10,22,34,238);
+      background-color: rgba(10,22,34,240);
       border: 2px solid #3a8fb7;
       border-radius: 10px;
     ]])
     GF.win:setFontSize(13)
     GF.win:hide()
   end
-  GF.win:setClickCallback("GaldamFish_hit")  -- 재로드시에도 재적용
 end
 
-function GF.render()
+-- ========== 챔질 (클릭 타이밍) ==========
+function GF.renderHook()
   local cells = {}
   local needle = math.floor((GF.pos or 0) / 100 * GF.W + 0.5)
   local zs = math.floor((GF.zstart or 0) / 100 * GF.W + 0.5)
   local ze = math.floor(((GF.zstart or 0) + (GF.zsize or 0)) / 100 * GF.W + 0.5)
   local cz = math.floor(((GF.zstart or 0) + (GF.zsize or 0) / 2) / 100 * GF.W + 0.5)
-  local zc = (GF.phase == "reel") and "#e0563b" or "#46b446"
   for i = 0, GF.W do
-    if i == needle then
-      cells[#cells+1] = "<span style=\"color:#ffe066\"><b>|</b></span>"
-    elseif i == cz then
-      cells[#cells+1] = "<span style=\"color:#bfff00\">@</span>"
-    elseif i >= zs and i <= ze then
-      cells[#cells+1] = "<span style=\"color:" .. zc .. "\">#</span>"
-    else
-      cells[#cells+1] = "<span style=\"color:#33454f\">~</span>"
-    end
+    if i == needle then cells[#cells+1] = "<span style=\"color:#ffe066\"><b>|</b></span>"
+    elseif i == cz then cells[#cells+1] = "<span style=\"color:#bfff00\">@</span>"
+    elseif i >= zs and i <= ze then cells[#cells+1] = "<span style=\"color:#46b446\">#</span>"
+    else cells[#cells+1] = "<span style=\"color:#33454f\">~</span>" end
   end
-  local title, hint
-  if GF.phase == "reel" then
-    title = string.format("[ &#127907; 릴링!  %d / %d ]", GF.prog or 0, GF.target or 1)
-    hint = "텐션 구간(@중앙)에서 &#160;<b>클릭!</b>"
-  else
-    title = "[ &#127907; 챔질!  찌가 쑥 들어간다 ]"
-    hint = "찌가 초록(@중앙)일 때 재빨리 &#160;<b>클릭!</b>"
-  end
-  local html = string.format(
-    "<center><br><span style=\"color:#7fc8e8\">%s</span><br><br>%s<br><br><span style=\"color:#ffe066\">%s</span></center>",
-    title, table.concat(cells), hint)
-  GF.win:echo(html)
+  GF.win:echo(string.format(
+    "<center><br><span style=\"color:#7fc8e8\">[ &#127907; 챔질!  찌가 쑥 들어간다 ]</span><br><br>%s<br><br><span style=\"color:#ffe066\">찌가 초록(@중앙)일 때 재빨리 &#160;<b>창 클릭!</b></span></center>",
+    table.concat(cells)))
 end
 
-function GF.tick()
-  if not GF.active then return end
+function GF.tickHook()
+  if not GF.active or GF.mode ~= "hook" then return end
   GF.pos = GF.pos + GF.dir * GF.step
   if GF.pos >= 100 then GF.pos = 100; GF.dir = -1 end
   if GF.pos <= 0 then GF.pos = 0; GF.dir = 1 end
-  GF.render()
-  GF.timer = tempTimer(0.045, GF.tick)
-end
-
-function GF.startRound(d, phase)
-  if not d then return end
-  GF.makeWindow()
-  GF.phase = phase
-  GF.zstart = tonumber(d.zone_start) or 40
-  GF.zsize  = tonumber(d.zone_size) or 20
-  GF.prog   = tonumber(d.progress) or 0
-  GF.target = tonumber(d.target) or 1
-  GF.step   = math.max(1.8, (tonumber(d.speed) or 50) / 12)
-  GF.pos = 0; GF.dir = 1; GF.active = true
-  if GF.timer then killTimer(GF.timer) end
-  GF.win:show()
-  GF.tick()
+  GF.renderHook()
+  GF.timer = tempTimer(0.045, GF.tickHook)
 end
 
 function GF.onHook()
-  GF.startRound(gmcp.Galdam.Fish.Hook, "hook")
-end
-
-function GF.onReel()
-  GF.startRound(gmcp.Galdam.Fish.Reel, "reel")
+  local d = gmcp.Galdam.Fish.Hook
+  if not d then return end
+  GF.makeWindow()
+  GF.mode = "hook"
+  GF.zstart = tonumber(d.zone_start) or 40
+  GF.zsize = tonumber(d.zone_size) or 20
+  GF.step = math.max(1.8, (tonumber(d.speed) or 50) / 12)
+  GF.pos = 0; GF.dir = 1; GF.active = true
+  GF.win:setClickCallback("GaldamFish_hit")
+  GF.win:setReleaseCallback("")
+  if GF.timer then killTimer(GF.timer) end
+  GF.win:show()
+  GF.tickHook()
 end
 
 function GF.hit()
-  if not GF.active then return end
+  if not GF.active or GF.mode ~= "hook" then return end
   GF.active = false
   if GF.timer then killTimer(GF.timer); GF.timer = nil end
   send("qtefish " .. tostring(math.floor((GF.pos or 0) + 0.5)))
 end
 
+-- ========== 힘겨루기 (누르고있기 = 텐션 조절) ==========
+function GF.onFight()
+  local d = gmcp.Galdam.Fish.Fight
+  if not d then return end
+  GF.makeWindow()
+  GF.mode = "fight"
+  GF.strength = tonumber(d.strength) or 5
+  GF.target = tonumber(d.target) or 60
+  GF.tension = 42
+  GF.progress = 0
+  GF.held = false
+  GF.slack = 0
+  GF.active = true
+  GF.win:setClickCallback("GaldamFish_press")
+  GF.win:setReleaseCallback("GaldamFish_release")
+  if GF.timer then killTimer(GF.timer) end
+  GF.win:show()
+  GF.fightTick()
+end
+
+function GF.press() GF.held = true end
+function GF.release() GF.held = false end
+
+function GF.fightTick()
+  if not GF.active or GF.mode ~= "fight" then return end
+  if GF.held then GF.tension = GF.tension + 2.8 else GF.tension = GF.tension - 2.4 end
+  -- 물고기 발버둥: 확률적 텐션 급상승
+  if math.random(100) <= (6 + math.floor(GF.strength / 3)) then
+    GF.tension = GF.tension + (8 + math.random(14))
+  end
+  if GF.tension < 0 then GF.tension = 0 end
+  if GF.tension > 110 then GF.tension = 110 end
+  -- 안전구간(32~80)에서 진행, 너무 낮으면 슬랙 누적
+  if GF.tension >= 32 and GF.tension <= 80 then
+    GF.progress = GF.progress + 1; GF.slack = 0
+  elseif GF.tension < 12 then
+    GF.slack = GF.slack + 1
+  else
+    GF.slack = 0
+  end
+  if GF.tension >= 100 then return GF.endFight("snap") end
+  if GF.slack >= 22 then return GF.endFight("escape") end
+  if GF.progress >= GF.target then return GF.endFight("land") end
+  GF.renderFight()
+  GF.timer = tempTimer(0.08, GF.fightTick)
+end
+
+function GF.renderFight()
+  local cells = {}
+  local t = math.floor((GF.tension or 0) / 110 * GF.W + 0.5)
+  local sz1 = math.floor(32 / 110 * GF.W + 0.5)
+  local sz2 = math.floor(80 / 110 * GF.W + 0.5)
+  for i = 0, GF.W do
+    local ch = (i <= t) and "#" or "-"
+    local col
+    if i > sz2 then col = (i <= t) and "#e0563b" or "#4a2018"
+    elseif i >= sz1 then col = (i <= t) and "#46d846" or "#1f4a1f"
+    else col = (i <= t) and "#e0a020" or "#4a3810" end
+    cells[#cells+1] = "<span style=\"color:" .. col .. "\">" .. ch .. "</span>"
+  end
+  local pct = math.floor((GF.progress or 0) / (GF.target or 1) * 100)
+  GF.win:echo(string.format(
+    "<center><br><span style=\"color:#7fc8e8\">[ &#127907; 힘겨루기! ]</span><br><br>텐션 %s<br><br><span style=\"color:#bbbbbb\">끌어올림 &#160;%d%%</span><br><br><span style=\"color:#ffe066\">창을 <b>누르고 있으면</b> 텐션↑, <b>놓으면</b> 텐션↓<br><span style=\"color:#46d846\">초록</span> 구간 유지! &#160;<span style=\"color:#e0563b\">빨강=줄끊김</span> / <span style=\"color:#e0a020\">노랑바닥=놓침</span></span></center>",
+    table.concat(cells), pct))
+end
+
+function GF.endFight(outcome)
+  GF.active = false
+  if GF.timer then killTimer(GF.timer); GF.timer = nil end
+  if GF.win then GF.win:hide() end
+  send("qtefish_result " .. outcome)
+end
+
+-- ========== 종료 ==========
 function GF.onEnd()
   GF.active = false
+  GF.mode = nil
   if GF.timer then killTimer(GF.timer); GF.timer = nil end
   if GF.win then GF.win:hide() end
 end
@@ -650,12 +700,14 @@ end
 if GF.h1 then killAnonymousEventHandler(GF.h1) end
 if GF.h2 then killAnonymousEventHandler(GF.h2) end
 if GF.h3 then killAnonymousEventHandler(GF.h3) end
+if GF.h4 then killAnonymousEventHandler(GF.h4) end
 GF.h1 = registerAnonymousEventHandler("gmcp.Galdam.Fish.Hook", "GaldamFish.onHook")
-GF.h2 = registerAnonymousEventHandler("gmcp.Galdam.Fish.Reel", "GaldamFish.onReel")
+GF.h2 = registerAnonymousEventHandler("gmcp.Galdam.Fish.Fight", "GaldamFish.onFight")
 GF.h3 = registerAnonymousEventHandler("gmcp.Galdam.Fish.End", "GaldamFish.onEnd")
+GF.h4 = registerAnonymousEventHandler("gmcp.Galdam.Fish.Reel", "GaldamFish.onFight")
 
 GF.makeWindow()
-echo("[Galdam] 낚시 QTE 로드됨. 입질 시 창 클릭으로 챔질/릴.\n")
+echo("[Galdam] 낚시 QTE v3 로드됨. 챔질=클릭, 힘겨루기=누르고있기로 텐션 조절.\n")
 ]]></script>
       <eventHandlerList></eventHandlerList>
     </Script>
