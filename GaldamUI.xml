@@ -19,7 +19,7 @@ if GaldamUI._handlers then
   for _, id in ipairs(GaldamUI._handlers) do pcall(killAnonymousEventHandler, id) end
 end
 GaldamUI._handlers = {}
-GaldamUI.VERSION = "v28"   -- 업데이트 적용 확인용 (화면 우상단 표시)
+GaldamUI.VERSION = "v29"   -- 업데이트 적용 확인용 (화면 우상단 표시)
 
 local PANEL_W = 0.20      -- 우측 탭 패널 폭
 local BOTTOM_H = 120      -- 하단 HUD 바 높이
@@ -439,10 +439,35 @@ function GaldamUI.onObjMenu()
   end
 end
 
+-- 새 등장 항목 ✨반짝 펄스 (cycleStep 0.1초 루프에서 호출). 수배 별 깜빡임과 같은 결
+function GaldamUI.animateRoom()
+  if not (GaldamUI.liveRows and GaldamUI.blinkUntil) then return end
+  local tick = GaldamUI.tick or 0
+  for _, lr in ipairs(GaldamUI.liveRows) do
+    local bu = GaldamUI.blinkUntil[lr.id]
+    if bu then
+      if tick < bu then
+        if (math.floor(tick / 2) % 2) == 0 then
+          lr.lb:setStyleSheet("background-color: rgba(241,196,15,0.38); border:1px solid #f1c40f; border-radius:4px; qproperty-alignment:'AlignLeft';")
+          lr.lb:echo("<span style='color:#fff3b0;font-size:10pt;'>&nbsp;✨ " .. lr.name .. "</span>")
+        else
+          lr.lb:setStyleSheet("background-color: rgba(241,196,15,0.10); border:1px solid #6b5a12; border-radius:4px; qproperty-alignment:'AlignLeft';")
+          lr.lb:echo("<span style='color:" .. lr.col .. ";font-size:10pt;'>&nbsp;✨ " .. lr.name .. "</span>")
+        end
+      else
+        GaldamUI.blinkUntil[lr.id] = nil
+        lr.lb:setStyleSheet("background-color: rgba(255,255,255,0.045); border-radius:4px; qproperty-alignment:'AlignLeft';")
+        lr.lb:echo("<span style='color:" .. lr.col .. ";font-size:10pt;'>&nbsp;▸ " .. lr.name .. "</span>")
+      end
+    end
+  end
+end
+
 function GaldamUI.renderRoom()
   if not (GaldamUI.built and GaldamUI.roomBox) then return end
   pcall(function() GaldamUI.closeCtxMenu() end)
   GaldamUI.roomRows = GaldamUI.roomRows or {}
+  GaldamUI.liveRows = {}
   local r = gmcp.Galdam and gmcp.Galdam.Room
   local rowH, y, idx, full = 20, 2, 0, false
   local boxH = 200
@@ -457,6 +482,7 @@ function GaldamUI.renderRoom()
       lb:setOnEnter(function() GaldamUI.showCmdTip(html, cmds) end)
       lb:setOnLeave(function() GaldamUI.hideTip() end)
       lb:setClickCallback(function() GaldamUI.openCtxMenu(html, cmds, id) end)
+      if id and id ~= "" then GaldamUI.liveRows[#GaldamUI.liveRows + 1] = {lb = lb, id = id, name = html, col = col} end
     else
       lb:setStyleSheet("background-color: rgba(0,0,0,0);")
       lb:echo(html)
@@ -485,6 +511,19 @@ function GaldamUI.renderRoom()
     end
     if full then row("<span style='color:#6a7078;font-size:9pt;'>   …더 있음</span>") end
   end
+  -- 새로 등장한 항목 ✨반짝 (방 이동 시엔 전체가 바뀌므로 제외)
+  local cur = {}
+  for _, lr in ipairs(GaldamUI.liveRows) do cur[lr.id] = true end
+  GaldamUI.blinkUntil = GaldamUI.blinkUntil or {}
+  local rid = r and tostring(r.roomid) or nil
+  if rid and GaldamUI.prevRoomId == rid then
+    for id in pairs(cur) do
+      if not (GaldamUI.prevIds and GaldamUI.prevIds[id]) then GaldamUI.blinkUntil[id] = (GaldamUI.tick or 0) + 32 end
+    end
+  end
+  for id in pairs(GaldamUI.blinkUntil) do if not cur[id] then GaldamUI.blinkUntil[id] = nil end end
+  GaldamUI.prevIds = cur
+  GaldamUI.prevRoomId = rid
   for i = idx + 1, #GaldamUI.roomRows do pcall(function() GaldamUI.roomRows[i]:hide() end) end
 end
 
@@ -501,6 +540,7 @@ function GaldamUI.cycleStep(gen)
   GaldamUI.tick = (GaldamUI.tick or 0) + 1
   GaldamUI.cyclePhase = (GaldamUI.cyclePhase or 0) + 0.25
   GaldamUI.renderWanted()
+  pcall(function() GaldamUI.animateRoom() end)
   tempTimer(0.1, "GaldamUI.cycleStep("..gen..")")
 end
 
