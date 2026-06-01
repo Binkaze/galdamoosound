@@ -544,20 +544,20 @@ echo("[Galdam] 자물쇠 따기 QTE v2 로드됨. `따기 <방향>` 시작, 창 
       <name>GaldamFishingQTE</name>
       <packageName></packageName>
       <script><![CDATA[
--- ===== Galdam 낚시 QTE v3 (챔질 클릭 + 힘겨루기 hold) =====
+-- ===== Galdam 낚시 QTE v4 (챔질 클릭 + 스타듀식 힘겨루기) =====
 GaldamFish = GaldamFish or {}
 local GF = GaldamFish
 GF.W = 48
 
-function GaldamFish_hit() GaldamFish.hit() end          -- 챔질 클릭
-function GaldamFish_press() GaldamFish.press() end       -- 힘겨루기 누름
-function GaldamFish_release() GaldamFish.release() end    -- 힘겨루기 놓음
+function GaldamFish_hit() GaldamFish.hit() end
+function GaldamFish_press() GaldamFish.press() end
+function GaldamFish_release() GaldamFish.release() end
 
 function GF.makeWindow()
   if not GF.win then
-    GF.win = Geyser.Label:new({name = "GaldamFishWin", x = "26%", y = "28%", width = "48%", height = "34%"})
+    GF.win = Geyser.Label:new({name = "GaldamFishWin", x = "26%", y = "28%", width = "48%", height = "24%"})
     GF.win:setStyleSheet([[
-      background-color: rgba(10,22,34,240);
+      background-color: rgba(10,22,34,242);
       border: 2px solid #3a8fb7;
       border-radius: 10px;
     ]])
@@ -598,6 +598,7 @@ function GF.onHook()
   if not d then return end
   GF.makeWindow()
   GF.mode = "hook"
+  GF.win:resize("48%", "24%"); GF.win:move("26%", "28%")
   GF.zstart = tonumber(d.zone_start) or 40
   GF.zsize = tonumber(d.zone_size) or 20
   GF.step = math.max(1.8, (tonumber(d.speed) or 50) / 12)
@@ -616,18 +617,22 @@ function GF.hit()
   send("qtefish " .. tostring(math.floor((GF.pos or 0) + 0.5)))
 end
 
--- ========== 힘겨루기 (누르고있기 = 텐션 조절) ==========
+-- ========== 힘겨루기 (스타듀식 세로막대) ==========
 function GF.onFight()
-  local d = gmcp.Galdam.Fish.Fight
+  local d = gmcp.Galdam.Fish.Fight or gmcp.Galdam.Fish.Reel
   if not d then return end
   GF.makeWindow()
   GF.mode = "fight"
-  GF.strength = tonumber(d.strength) or 5
-  GF.target = tonumber(d.target) or 60
-  GF.tension = 42
-  GF.progress = 0
+  GF.win:resize("17%", "54%"); GF.win:move("42%", "20%")
+  GF.barHeight = tonumber(d.boxsize) or 24
+  GF.diff = tonumber(d.diff) or 30
+  GF.fishPos = 50
+  GF.fishTarget = 50
+  GF.fishMoveTimer = 12
+  GF.barPos = 38
+  GF.barVel = 0
+  GF.catch = 28
   GF.held = false
-  GF.slack = 0
   GF.active = true
   GF.win:setClickCallback("GaldamFish_press")
   GF.win:setReleaseCallback("GaldamFish_release")
@@ -641,45 +646,57 @@ function GF.release() GF.held = false end
 
 function GF.fightTick()
   if not GF.active or GF.mode ~= "fight" then return end
-  if GF.held then GF.tension = GF.tension + 2.8 else GF.tension = GF.tension - 2.4 end
-  -- 물고기 발버둥: 확률적 텐션 급상승
-  if math.random(100) <= (6 + math.floor(GF.strength / 3)) then
-    GF.tension = GF.tension + (8 + math.random(14))
+  -- 물고기 도망 (불규칙)
+  GF.fishMoveTimer = GF.fishMoveTimer - 1
+  if GF.fishMoveTimer <= 0 then
+    GF.fishTarget = math.random(4, 96)
+    GF.fishMoveTimer = math.random(10, 34)
+    if math.random(100) <= (GF.diff * 0.6) then GF.fishMoveTimer = math.random(4, 10) end
   end
-  if GF.tension < 0 then GF.tension = 0 end
-  if GF.tension > 110 then GF.tension = 110 end
-  -- 안전구간(32~80)에서 진행, 너무 낮으면 슬랙 누적
-  if GF.tension >= 32 and GF.tension <= 80 then
-    GF.progress = GF.progress + 1; GF.slack = 0
-  elseif GF.tension < 12 then
-    GF.slack = GF.slack + 1
+  local fs = 1.1 + GF.diff / 38
+  if GF.fishPos < GF.fishTarget then GF.fishPos = math.min(GF.fishTarget, GF.fishPos + fs)
+  elseif GF.fishPos > GF.fishTarget then GF.fishPos = math.max(GF.fishTarget, GF.fishPos - fs) end
+  -- 초록박스 물리 (누름=위, 중력=아래, 관성)
+  if GF.held then GF.barVel = GF.barVel + 0.50 else GF.barVel = GF.barVel - 0.42 end
+  GF.barVel = GF.barVel * 0.90
+  GF.barPos = GF.barPos + GF.barVel
+  if GF.barPos < 0 then GF.barPos = 0; GF.barVel = GF.barVel * -0.25 end
+  if GF.barPos + GF.barHeight > 100 then GF.barPos = 100 - GF.barHeight; GF.barVel = GF.barVel * -0.25 end
+  -- 잡기 게이지
+  if GF.fishPos >= GF.barPos and GF.fishPos <= (GF.barPos + GF.barHeight) then
+    GF.catch = math.min(100, GF.catch + 1.15)
   else
-    GF.slack = 0
+    GF.catch = math.max(0, GF.catch - 0.85)
   end
-  if GF.tension >= 100 then return GF.endFight("snap") end
-  if GF.slack >= 22 then return GF.endFight("escape") end
-  if GF.progress >= GF.target then return GF.endFight("land") end
+  if GF.catch >= 100 then return GF.endFight("land") end
+  if GF.catch <= 0 then return GF.endFight("escape") end
   GF.renderFight()
-  GF.timer = tempTimer(0.08, GF.fightTick)
+  GF.timer = tempTimer(0.06, GF.fightTick)
 end
 
 function GF.renderFight()
-  local cells = {}
-  local t = math.floor((GF.tension or 0) / 110 * GF.W + 0.5)
-  local sz1 = math.floor(32 / 110 * GF.W + 0.5)
-  local sz2 = math.floor(80 / 110 * GF.W + 0.5)
-  for i = 0, GF.W do
-    local ch = (i <= t) and "#" or "-"
-    local col
-    if i > sz2 then col = (i <= t) and "#e0563b" or "#4a2018"
-    elseif i >= sz1 then col = (i <= t) and "#46d846" or "#1f4a1f"
-    else col = (i <= t) and "#e0a020" or "#4a3810" end
-    cells[#cells+1] = "<span style=\"color:" .. col .. "\">" .. ch .. "</span>"
+  local R = 17
+  local lines = {}
+  local fishR = R - 1 - math.floor((GF.fishPos) / 100 * (R - 1) + 0.5)
+  local boxBot = R - 1 - math.floor((GF.barPos) / 100 * (R - 1) + 0.5)
+  local boxTop = R - 1 - math.floor((GF.barPos + GF.barHeight) / 100 * (R - 1) + 0.5)
+  local catchFill = math.floor((GF.catch) / 100 * R + 0.5)
+  for r = 0, R - 1 do
+    local cm = ((R - r) <= catchFill) and "<span style=\"color:#46d846\">&#9608;</span>" or "<span style=\"color:#222222\">&#9608;</span>"
+    local inbox = (r >= boxTop and r <= boxBot)
+    local seg
+    if r == fishR then
+      seg = inbox and "<span style=\"color:#bfff00\"><b>&#9673;</b></span>" or "<span style=\"color:#ff5030\"><b>&#9679;</b></span>"
+    elseif inbox then
+      seg = "<span style=\"color:#46d846\">&#9608;</span>"
+    else
+      seg = "<span style=\"color:#2a3a44\">&#9474;</span>"
+    end
+    lines[#lines+1] = cm .. "&#160;&#160;" .. seg
   end
-  local pct = math.floor((GF.progress or 0) / (GF.target or 1) * 100)
-  GF.win:echo(string.format(
-    "<center><br><span style=\"color:#7fc8e8\">[ &#127907; 힘겨루기! ]</span><br><br>텐션 %s<br><br><span style=\"color:#bbbbbb\">끌어올림 &#160;%d%%</span><br><br><span style=\"color:#ffe066\">창을 <b>누르고 있으면</b> 텐션↑, <b>놓으면</b> 텐션↓<br><span style=\"color:#46d846\">초록</span> 구간 유지! &#160;<span style=\"color:#e0563b\">빨강=줄끊김</span> / <span style=\"color:#e0a020\">노랑바닥=놓침</span></span></center>",
-    table.concat(cells), pct))
+  GF.win:echo("<center><span style=\"color:#7fc8e8\">&#127907; " .. math.floor(GF.catch) .. "%</span><br>" ..
+    table.concat(lines, "<br>") ..
+    "<br><span style=\"color:#ffe066\">누름&#8593; 놓음&#8595;<br><span style=\"color:#46d846\">&#9608;</span>에 <span style=\"color:#ff5030\">&#9679;</span> 가두기</span></center>")
 end
 
 function GF.endFight(outcome)
@@ -689,7 +706,6 @@ function GF.endFight(outcome)
   send("qtefish_result " .. outcome)
 end
 
--- ========== 종료 ==========
 function GF.onEnd()
   GF.active = false
   GF.mode = nil
@@ -707,7 +723,7 @@ GF.h3 = registerAnonymousEventHandler("gmcp.Galdam.Fish.End", "GaldamFish.onEnd"
 GF.h4 = registerAnonymousEventHandler("gmcp.Galdam.Fish.Reel", "GaldamFish.onFight")
 
 GF.makeWindow()
-echo("[Galdam] 낚시 QTE v3 로드됨. 챔질=클릭, 힘겨루기=누르고있기로 텐션 조절.\n")
+echo("[Galdam] 낚시 QTE v4 로드됨. 챔질=클릭, 힘겨루기=스타듀식 세로막대(누르면↑ 놓으면↓).\n")
 ]]></script>
       <eventHandlerList></eventHandlerList>
     </Script>
