@@ -124,11 +124,9 @@ function GaldamUI.build()
   GaldamUI.locHeader = Geyser.Label:new({name="GaldamLoc", x=0, y=0, width="100%", height=40}, GaldamUI.rpanel)
   GaldamUI.locHeader:setStyleSheet("background-color: rgba(15,25,35,235); border:1px solid #2a4a5a; border-radius:6px; color:#cfe8f0; qproperty-alignment:'AlignCenter';")
   GaldamUI.locHeader:echo("<center><span style='font-size:15pt;'><b>갯담마을</b></span></center>")
-  -- 실시간 방 패널 (사람/물건/출구 — 클릭 시 상호작용 메뉴). 위치는 relayout 에서 확정
-  GaldamUI.roomPanel = Geyser.MiniConsole:new({name="GaldamRoomPanel", x=0, y=44, width="100%", height=200}, GaldamUI.rpanel)
-  GaldamUI.roomPanel:setColor(12, 16, 22)
-  pcall(function() GaldamUI.roomPanel:setFontSize(11) end)
-  GaldamUI.roomPanel:setWrap(30)
+  -- 실시간 방 패널 (사람/물건 — hover=명령전체, 클릭=드롭다운 메뉴). 라벨 호스트. 위치는 relayout
+  GaldamUI.roomBox = Geyser.Container:new({name="GaldamRoomBox", x=0, y=44, width="100%", height=200}, GaldamUI.rpanel)
+  GaldamUI.roomRows = GaldamUI.roomRows or {}
   -- 탭 버튼 행
   GaldamUI.tabBtns = {}
   local n = #GaldamUI.TABS
@@ -221,7 +219,7 @@ function GaldamUI.relayout()
     local contentH = avail - roomH           -- 하단: 탭 콘텐츠
     GaldamUI.locHeader:move(0, 0); GaldamUI.locHeader:resize(rw, headH)
     local roomY = headH + gap
-    GaldamUI.roomPanel:move(0, roomY); GaldamUI.roomPanel:resize(rw, roomH)
+    GaldamUI.roomBox:move(0, roomY); GaldamUI.roomBox:resize(rw, roomH)
     local tabY = roomY + roomH + gap
     local n = #GaldamUI.TABS
     local bw = math.floor(rw / n)
@@ -231,6 +229,7 @@ function GaldamUI.relayout()
     end
     GaldamUI.content:move(0, tabY + tabH + gap); GaldamUI.content:resize(rw, contentH)
   end)
+  GaldamUI.renderRoom()
 end
 
 function GaldamUI.setExits(elist)
@@ -326,47 +325,127 @@ function GaldamUI.renderEvents()
 end
 
 -- ===== GMCP 핸들러 =====
--- 방 패널: 항목 1개(이름|라벨=명령^라벨=명령) → 클릭 시 액션 메뉴(echoPopup)
-function GaldamUI.renderEntity(entry, col)
-  local nm = entry:match("([^|]*)") or entry
-  local actstr = entry:match("|(.*)") or ""
-  local cmds, hints = {}, {}
-  for a in actstr:gmatch("[^%^]+") do
-    local lbl, cmd = a:match("([^=]*)=(.*)")
-    -- echoPopup 명령은 Lua 코드 → send([[..]])로 감싸 MUD에 전송 (좌클릭=첫 명령, 우클릭=메뉴)
-    if lbl and cmd then hints[#hints + 1] = lbl; cmds[#cmds + 1] = "send([[" .. cmd .. "]])" end
+-- 방 패널: 항목 = "이름|라벨=명령=kind^..."  (kind: go=클릭실행 / arg=추가입력 회색)
+function GaldamUI.parseEntity(entry)
+  local name = entry:match("([^|]*)") or entry
+  local rest = entry:match("|(.*)") or ""
+  local cmds = {}
+  for c in rest:gmatch("[^%^]+") do
+    local lbl, cmd, kind = c:match("([^=]*)=([^=]*)=([^=]*)")
+    if lbl then cmds[#cmds + 1] = {label = lbl, cmd = cmd, kind = kind} end
   end
-  setFgColor("GaldamRoomPanel", col[1], col[2], col[3])
-  GaldamUI.roomPanel:echo("  ▸ ")
-  if #cmds > 0 then
-    echoPopup("GaldamRoomPanel", (nm ~= "" and nm or "?"), cmds, hints, true)
-  else
-    GaldamUI.roomPanel:echo(nm ~= "" and nm or "?")
+  return (name ~= "" and name or "?"), cmds
+end
+
+function GaldamUI.getRow(i)
+  GaldamUI.roomRows = GaldamUI.roomRows or {}
+  if not GaldamUI.roomRows[i] then
+    GaldamUI.roomRows[i] = Geyser.Label:new({name = "grRow" .. i, x = 2, y = 0, width = "97%", height = 20}, GaldamUI.roomBox)
   end
-  resetFormat("GaldamRoomPanel")
-  GaldamUI.roomPanel:echo("\n")
+  return GaldamUI.roomRows[i]
+end
+
+-- hover: 항목의 모든 명령 표시 (go=밝게 / arg=회색 '추가입력')
+function GaldamUI.showCmdTip(name, cmds)
+  if not GaldamUI.tip then return end
+  local lines = {"<b style='color:#ffffff;'>" .. name .. "</b>"}
+  for _, c in ipairs(cmds) do
+    if c.kind == "arg" then
+      lines[#lines + 1] = "<span style='color:#6f7780;'>○ " .. c.label .. " <i>(추가입력)</i></span>"
+    else
+      lines[#lines + 1] = "<span style='color:#bfe3c0;'>● " .. c.label .. "</span>"
+    end
+  end
+  local x, y = 0, 0
+  if not pcall(function() x, y = getMousePosition() end) then return end
+  local wpx, hpx = 170, 10 + #lines * 17
+  pcall(function() GaldamUI.tip:resize(wpx, hpx); GaldamUI.tip:move(math.max(0, x - wpx - 6), y + 12) end)
+  GaldamUI.tip:echo("<div style='margin:5px;line-height:16px;'>" .. table.concat(lines, "<br>") .. "</div>")
+  GaldamUI.tip:show()
+  pcall(function() raiseWindow("GaldamTip") end)
+end
+
+function GaldamUI.closeCtxMenu()
+  if GaldamUI.ctxMenu then pcall(function() GaldamUI.ctxMenu:hide() end) end
+end
+
+-- click: 드롭다운 메뉴 (go=클릭 즉시 실행 / arg=명령창에 채워주기)
+function GaldamUI.openCtxMenu(name, cmds)
+  GaldamUI.closeCtxMenu()
+  GaldamUI.ctxItems = GaldamUI.ctxItems or {}
+  local w, ih = 178, 22
+  local h = #cmds * ih + 6
+  if not GaldamUI.ctxMenu then
+    GaldamUI.ctxMenu = Geyser.Label:new({name = "GaldamCtxMenu", x = 0, y = 0, width = w, height = h})
+    GaldamUI.ctxMenu:setStyleSheet("background-color: rgba(14,20,28,252); border:1px solid #4fa3c7; border-radius:6px;")
+  end
+  local x, y = 0, 0
+  pcall(function() x, y = getMousePosition() end)
+  local sw, sh = getMainWindowSize()
+  if x + w > sw then x = sw - w - 6 end
+  if y + h > sh then y = sh - h - 6 end
+  pcall(function() GaldamUI.ctxMenu:resize(w, h); GaldamUI.ctxMenu:move(x, y); GaldamUI.ctxMenu:show(); raiseWindow("GaldamCtxMenu") end)
+  for i, c in ipairs(cmds) do
+    local it = GaldamUI.ctxItems[i]
+    if not it then it = Geyser.Label:new({name = "ctxItem" .. i, x = 0, y = 0, width = 10, height = 10}, GaldamUI.ctxMenu); GaldamUI.ctxItems[i] = it end
+    local gray = (c.kind == "arg")
+    local color = gray and "#7a838c" or "#e3eef4"
+    local suffix = gray and " <i style='color:#5a6068;'>…</i>" or ""
+    it:setStyleSheet("background-color: rgba(0,0,0,0); qproperty-alignment:'AlignLeft';")
+    it:echo("<span style='color:" .. color .. ";font-size:10pt;'>&nbsp;&nbsp;" .. c.label .. suffix .. "</span>")
+    it:setClickCallback(function()
+      GaldamUI.closeCtxMenu()
+      if gray then printCmdLine(c.cmd) else send(c.cmd) end
+    end)
+    it:setOnEnter(function() it:setStyleSheet("background-color: rgba(70,130,170,0.45); border-radius:3px; qproperty-alignment:'AlignLeft';") end)
+    it:setOnLeave(function() it:setStyleSheet("background-color: rgba(0,0,0,0); qproperty-alignment:'AlignLeft';") end)
+    it:move(3, 3 + (i - 1) * ih); it:resize(w - 6, ih); it:show()
+  end
+  for i = #cmds + 1, #GaldamUI.ctxItems do pcall(function() GaldamUI.ctxItems[i]:hide() end) end
+  pcall(function()
+    GaldamUI.ctxMenu:setOnLeave(function() if GaldamUI.ctxTimer then killTimer(GaldamUI.ctxTimer) end; GaldamUI.ctxTimer = tempTimer(0.6, function() GaldamUI.closeCtxMenu() end) end)
+    GaldamUI.ctxMenu:setOnEnter(function() if GaldamUI.ctxTimer then killTimer(GaldamUI.ctxTimer); GaldamUI.ctxTimer = nil end end)
+  end)
 end
 
 function GaldamUI.renderRoom()
-  if not (GaldamUI.built and GaldamUI.roomPanel) then return end
-  local rp = GaldamUI.roomPanel
-  rp:clear()
+  if not (GaldamUI.built and GaldamUI.roomBox) then return end
+  GaldamUI.roomRows = GaldamUI.roomRows or {}
   local r = gmcp.Galdam and gmcp.Galdam.Room
-  if not r then rp:cecho("\n  <grey>(방 정보 없음)\n"); return end
-  rp:cecho("\n  <yellow>● 사람\n")
-  local hp = false
-  for entry in tostring(r.people or ""):gmatch("[^;]+") do GaldamUI.renderEntity(entry, {130, 200, 255}); hp = true end
-  if not hp then rp:cecho("     <grey>(없음)\n") end
-  rp:cecho("\n  <yellow>● 물건\n")
-  local ho = false
-  for entry in tostring(r.objects or ""):gmatch("[^;]+") do GaldamUI.renderEntity(entry, {200, 224, 150}); ho = true end
-  if not ho then rp:cecho("     <grey>(없음)\n") end
-  local ex = {}
-  for _, e in ipairs(r.exits or {}) do
-    local s = tostring(e)
-    if s ~= "generic exit" and s ~= "" then ex[#ex + 1] = s end
+  local rowH, y, idx, full = 20, 2, 0, false
+  local boxH = 200
+  pcall(function() boxH = GaldamUI.roomBox:get_height() end)
+  local function row(html, col, cmds, isHdr)
+    if full or (y + rowH > boxH - 2) then full = true; return end
+    idx = idx + 1
+    local lb = GaldamUI.getRow(idx)
+    if cmds then
+      lb:setStyleSheet("background-color: rgba(255,255,255,0.045); border-radius:4px; qproperty-alignment:'AlignLeft';")
+      lb:echo("<span style='color:" .. col .. ";font-size:10pt;'>&nbsp;▸ " .. html .. "</span>")
+      lb:setOnEnter(function() GaldamUI.showCmdTip(html, cmds) end)
+      lb:setOnLeave(function() GaldamUI.hideTip() end)
+      lb:setClickCallback(function() GaldamUI.openCtxMenu(html, cmds) end)
+    else
+      lb:setStyleSheet("background-color: rgba(0,0,0,0);")
+      lb:echo(html)
+      lb:setOnEnter(function() end); lb:setOnLeave(function() end); lb:setClickCallback(function() end)
+    end
+    lb:move(2, y); lb:resize("96%", rowH); lb:show(); y = y + rowH
   end
-  if #ex > 0 then rp:cecho("\n  <grey>출구: <cyan>" .. table.concat(ex, "  ") .. "\n") end
+  if not r then
+    row("<span style='color:#6a7078;'>(방 정보 없음)</span>")
+  else
+    row("<span style='color:#e8d24a;font-size:10pt;'><b>● 사람</b></span>")
+    local hasP = false
+    for e in tostring(r.people or ""):gmatch("[^;]+") do local nm, cm = GaldamUI.parseEntity(e); row(nm, "#a8d8ff", cm); hasP = true end
+    if not hasP then row("<span style='color:#6a7078;font-size:9pt;'>   (없음)</span>") end
+    row("<span style='color:#e8d24a;font-size:10pt;'><b>● 물건</b></span>")
+    local hasO = false
+    for e in tostring(r.objects or ""):gmatch("[^;]+") do local nm, cm = GaldamUI.parseEntity(e); row(nm, "#cfe0a0", cm); hasO = true end
+    if not hasO then row("<span style='color:#6a7078;font-size:9pt;'>   (없음)</span>") end
+    if full then row("<span style='color:#6a7078;font-size:9pt;'>   …더 있음</span>") end
+  end
+  for i = idx + 1, #GaldamUI.roomRows do pcall(function() GaldamUI.roomRows[i]:hide() end) end
 end
 
 function GaldamUI.onRoom()
