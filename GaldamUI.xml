@@ -432,5 +432,113 @@ GaldamUI.onRoom(); GaldamUI.onVitals(); GaldamUI.onStatus(); GaldamUI.onMap()
 ]]></script>
    <eventHandlerList></eventHandlerList>
   </Script>
+   <Script isActive="yes" isFolder="no">
+      <name>GaldamLockpickQTE</name>
+      <packageName></packageName>
+      <script><![CDATA[
+-- ===== Galdam 자물쇠 따기 QTE (v2 클릭) =====
+GaldamPick = GaldamPick or {}
+local GP = GaldamPick
+GP.W = 46
+
+function GaldamPick_hit()  -- 전역 (클릭/키 콜백용)
+  GaldamPick.hit()
+end
+
+function GP.makeWindow()
+  if not GP.win then
+    GP.win = Geyser.Label:new({
+      name = "GaldamPickWin",
+      x = "30%", y = "33%", width = "40%", height = "28%",
+    })
+    GP.win:setStyleSheet([[
+      background-color: rgba(18,18,24,238);
+      border: 2px solid #c8a05a;
+      border-radius: 10px;
+    ]])
+    GP.win:setFontSize(13)
+    GP.win:hide()
+  end
+  GP.win:setClickCallback("GaldamPick_hit")  -- 창 클릭 = 입력 (재로드시에도 재적용)
+end
+
+function GP.render()
+  local cells = {}
+  local needle = math.floor((GP.pos or 0) / 100 * GP.W + 0.5)
+  local zs = math.floor((GP.zstart or 0) / 100 * GP.W + 0.5)
+  local ze = math.floor(((GP.zstart or 0) + (GP.zsize or 0)) / 100 * GP.W + 0.5)
+  local cz = math.floor(((GP.zstart or 0) + (GP.zsize or 0) / 2) / 100 * GP.W + 0.5)
+  for i = 0, GP.W do
+    if i == needle then
+      cells[#cells+1] = "<span style=\"color:#ffe066\"><b>|</b></span>"
+    elseif i == cz then
+      cells[#cells+1] = "<span style=\"color:#bfff00\">@</span>"
+    elseif i >= zs and i <= ze then
+      cells[#cells+1] = "<span style=\"color:#46b446\">#</span>"
+    else
+      cells[#cells+1] = "<span style=\"color:#4a4a4a\">-</span>"
+    end
+  end
+  local html = string.format(
+    "<center><br><span style=\"color:#c8a05a\">[ 자물쇠 따기 ]</span><br><br>%s<br><br><span style=\"color:#bbbbbb\">진행 %d / %d &#160;&#160; 라운드 %d</span><br><br><span style=\"color:#ffe066\">바늘이 초록(@중앙)일 때 &#160;<b>창을 클릭!</b></span></center>",
+    table.concat(cells), GP.prog or 0, GP.target or 5, GP.round or 1)
+  GP.win:echo(html)
+end
+
+function GP.tick()
+  if not GP.active then return end
+  GP.pos = GP.pos + GP.dir * GP.step
+  if GP.pos >= 100 then GP.pos = 100; GP.dir = -1 end
+  if GP.pos <= 0 then GP.pos = 0; GP.dir = 1 end
+  GP.render()
+  GP.timer = tempTimer(0.045, GP.tick)
+end
+
+function GP.onRound()
+  local d = gmcp.Galdam.Pick.Round
+  if not d then return end
+  GP.makeWindow()
+  GP.zstart = tonumber(d.zone_start) or 40
+  GP.zsize  = tonumber(d.zone_size) or 20
+  GP.prog   = tonumber(d.progress) or 0
+  GP.target = tonumber(d.target) or 5
+  GP.round  = tonumber(d.round) or 1
+  GP.step   = math.max(1.8, (tonumber(d.speed) or 50) / 12)
+  GP.pos = 0; GP.dir = 1; GP.active = true
+  if GP.timer then killTimer(GP.timer) end
+  GP.win:show()
+  GP.tick()
+end
+
+function GP.hit()
+  if not GP.active then return end
+  GP.active = false
+  if GP.timer then killTimer(GP.timer); GP.timer = nil end
+  send("qtehit " .. tostring(math.floor((GP.pos or 0) + 0.5)))
+end
+
+function GP.onEnd()
+  GP.active = false
+  if GP.timer then killTimer(GP.timer); GP.timer = nil end
+  if GP.win then GP.win:hide() end
+end
+
+function GP.onConnect()
+  send("qte_on")
+end
+
+if GP.h1 then killAnonymousEventHandler(GP.h1) end
+if GP.h2 then killAnonymousEventHandler(GP.h2) end
+if GP.h3 then killAnonymousEventHandler(GP.h3) end
+GP.h1 = registerAnonymousEventHandler("gmcp.Galdam.Pick.Round", "GaldamPick.onRound")
+GP.h2 = registerAnonymousEventHandler("gmcp.Galdam.Pick.End", "GaldamPick.onEnd")
+GP.h3 = registerAnonymousEventHandler("sysConnectionEvent", "GaldamPick.onConnect")
+
+GP.makeWindow()
+if gmcp then GP.onConnect() end
+echo("[Galdam] 자물쇠 따기 QTE v2 로드됨. `따기 <방향>` 시작, 창 클릭으로 입력.\n")
+]]></script>
+      <eventHandlerList></eventHandlerList>
+    </Script>
  </ScriptPackage>
 </MudletPackage>
