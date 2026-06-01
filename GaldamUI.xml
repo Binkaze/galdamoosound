@@ -19,6 +19,7 @@ if GaldamUI._handlers then
   for _, id in ipairs(GaldamUI._handlers) do pcall(killAnonymousEventHandler, id) end
 end
 GaldamUI._handlers = {}
+GaldamUI.VERSION = "v25"   -- 업데이트 적용 확인용 (화면 우상단 표시)
 
 local PANEL_W = 0.20      -- 우측 탭 패널 폭
 local BOTTOM_H = 120      -- 하단 HUD 바 높이
@@ -124,6 +125,10 @@ function GaldamUI.build()
   GaldamUI.locHeader = Geyser.Label:new({name="GaldamLoc", x=0, y=0, width="100%", height=40}, GaldamUI.rpanel)
   GaldamUI.locHeader:setStyleSheet("background-color: rgba(15,25,35,235); border:1px solid #2a4a5a; border-radius:6px; color:#cfe8f0; qproperty-alignment:'AlignCenter';")
   GaldamUI.locHeader:echo("<center><span style='font-size:15pt;'><b>갯담마을</b></span></center>")
+  -- 버전 스탬프 (우상단, 업데이트 적용 확인용)
+  GaldamUI.verTag = Geyser.Label:new({name="GaldamVer", x="74%", y=2, width="25%", height=14}, GaldamUI.rpanel)
+  GaldamUI.verTag:setStyleSheet("background-color: rgba(0,0,0,0); color:#587584; qproperty-alignment:'AlignRight';")
+  GaldamUI.verTag:echo("<span style='font-size:8pt;'>"..(GaldamUI.VERSION or "?").."</span>")
   -- 실시간 방 패널 (사람/물건 — hover=명령전체, 클릭=드롭다운 메뉴). 라벨 호스트. 위치는 relayout
   GaldamUI.roomBox = Geyser.Container:new({name="GaldamRoomBox", x=0, y=44, width="100%", height=200}, GaldamUI.rpanel)
   GaldamUI.roomRows = GaldamUI.roomRows or {}
@@ -345,22 +350,15 @@ function GaldamUI.getRow(i)
   return GaldamUI.roomRows[i]
 end
 
--- hover: 항목의 모든 명령 표시 (go=밝게 / arg=회색 '추가입력')
+-- hover: 간결 안내만 (명령 전체는 클릭 메뉴에서)
 function GaldamUI.showCmdTip(name, cmds)
   if not GaldamUI.tip then return end
-  local lines = {"<b style='color:#ffffff;'>" .. name .. "</b>"}
-  for _, c in ipairs(cmds) do
-    if c.kind == "arg" then
-      lines[#lines + 1] = "<span style='color:#6f7780;'>○ " .. c.label .. " <i>(추가입력)</i></span>"
-    else
-      lines[#lines + 1] = "<span style='color:#bfe3c0;'>● " .. c.label .. "</span>"
-    end
-  end
   local x, y = 0, 0
   if not pcall(function() x, y = getMousePosition() end) then return end
-  local wpx, hpx = 170, 10 + #lines * 17
+  local txt = "<b style='color:#ffffff;'>" .. name .. "</b><br><span style='color:#9fb3c0;'>클릭하면 상호작용 메뉴</span>"
+  local wpx, hpx = 152, 40
   pcall(function() GaldamUI.tip:resize(wpx, hpx); GaldamUI.tip:move(math.max(0, x - wpx - 6), y + 12) end)
-  GaldamUI.tip:echo("<div style='margin:5px;line-height:16px;'>" .. table.concat(lines, "<br>") .. "</div>")
+  GaldamUI.tip:echo("<div style='margin:5px;line-height:15px;'>" .. txt .. "</div>")
   GaldamUI.tip:show()
   pcall(function() raiseWindow("GaldamTip") end)
 end
