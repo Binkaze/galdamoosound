@@ -19,7 +19,7 @@ if GaldamUI._handlers then
   for _, id in ipairs(GaldamUI._handlers) do pcall(killAnonymousEventHandler, id) end
 end
 GaldamUI._handlers = {}
-GaldamUI.VERSION = "v25"   -- 업데이트 적용 확인용 (화면 우상단 표시)
+GaldamUI.VERSION = "v26"   -- 업데이트 적용 확인용 (화면 우상단 표시)
 
 local PANEL_W = 0.20      -- 우측 탭 패널 폭
 local BOTTOM_H = 120      -- 하단 HUD 바 높이
@@ -364,50 +364,57 @@ function GaldamUI.showCmdTip(name, cmds)
 end
 
 function GaldamUI.closeCtxMenu()
+  if GaldamUI.ctxTimer then pcall(function() killTimer(GaldamUI.ctxTimer) end); GaldamUI.ctxTimer = nil end
   if GaldamUI.ctxMenu then pcall(function() GaldamUI.ctxMenu:hide() end) end
 end
 
--- click: 드롭다운 메뉴 (go=클릭 즉시 실행 / arg=명령창에 채워주기)
-function GaldamUI.openCtxMenu(name, cmds)
+-- 메뉴 항목 클릭 처리 (echoLink 의 Lua 명령에서 전역 경로로 호출)
+function GaldamUI.menuPick(cmd, isArg)
   GaldamUI.closeCtxMenu()
-  GaldamUI.ctxItems = GaldamUI.ctxItems or {}
-  local w, ih = 178, 22
-  local h = #cmds * ih + 6
+  if isArg then printCmdLine(cmd) else send(cmd) end
+end
+
+-- click: 드롭다운 메뉴 = MiniConsole + echoLink (Label 자식은 렌더 안 됨 → 미니콘솔 사용)
+-- go=클릭 즉시 실행(초록) / arg=명령창에 채워주기(회색)
+function GaldamUI.openCtxMenu(name, cmds)
+  local mn = "GaldamCtxMenu"
   if not GaldamUI.ctxMenu then
-    GaldamUI.ctxMenu = Geyser.Label:new({name = "GaldamCtxMenu", x = 0, y = 0, width = w, height = h})
-    GaldamUI.ctxMenu:setStyleSheet("background-color: rgba(14,20,28,252); border:1px solid #4fa3c7; border-radius:6px;")
+    GaldamUI.ctxMenu = Geyser.MiniConsole:new({name = mn, x = 0, y = 0, width = 196, height = 100})
+    GaldamUI.ctxMenu:setColor(13, 19, 27)
+    pcall(function() GaldamUI.ctxMenu:setFontSize(11) end)
+    GaldamUI.ctxMenu:setWrap(44)
   end
+  local w, lineH = 196, 19
+  local h = (#cmds + 1) * lineH + 12
   local x, y = 0, 0
   pcall(function() x, y = getMousePosition() end)
   local sw, sh = getMainWindowSize()
   if x + w > sw then x = sw - w - 6 end
-  if y + h > sh then y = sh - h - 6 end
-  pcall(function() GaldamUI.ctxMenu:resize(w, h); GaldamUI.ctxMenu:move(x, y); GaldamUI.ctxMenu:show(); raiseWindow("GaldamCtxMenu") end)
-  for i, c in ipairs(cmds) do
-    local it = GaldamUI.ctxItems[i]
-    if not it then it = Geyser.Label:new({name = "ctxItem" .. i, x = 0, y = 0, width = 10, height = 10}, GaldamUI.ctxMenu); GaldamUI.ctxItems[i] = it end
-    local gray = (c.kind == "arg")
-    local color = gray and "#7a838c" or "#e3eef4"
-    local suffix = gray and " <i style='color:#5a6068;'>…</i>" or ""
-    it:setStyleSheet("background-color: rgba(0,0,0,0); qproperty-alignment:'AlignLeft';")
-    it:echo("<span style='color:" .. color .. ";font-size:10pt;'>&nbsp;&nbsp;" .. c.label .. suffix .. "</span>")
-    it:setClickCallback(function()
-      GaldamUI.closeCtxMenu()
-      if gray then printCmdLine(c.cmd) else send(c.cmd) end
+  if y + h > sh then y = math.max(0, sh - h - 6) end
+  pcall(function() GaldamUI.ctxMenu:resize(w, h); GaldamUI.ctxMenu:move(x, y) end)
+  pcall(function() clearWindow(mn); cecho(mn, " <yellow><b>" .. name .. "</b>\n") end)
+  for _, c in ipairs(cmds) do
+    local arg = (c.kind == "arg")
+    local lua = "GaldamUI.menuPick([[" .. c.cmd .. "]], " .. tostring(arg) .. ")"
+    pcall(function()
+      if arg then
+        setFgColor(mn, 124, 133, 142)
+        echoLink(mn, " ○ " .. c.label .. "  (입력)", lua, "추가 입력 필요: " .. c.label, true)
+      else
+        setFgColor(mn, 150, 216, 160)
+        echoLink(mn, " ● " .. c.label, lua, c.label, true)
+      end
+      echo(mn, "\n")
     end)
-    it:setOnEnter(function() it:setStyleSheet("background-color: rgba(70,130,170,0.45); border-radius:3px; qproperty-alignment:'AlignLeft';") end)
-    it:setOnLeave(function() it:setStyleSheet("background-color: rgba(0,0,0,0); qproperty-alignment:'AlignLeft';") end)
-    it:move(3, 3 + (i - 1) * ih); it:resize(w - 6, ih); it:show()
   end
-  for i = #cmds + 1, #GaldamUI.ctxItems do pcall(function() GaldamUI.ctxItems[i]:hide() end) end
-  pcall(function()
-    GaldamUI.ctxMenu:setOnLeave(function() if GaldamUI.ctxTimer then killTimer(GaldamUI.ctxTimer) end; GaldamUI.ctxTimer = tempTimer(0.6, function() GaldamUI.closeCtxMenu() end) end)
-    GaldamUI.ctxMenu:setOnEnter(function() if GaldamUI.ctxTimer then killTimer(GaldamUI.ctxTimer); GaldamUI.ctxTimer = nil end end)
-  end)
+  pcall(function() GaldamUI.ctxMenu:show(); raiseWindow(mn) end)
+  if GaldamUI.ctxTimer then pcall(function() killTimer(GaldamUI.ctxTimer) end) end
+  GaldamUI.ctxTimer = tempTimer(7, function() GaldamUI.closeCtxMenu() end)
 end
 
 function GaldamUI.renderRoom()
   if not (GaldamUI.built and GaldamUI.roomBox) then return end
+  pcall(function() GaldamUI.closeCtxMenu() end)
   GaldamUI.roomRows = GaldamUI.roomRows or {}
   local r = gmcp.Galdam and gmcp.Galdam.Room
   local rowH, y, idx, full = 20, 2, 0, false
