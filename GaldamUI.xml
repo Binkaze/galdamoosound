@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE MudletPackage>
 <!--
-  갯담마을 Mudlet GUI v22 (StickMUD식 대개조)
+  갯담마을 Mudlet GUI v23 (우측 패널 상하분할)
   - 하단 HUD 바: 상태 아이콘 가로줄(작은 셀, 순차 채움) + 게이지4(체력/목마름/배고픔/스트레스)
-  - 우측 패널: 위치 헤더 + 탭 메뉴(접속자/스킬/도움말/이벤트, 확장형) + 콘텐츠
+  - 우측 패널(상하분할): 위치 헤더 + [상단] 실시간 방 패널(사람/물건/출구, 클릭→상호작용 메뉴) + [하단] 탭 메뉴(접속자/스킬/도움말/이벤트) + 콘텐츠
   - d-pad: 드래그 가능한 미니창(UserWindow)
   - 수배: 좌상단 독립 오버레이 / 지도: 플로팅 UserWindow
   - 모든 버튼에 툴팁
@@ -124,6 +124,11 @@ function GaldamUI.build()
   GaldamUI.locHeader = Geyser.Label:new({name="GaldamLoc", x=0, y=0, width="100%", height=40}, GaldamUI.rpanel)
   GaldamUI.locHeader:setStyleSheet("background-color: rgba(15,25,35,235); border:1px solid #2a4a5a; border-radius:6px; color:#cfe8f0; qproperty-alignment:'AlignCenter';")
   GaldamUI.locHeader:echo("<center><span style='font-size:15pt;'><b>갯담마을</b></span></center>")
+  -- 실시간 방 패널 (사람/물건/출구 — 클릭 시 상호작용 메뉴). 위치는 relayout 에서 확정
+  GaldamUI.roomPanel = Geyser.MiniConsole:new({name="GaldamRoomPanel", x=0, y=44, width="100%", height=200}, GaldamUI.rpanel)
+  GaldamUI.roomPanel:setColor(12, 16, 22)
+  pcall(function() GaldamUI.roomPanel:setFontSize(11) end)
+  GaldamUI.roomPanel:setWrap(30)
   -- 탭 버튼 행
   GaldamUI.tabBtns = {}
   local n = #GaldamUI.TABS
@@ -206,8 +211,25 @@ function GaldamUI.relayout()
   setBorderRight(rw); setBorderBottom(BOTTOM_H)
   pcall(function()
     GaldamUI.bottom:move(0, h - BOTTOM_H); GaldamUI.bottom:resize(w, BOTTOM_H)
-    GaldamUI.rpanel:move(w - rw, 0); GaldamUI.rpanel:resize(rw, h - BOTTOM_H)
-    GaldamUI.content:resize("100%", (h - BOTTOM_H) - 92)
+    local ph = h - BOTTOM_H
+    GaldamUI.rpanel:move(w - rw, 0); GaldamUI.rpanel:resize(rw, ph)
+    -- 상하분할: [헤더] / [방 패널] / [탭 버튼] / [탭 콘텐츠]
+    local headH, tabH, gap = 40, 32, 4
+    local avail = ph - headH - tabH - gap * 4
+    if avail < 80 then avail = 80 end
+    local roomH = math.floor(avail * 0.52)   -- 상단: 실시간 방 패널
+    local contentH = avail - roomH           -- 하단: 탭 콘텐츠
+    GaldamUI.locHeader:move(0, 0); GaldamUI.locHeader:resize(rw, headH)
+    local roomY = headH + gap
+    GaldamUI.roomPanel:move(0, roomY); GaldamUI.roomPanel:resize(rw, roomH)
+    local tabY = roomY + roomH + gap
+    local n = #GaldamUI.TABS
+    local bw = math.floor(rw / n)
+    for i, t in ipairs(GaldamUI.TABS) do
+      local b = GaldamUI.tabBtns[t.key]
+      if b then b:move((i - 1) * bw, tabY); b:resize(bw - 2, tabH) end
+    end
+    GaldamUI.content:move(0, tabY + tabH + gap); GaldamUI.content:resize(rw, contentH)
   end)
 end
 
@@ -304,11 +326,55 @@ function GaldamUI.renderEvents()
 end
 
 -- ===== GMCP 핸들러 =====
+-- 방 패널: 항목 1개(이름|라벨=명령^라벨=명령) → 클릭 시 액션 메뉴(echoPopup)
+function GaldamUI.renderEntity(entry, col)
+  local nm = entry:match("([^|]*)") or entry
+  local actstr = entry:match("|(.*)") or ""
+  local cmds, hints = {}, {}
+  for a in actstr:gmatch("[^%^]+") do
+    local lbl, cmd = a:match("([^=]*)=(.*)")
+    -- echoPopup 명령은 Lua 코드 → send([[..]])로 감싸 MUD에 전송 (좌클릭=첫 명령, 우클릭=메뉴)
+    if lbl and cmd then hints[#hints + 1] = lbl; cmds[#cmds + 1] = "send([[" .. cmd .. "]])" end
+  end
+  setFgColor("GaldamRoomPanel", col[1], col[2], col[3])
+  GaldamUI.roomPanel:echo("  ▸ ")
+  if #cmds > 0 then
+    echoPopup("GaldamRoomPanel", (nm ~= "" and nm or "?"), cmds, hints, true)
+  else
+    GaldamUI.roomPanel:echo(nm ~= "" and nm or "?")
+  end
+  resetFormat("GaldamRoomPanel")
+  GaldamUI.roomPanel:echo("\n")
+end
+
+function GaldamUI.renderRoom()
+  if not (GaldamUI.built and GaldamUI.roomPanel) then return end
+  local rp = GaldamUI.roomPanel
+  rp:clear()
+  local r = gmcp.Galdam and gmcp.Galdam.Room
+  if not r then rp:cecho("\n  <grey>(방 정보 없음)\n"); return end
+  rp:cecho("\n  <yellow>● 사람\n")
+  local hp = false
+  for entry in tostring(r.people or ""):gmatch("[^;]+") do GaldamUI.renderEntity(entry, {130, 200, 255}); hp = true end
+  if not hp then rp:cecho("     <grey>(없음)\n") end
+  rp:cecho("\n  <yellow>● 물건\n")
+  local ho = false
+  for entry in tostring(r.objects or ""):gmatch("[^;]+") do GaldamUI.renderEntity(entry, {200, 224, 150}); ho = true end
+  if not ho then rp:cecho("     <grey>(없음)\n") end
+  local ex = {}
+  for _, e in ipairs(r.exits or {}) do
+    local s = tostring(e)
+    if s ~= "generic exit" and s ~= "" then ex[#ex + 1] = s end
+  end
+  if #ex > 0 then rp:cecho("\n  <grey>출구: <cyan>" .. table.concat(ex, "  ") .. "\n") end
+end
+
 function GaldamUI.onRoom()
   local r = gmcp.Galdam and gmcp.Galdam.Room
   if not (GaldamUI.built and r) then return end
   GaldamUI.locHeader:echo(string.format("<center><span style='font-size:14pt;'><b>%s</b></span><br><span style='font-size:9pt;color:#8fb8c8;'>%s</span></center>", r.name or "?", r.area or ""))
   GaldamUI.setExits(r.exits or {})
+  GaldamUI.renderRoom()
 end
 
 function GaldamUI.cycleStep(gen)
