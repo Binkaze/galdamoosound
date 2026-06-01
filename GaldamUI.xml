@@ -19,7 +19,7 @@ if GaldamUI._handlers then
   for _, id in ipairs(GaldamUI._handlers) do pcall(killAnonymousEventHandler, id) end
 end
 GaldamUI._handlers = {}
-GaldamUI.VERSION = "v27"   -- 업데이트 적용 확인용 (화면 우상단 표시)
+GaldamUI.VERSION = "v28"   -- 업데이트 적용 확인용 (화면 우상단 표시)
 
 local PANEL_W = 0.20      -- 우측 탭 패널 폭
 local BOTTOM_H = 120      -- 하단 HUD 바 높이
@@ -331,15 +331,20 @@ end
 
 -- ===== GMCP 핸들러 =====
 -- 방 패널: 항목 = "이름|라벨=명령=kind^..."  (kind: go=클릭실행 / arg=추가입력 회색)
-function GaldamUI.parseEntity(entry)
-  local name = entry:match("([^|]*)") or entry
-  local rest = entry:match("|(.*)") or ""
+function GaldamUI.parseCmds(rest)
   local cmds = {}
-  for c in rest:gmatch("[^%^]+") do
+  for c in tostring(rest or ""):gmatch("[^%^]+") do
     local lbl, cmd, kind = c:match("([^=]*)=([^=]*)=([^=]*)")
     if lbl then cmds[#cmds + 1] = {label = lbl, cmd = cmd, kind = kind} end
   end
-  return (name ~= "" and name or "?"), cmds
+  return cmds
+end
+
+-- 항목 = "번호|이름|quick명령"  (전체명령은 클릭 시 _galdamobjcmds로 on-demand)
+function GaldamUI.parseEntity(entry)
+  local id, name, rest = entry:match("([^|]*)|([^|]*)|(.*)")
+  if not id then return (entry ~= "" and entry or "?"), {}, "" end
+  return (name ~= "" and name or "?"), GaldamUI.parseCmds(rest), id
 end
 
 function GaldamUI.getRow(i)
@@ -374,24 +379,13 @@ function GaldamUI.menuPick(cmd, isArg)
   if isArg then printCmdLine(cmd) else send(cmd) end
 end
 
--- click: 드롭다운 메뉴 = MiniConsole + echoLink (Label 자식은 렌더 안 됨 → 미니콘솔 사용)
+-- 드롭다운 메뉴 = MiniConsole + echoLink (Label 자식은 렌더 안 됨 → 미니콘솔)
 -- go=클릭 즉시 실행(초록) / arg=명령창에 채워주기(회색)
-function GaldamUI.openCtxMenu(name, cmds)
+function GaldamUI.fillCtxMenu(name, cmds)
   local mn = "GaldamCtxMenu"
-  if not GaldamUI.ctxMenu then
-    GaldamUI.ctxMenu = Geyser.MiniConsole:new({name = mn, x = 0, y = 0, width = 196, height = 100})
-    GaldamUI.ctxMenu:setColor(13, 19, 27)
-    pcall(function() GaldamUI.ctxMenu:setFontSize(11) end)
-    GaldamUI.ctxMenu:setWrap(44)
-  end
-  local w, lineH = 196, 19
-  local h = (#cmds + 1) * lineH + 12
-  local x, y = 0, 0
-  pcall(function() x, y = getMousePosition() end)
-  local sw, sh = getMainWindowSize()
-  if x + w > sw then x = sw - w - 6 end
-  if y + h > sh then y = math.max(0, sh - h - 6) end
-  pcall(function() GaldamUI.ctxMenu:resize(w, h); GaldamUI.ctxMenu:move(x, y) end)
+  if not GaldamUI.ctxMenu then return end
+  local h = (#cmds + 1) * 19 + 12
+  pcall(function() GaldamUI.ctxMenu:resize(196, h) end)
   pcall(function() clearWindow(mn); cecho(mn, " <yellow><b>" .. name .. "</b>\n") end)
   for _, c in ipairs(cmds) do
     local arg = (c.kind == "arg")
@@ -407,9 +401,42 @@ function GaldamUI.openCtxMenu(name, cmds)
       echo(mn, "\n")
     end)
   end
+end
+
+function GaldamUI.openCtxMenu(name, cmds, id)
+  local mn = "GaldamCtxMenu"
+  if not GaldamUI.ctxMenu then
+    GaldamUI.ctxMenu = Geyser.MiniConsole:new({name = mn, x = 0, y = 0, width = 196, height = 100})
+    GaldamUI.ctxMenu:setColor(13, 19, 27)
+    pcall(function() GaldamUI.ctxMenu:setFontSize(11) end)
+    GaldamUI.ctxMenu:setWrap(44)
+  end
+  local w = 196
+  local h = (#cmds + 2) * 19 + 12
+  local x, y = 0, 0
+  pcall(function() x, y = getMousePosition() end)
+  local sw, sh = getMainWindowSize()
+  if x + w > sw then x = sw - w - 6 end
+  if y + h > sh then y = math.max(0, sh - h - 6) end
+  pcall(function() GaldamUI.ctxMenu:move(x, y) end)
+  GaldamUI.ctxOpenId = id or ""
+  GaldamUI.ctxName = name
+  GaldamUI.fillCtxMenu(name, cmds)
   pcall(function() GaldamUI.ctxMenu:show(); raiseWindow(mn) end)
   if GaldamUI.ctxTimer then pcall(function() killTimer(GaldamUI.ctxTimer) end) end
-  GaldamUI.ctxTimer = tempTimer(7, function() GaldamUI.closeCtxMenu() end)
+  GaldamUI.ctxTimer = tempTimer(8, function() GaldamUI.closeCtxMenu() end)
+  -- 객체면 전체 명령을 on-demand 요청 (여기/방은 id 없음 → push의 here 그대로)
+  if id and id ~= "" then send("_galdamobjcmds " .. id, false) end
+end
+
+-- on-demand 응답: 현재 열린 메뉴면 전체 명령으로 채움
+function GaldamUI.onObjMenu()
+  local d = gmcp.Galdam and gmcp.Galdam.ObjMenu
+  if not (d and d.id) then return end
+  if tostring(d.id) == tostring(GaldamUI.ctxOpenId) then
+    GaldamUI.fillCtxMenu(GaldamUI.ctxName or "?", GaldamUI.parseCmds(d.cmds))
+    pcall(function() raiseWindow("GaldamCtxMenu") end)
+  end
 end
 
 function GaldamUI.renderRoom()
@@ -420,7 +447,7 @@ function GaldamUI.renderRoom()
   local rowH, y, idx, full = 20, 2, 0, false
   local boxH = 200
   pcall(function() boxH = GaldamUI.roomBox:get_height() end)
-  local function row(html, col, cmds, isHdr)
+  local function row(html, col, cmds, id)
     if full or (y + rowH > boxH - 2) then full = true; return end
     idx = idx + 1
     local lb = GaldamUI.getRow(idx)
@@ -429,7 +456,7 @@ function GaldamUI.renderRoom()
       lb:echo("<span style='color:" .. col .. ";font-size:10pt;'>&nbsp;▸ " .. html .. "</span>")
       lb:setOnEnter(function() GaldamUI.showCmdTip(html, cmds) end)
       lb:setOnLeave(function() GaldamUI.hideTip() end)
-      lb:setClickCallback(function() GaldamUI.openCtxMenu(html, cmds) end)
+      lb:setClickCallback(function() GaldamUI.openCtxMenu(html, cmds, id) end)
     else
       lb:setStyleSheet("background-color: rgba(0,0,0,0);")
       lb:echo(html)
@@ -442,18 +469,18 @@ function GaldamUI.renderRoom()
   else
     row("<span style='color:#e8d24a;font-size:10pt;'><b>● 사람</b></span>")
     local hasP = false
-    for e in tostring(r.people or ""):gmatch("[^;]+") do local nm, cm = GaldamUI.parseEntity(e); row(nm, "#a8d8ff", cm); hasP = true end
+    for e in tostring(r.people or ""):gmatch("[^;]+") do local nm, cm, id = GaldamUI.parseEntity(e); row(nm, "#a8d8ff", cm, id); hasP = true end
     if not hasP then row("<span style='color:#6a7078;font-size:9pt;'>   (없음)</span>") end
     row("<span style='color:#e8d24a;font-size:10pt;'><b>● 물건</b></span>")
     local hasO = false
-    for e in tostring(r.objects or ""):gmatch("[^;]+") do local nm, cm = GaldamUI.parseEntity(e); row(nm, "#cfe0a0", cm); hasO = true end
+    for e in tostring(r.objects or ""):gmatch("[^;]+") do local nm, cm, id = GaldamUI.parseEntity(e); row(nm, "#cfe0a0", cm, id); hasO = true end
     if not hasO then row("<span style='color:#6a7078;font-size:9pt;'>   (없음)</span>") end
-    -- ● 여기(이 방) — 방 자체의 특수/환경 명령 (ex here)
+    -- ● 여기(이 방) — 방 자체의 특수/환경 명령 (ex here). here는 push에 전체가 들어옴 → id 없음
     if r.here and tostring(r.here) ~= "" then
-      local _, hc = GaldamUI.parseEntity("X|" .. tostring(r.here))
+      local hc = GaldamUI.parseCmds(r.here)
       if #hc > 0 then
         row("<span style='color:#e8d24a;font-size:10pt;'><b>● 여기</b></span>")
-        row(tostring(r.name or "이 방"), "#9fd0e8", hc)
+        row(tostring(r.name or "이 방"), "#9fd0e8", hc, nil)
       end
     end
     if full then row("<span style='color:#6a7078;font-size:9pt;'>   …더 있음</span>") end
@@ -579,6 +606,7 @@ if not GaldamUI.built then GaldamUI.build() end
 GaldamUI.relayout()
 GaldamUI.downloadImages()
 table.insert(GaldamUI._handlers, registerAnonymousEventHandler("gmcp.Galdam.Room", function() GaldamUI.onRoom() end))
+table.insert(GaldamUI._handlers, registerAnonymousEventHandler("gmcp.Galdam.ObjMenu", function() GaldamUI.onObjMenu() end))
 table.insert(GaldamUI._handlers, registerAnonymousEventHandler("gmcp.Char.Vitals", function() GaldamUI.onVitals() end))
 table.insert(GaldamUI._handlers, registerAnonymousEventHandler("gmcp.Galdam.Status", function() GaldamUI.onStatus() end))
 table.insert(GaldamUI._handlers, registerAnonymousEventHandler("gmcp.Galdam.Map", function() GaldamUI.onMap() end))
