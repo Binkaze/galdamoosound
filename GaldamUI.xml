@@ -19,7 +19,7 @@ if GaldamUI._handlers then
   for _, id in ipairs(GaldamUI._handlers) do pcall(killAnonymousEventHandler, id) end
 end
 GaldamUI._handlers = {}
-GaldamUI.VERSION = "v26"   -- 업데이트 적용 확인용 (화면 우상단 표시)
+GaldamUI.VERSION = "v27"   -- 업데이트 적용 확인용 (화면 우상단 표시)
 
 local PANEL_W = 0.20      -- 우측 탭 패널 폭
 local BOTTOM_H = 120      -- 하단 HUD 바 높이
@@ -448,6 +448,14 @@ function GaldamUI.renderRoom()
     local hasO = false
     for e in tostring(r.objects or ""):gmatch("[^;]+") do local nm, cm = GaldamUI.parseEntity(e); row(nm, "#cfe0a0", cm); hasO = true end
     if not hasO then row("<span style='color:#6a7078;font-size:9pt;'>   (없음)</span>") end
+    -- ● 여기(이 방) — 방 자체의 특수/환경 명령 (ex here)
+    if r.here and tostring(r.here) ~= "" then
+      local _, hc = GaldamUI.parseEntity("X|" .. tostring(r.here))
+      if #hc > 0 then
+        row("<span style='color:#e8d24a;font-size:10pt;'><b>● 여기</b></span>")
+        row(tostring(r.name or "이 방"), "#9fd0e8", hc)
+      end
+    end
     if full then row("<span style='color:#6a7078;font-size:9pt;'>   …더 있음</span>") end
   end
   for i = idx + 1, #GaldamUI.roomRows do pcall(function() GaldamUI.roomRows[i]:hide() end) end
