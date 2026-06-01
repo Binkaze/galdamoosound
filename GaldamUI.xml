@@ -19,7 +19,7 @@ if GaldamUI._handlers then
   for _, id in ipairs(GaldamUI._handlers) do pcall(killAnonymousEventHandler, id) end
 end
 GaldamUI._handlers = {}
-GaldamUI.VERSION = "v29"   -- 업데이트 적용 확인용 (화면 우상단 표시)
+GaldamUI.VERSION = "v30"   -- 업데이트 적용 확인용 (화면 우상단 표시)
 
 local PANEL_W = 0.20      -- 우측 탭 패널 폭
 local BOTTOM_H = 120      -- 하단 HUD 바 높이
@@ -505,7 +505,7 @@ function GaldamUI.renderRoom()
     if r.here and tostring(r.here) ~= "" then
       local hc = GaldamUI.parseCmds(r.here)
       if #hc > 0 then
-        row("<span style='color:#e8d24a;font-size:10pt;'><b>● 여기</b></span>")
+        row("<span style='color:#e8d24a;font-size:10pt;'><b>● 장소 명령어</b></span>")
         row(tostring(r.name or "이 방"), "#9fd0e8", hc, nil)
       end
     end
