@@ -19,7 +19,7 @@ if GaldamUI._handlers then
   for _, id in ipairs(GaldamUI._handlers) do pcall(killAnonymousEventHandler, id) end
 end
 GaldamUI._handlers = {}
-GaldamUI.VERSION = "v30"   -- 업데이트 적용 확인용 (화면 우상단 표시)
+GaldamUI.VERSION = "v31"   -- 업데이트 적용 확인용 (화면 우상단 표시)
 
 local PANEL_W = 0.20      -- 우측 탭 패널 폭
 local BOTTOM_H = 120      -- 하단 HUD 바 높이
@@ -319,9 +319,47 @@ function GaldamUI.renderSkills()
   else GaldamUI.content:cecho("  <grey>(배운 스킬 없음)\n") end
 end
 
+-- 도움말 데이터 (카테고리 클릭 → 명령어/설명). 변수부는 [..]로 표기 (cecho가 <>를 색태그로 먹음)
+GaldamUI.HELP = {
+  {"이동", {"<cyan>동 · 서 · 남 · 북", "<cyan>올라가기 · 내려가기", "<cyan>들어가기 · 나가기", "<grey>왼쪽 방향키 창으로도 됩니다."}},
+  {"살펴보기", {"<cyan>보기 [대상]", "<cyan>살펴보기 [대상]", "<grey>패널 항목 클릭으로도 됩니다."}},
+  {"먹기·마시기", {"<cyan>먹기 [음식]", "<cyan>마시기 [음료]"}},
+  {"줍기·버리기", {"<cyan>줍기 [물건]  <grey>(=집기)", "<cyan>버리기 [물건]  <grey>(=놓기)"}},
+  {"장착·사용", {"<cyan>장착 [무기/옷]", "<cyan>사용 [물건]", "<cyan>읽기 [글]"}},
+  {"용기·상자", {"<cyan>개봉 / 덮기 [용기]", "<cyan>엿보기 [용기]", "<cyan>꺼내기 [물건] [용기]에서", "<cyan>넣기 [물건] [용기]에"}},
+  {"복합 명령", {"<yellow>조사로 자연스럽게:", "<cyan>꺼내기 콜라 자판기에서", "<cyan>넣기 동전 상자에", "<cyan>주기 사과 영희에게", "<cyan>지불 5000 상인에게", "<grey>~에서=출처 ~에게=상대 ~에=위치"}},
+  {"장소 명령어", {"<grey>이 방에서만 쓰는 명령.", "패널 <yellow>● 장소 명령어<grey> 또는 <cyan>ex here", "<grey>예) 바다: 첨벙·담그기·들이켜기"}},
+  {"전투", {"<cyan>공격 [상대]", "<cyan>항복"}},
+  {"패널 사용법", {"<grey>오른쪽 패널:", "· 항목 <yellow>클릭<grey> → 상호작용 메뉴", "· <yellow>✨<grey> = 방금 나타난 것", "· 초록=바로실행 / 회색=추가입력"}},
+}
+
+function GaldamUI.helpPick(cat)
+  GaldamUI.helpCat = (cat and cat ~= "") and cat or nil
+  GaldamUI.renderTab()
+end
+
 function GaldamUI.renderHelp()
+  local mn = "GaldamTabContent"
   GaldamUI.content:clear()
-  GaldamUI.content:cecho("\n  <yellow>● 도움말\n\n  <grey>🚧 준비 중\n  곧 명령어/도움말 목록이\n  여기에 추가됩니다.\n")
+  if not GaldamUI.helpCat then
+    GaldamUI.content:cecho("\n  <yellow>● 도움말  <grey>(눌러 보기)\n\n")
+    for _, h in ipairs(GaldamUI.HELP) do
+      GaldamUI.content:cecho("   <grey>▸ ")
+      pcall(function() echoLink(mn, h[1], "GaldamUI.helpPick([[" .. h[1] .. "]])", h[1], true) end)
+      GaldamUI.content:echo("\n")
+    end
+  else
+    GaldamUI.content:cecho("\n  <yellow>● " .. GaldamUI.helpCat .. "\n\n")
+    for _, h in ipairs(GaldamUI.HELP) do
+      if h[1] == GaldamUI.helpCat then
+        for _, ln in ipairs(h[2]) do GaldamUI.content:cecho("  " .. ln .. "\n") end
+        break
+      end
+    end
+    GaldamUI.content:cecho("\n  ")
+    pcall(function() echoLink(mn, "← 목록으로", "GaldamUI.helpPick()", "뒤로", true) end)
+    GaldamUI.content:echo("\n")
+  end
 end
 
 function GaldamUI.renderEvents()
