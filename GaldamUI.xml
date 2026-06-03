@@ -88,6 +88,7 @@ GaldamUI.TABS = {
   {key="players", name="접속자", icon=nil, render="renderPlayers"},
   {key="skills",  name="스킬",   icon=nil, render="renderSkills"},
   {key="help",    name="도움말", icon=nil, render="renderHelp"},
+  {key="ach",     name="도전과제", icon=nil, render="renderAch"},
   {key="events",  name="이벤트", icon=nil, render="renderEvents"},
 }
 
@@ -365,6 +366,42 @@ end
 function GaldamUI.renderEvents()
   GaldamUI.content:clear()
   GaldamUI.content:cecho("\n  <yellow>● 진행 중 이벤트\n\n  <grey>🚧 준비 중\n  이벤트 시스템이 구축되면\n  여기에 표시됩니다.\n")
+end
+
+-- 도전과제 탭: 서버 Galdam.Achievements.list = "id|이름|설명|달성(0/1)|최초자|달성수;..."
+function GaldamUI.renderAch()
+  GaldamUI.content:clear()
+  local d = gmcp.Galdam and gmcp.Galdam.Achievements
+  GaldamUI.content:cecho("\n  <yellow>● 도전과제\n\n")
+  if not (d and d.list and d.list ~= "") then
+    GaldamUI.content:cecho("  <grey>(아직 정보가 없습니다)\n")
+    return
+  end
+  local done, todo = {}, {}
+  for entry in tostring(d.list):gmatch("[^;]+") do
+    local id, nm, desc, un, first, cnt = entry:match("([^|]*)|([^|]*)|([^|]*)|([^|]*)|([^|]*)|([^|]*)")
+    if nm then
+      local rec = {nm = nm, desc = desc, first = first, cnt = cnt}
+      if un == "1" then done[#done + 1] = rec else todo[#todo + 1] = rec end
+    end
+  end
+  local function line(r, unlocked)
+    if unlocked then
+      GaldamUI.content:cecho("  <green>✔ " .. r.nm .. "\n")
+    else
+      GaldamUI.content:cecho("  <grey>🔒 " .. r.nm .. "\n")
+    end
+    GaldamUI.content:cecho("    <grey>" .. r.desc .. "\n")
+    if r.first ~= "" then
+      GaldamUI.content:cecho("    <yellow>🥇 최초 " .. r.first .. "  <grey>· 달성 " .. r.cnt .. "명\n")
+    else
+      GaldamUI.content:cecho("    <grey>· 아직 아무도 달성하지 못함\n")
+    end
+    GaldamUI.content:echo("\n")
+  end
+  GaldamUI.content:cecho("  <cyan>달성 " .. #done .. " / 전체 " .. (#done + #todo) .. "\n\n")
+  for _, r in ipairs(done) do line(r, true) end
+  for _, r in ipairs(todo) do line(r, false) end
 end
 
 -- ===== GMCP 핸들러 =====
@@ -690,6 +727,7 @@ table.insert(GaldamUI._handlers, registerAnonymousEventHandler("gmcp.Galdam.Stat
 table.insert(GaldamUI._handlers, registerAnonymousEventHandler("gmcp.Galdam.Map", function() GaldamUI.onMap() end))
 table.insert(GaldamUI._handlers, registerAnonymousEventHandler("gmcp.Galdam.Players", function() if GaldamUI.activeTab=="players" then GaldamUI.renderTab() end end))
 table.insert(GaldamUI._handlers, registerAnonymousEventHandler("gmcp.Galdam.Skills", function() if GaldamUI.activeTab=="skills" then GaldamUI.renderTab() end end))
+table.insert(GaldamUI._handlers, registerAnonymousEventHandler("gmcp.Galdam.Achievements", function() if GaldamUI.activeTab=="ach" then GaldamUI.renderTab() end end))
 table.insert(GaldamUI._handlers, registerAnonymousEventHandler("sysWindowResizeEvent", function() GaldamUI.relayout() end))
 table.insert(GaldamUI._handlers, registerAnonymousEventHandler("sysDownloadDone", function() GaldamUI.refresh() end))
 GaldamUI.onRoom(); GaldamUI.onVitals(); GaldamUI.onStatus(); GaldamUI.onMap()
