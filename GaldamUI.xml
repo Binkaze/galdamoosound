@@ -375,7 +375,7 @@ GaldamUI.ACHCATORDER = {"전투", "탐험", "생활", "스킬", "범죄", "직�
 
 function GaldamUI.achToggleTop(w) GaldamUI.achTopClosed[w] = not GaldamUI.achTopClosed[w]; GaldamUI.renderTab() end
 function GaldamUI.achToggleCat(k) GaldamUI.achCatClosed[k] = not GaldamUI.achCatClosed[k]; GaldamUI.renderTab() end
-function GaldamUI.achSelect(id) GaldamUI.achSel = (GaldamUI.achSel == id) and nil or id; GaldamUI.renderTab() end
+function GaldamUI.achSelect(id) if GaldamUI.achSel == id then GaldamUI.achSel = nil else GaldamUI.achSel = id end; GaldamUI.renderTab() end
 
 function GaldamUI.renderAch()
   local mn = "GaldamTabContent"
@@ -408,9 +408,34 @@ function GaldamUI.renderAch()
     end
     return g, sorted
   end
+  local function dwidth(s)
+    local w, i = 0, 1
+    while i <= #s do
+      local b = s:byte(i)
+      if b < 0x80 then w = w + 1; i = i + 1
+      elseif b < 0xE0 then w = w + 1; i = i + 2
+      elseif b < 0xF0 then w = w + 2; i = i + 3
+      else w = w + 2; i = i + 4 end
+    end
+    return w
+  end
+  local function wrap(text, maxw)
+    local lines, cur, cw = {}, "", 0
+    for word in tostring(text):gmatch("%S+") do
+      local ww = dwidth(word)
+      if cw > 0 and cw + 1 + ww > maxw then
+        lines[#lines + 1] = cur; cur = word; cw = ww
+      elseif cw == 0 then cur = word; cw = ww
+      else cur = cur .. " " .. word; cw = cw + 1 + ww end
+    end
+    if cur ~= "" then lines[#lines + 1] = cur end
+    return lines
+  end
+  local maxw = 22
+  pcall(function() local px = GaldamUI.content:get_width(); if px and px > 60 then maxw = math.max(14, math.floor((px - 16) / 9)) end end)
   local function section(title, items, skey, color)
     local closed = GaldamUI.achTopClosed[skey]
-    GaldamUI.content:cecho("  " .. color)
+    GaldamUI.content:cecho(" " .. color)
     pcall(function() echoLink(mn, (closed and "▶ " or "▼ ") .. title .. " (" .. #items .. ")", "GaldamUI.achToggleTop([[" .. skey .. "]])", "펼치기/접기", true) end)
     GaldamUI.content:echo("\n")
     if closed then return end
@@ -418,20 +443,20 @@ function GaldamUI.renderAch()
     for _, cat in ipairs(cats) do
       local ck = skey .. ":" .. cat
       local cc = GaldamUI.achCatClosed[ck]
-      GaldamUI.content:cecho("     <cyan>")
+      GaldamUI.content:cecho("  <cyan>")
       pcall(function() echoLink(mn, (cc and "▸ " or "▾ ") .. cat .. " (" .. #g[cat] .. ")", "GaldamUI.achToggleCat([[" .. ck .. "]])", "펼치기/접기", true) end)
       GaldamUI.content:echo("\n")
       if not cc then
         for _, r in ipairs(g[cat]) do
-          GaldamUI.content:cecho("        " .. (skey == "done" and "<green>✔ " or "<grey>🔒 "))
+          GaldamUI.content:cecho("   " .. (skey == "done" and "<green>✔ " or "<grey>🔒 "))
           pcall(function() echoLink(mn, r.nm, "GaldamUI.achSelect([[" .. r.id .. "]])", "눌러 상세보기", true) end)
           GaldamUI.content:echo("\n")
           if GaldamUI.achSel == r.id then
-            GaldamUI.content:cecho("           <grey>" .. r.desc .. "\n")
+            for _, ln in ipairs(wrap(r.desc, maxw - 5)) do GaldamUI.content:cecho("     <grey>" .. ln .. "\n") end
             if r.first ~= "" then
-              GaldamUI.content:cecho("           <yellow>🥇 최초 " .. r.first .. "  <grey>· 달성 " .. r.cnt .. "명\n")
+              GaldamUI.content:cecho("     <yellow>🥇 최초 " .. r.first .. " <grey>(" .. r.cnt .. "명)\n")
             else
-              GaldamUI.content:cecho("           <grey>· 아직 아무도 달성하지 못함\n")
+              GaldamUI.content:cecho("     <grey>· 미개척\n")
             end
           end
         end
@@ -486,6 +511,8 @@ end
 function GaldamUI.closeCtxMenu()
   if GaldamUI.ctxTimer then pcall(function() killTimer(GaldamUI.ctxTimer) end); GaldamUI.ctxTimer = nil end
   if GaldamUI.ctxMenu then pcall(function() GaldamUI.ctxMenu:hide() end) end
+  GaldamUI.ctxVisible = false
+  GaldamUI.ctxOpenId = nil
 end
 
 -- 메뉴 항목 클릭 처리 (echoLink 의 Lua 명령에서 전역 경로로 호출)
@@ -520,6 +547,11 @@ end
 
 function GaldamUI.openCtxMenu(name, cmds, id)
   local mn = "GaldamCtxMenu"
+  -- 토글: 같은 대상 메뉴가 이미 열려 있으면 다시 클릭 시 닫기
+  if GaldamUI.ctxVisible and tostring(GaldamUI.ctxOpenId or "") == tostring(id or "") then
+    GaldamUI.closeCtxMenu()
+    return
+  end
   if not GaldamUI.ctxMenu then
     GaldamUI.ctxMenu = Geyser.MiniConsole:new({name = mn, x = 0, y = 0, width = 196, height = 100})
     GaldamUI.ctxMenu:setColor(13, 19, 27)
@@ -538,6 +570,7 @@ function GaldamUI.openCtxMenu(name, cmds, id)
   GaldamUI.ctxName = name
   GaldamUI.fillCtxMenu(name, cmds)
   pcall(function() GaldamUI.ctxMenu:show(); raiseWindow(mn) end)
+  GaldamUI.ctxVisible = true
   if GaldamUI.ctxTimer then pcall(function() killTimer(GaldamUI.ctxTimer) end) end
   GaldamUI.ctxTimer = tempTimer(8, function() GaldamUI.closeCtxMenu() end)
   -- 객체면 전체 명령을 on-demand 요청 (여기/방은 id 없음 → push의 here 그대로)
