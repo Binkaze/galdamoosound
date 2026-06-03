@@ -368,40 +368,80 @@ function GaldamUI.renderEvents()
   GaldamUI.content:cecho("\n  <yellow>● 진행 중 이벤트\n\n  <grey>🚧 준비 중\n  이벤트 시스템이 구축되면\n  여기에 표시됩니다.\n")
 end
 
--- 도전과제 탭: 서버 Galdam.Achievements.list = "id|이름|설명|달성(0/1)|최초자|달성수;..."
+-- 도전과제 탭 (접이식 트리): list = "id|이름|설명|달성0/1|최초자|달성수|카테고리;..."
+GaldamUI.achTopClosed = GaldamUI.achTopClosed or {}   -- ["done"]/["todo"]=true면 접힘
+GaldamUI.achCatClosed = GaldamUI.achCatClosed or {}   -- ["done:전투"]=true면 접힘
+GaldamUI.ACHCATORDER = {"전투", "탐험", "생활", "스킬", "범죄", "직업"}
+
+function GaldamUI.achToggleTop(w) GaldamUI.achTopClosed[w] = not GaldamUI.achTopClosed[w]; GaldamUI.renderTab() end
+function GaldamUI.achToggleCat(k) GaldamUI.achCatClosed[k] = not GaldamUI.achCatClosed[k]; GaldamUI.renderTab() end
+function GaldamUI.achSelect(id) GaldamUI.achSel = (GaldamUI.achSel == id) and nil or id; GaldamUI.renderTab() end
+
 function GaldamUI.renderAch()
+  local mn = "GaldamTabContent"
   GaldamUI.content:clear()
   local d = gmcp.Galdam and gmcp.Galdam.Achievements
   GaldamUI.content:cecho("\n  <yellow>● 도전과제\n\n")
   if not (d and d.list and d.list ~= "") then
-    GaldamUI.content:cecho("  <grey>(아직 정보가 없습니다)\n")
-    return
+    GaldamUI.content:cecho("  <grey>(아직 정보가 없습니다)\n"); return
   end
   local done, todo = {}, {}
   for entry in tostring(d.list):gmatch("[^;]+") do
-    local id, nm, desc, un, first, cnt = entry:match("([^|]*)|([^|]*)|([^|]*)|([^|]*)|([^|]*)|([^|]*)")
+    local id, nm, desc, un, first, cnt, cat = entry:match("([^|]*)|([^|]*)|([^|]*)|([^|]*)|([^|]*)|([^|]*)|([^|]*)")
     if nm then
-      local rec = {nm = nm, desc = desc, first = first, cnt = cnt}
+      local rec = {id = id, nm = nm, desc = desc, first = first, cnt = cnt, cat = (cat ~= "" and cat or "기타")}
       if un == "1" then done[#done + 1] = rec else todo[#todo + 1] = rec end
     end
   end
-  local function line(r, unlocked)
-    if unlocked then
-      GaldamUI.content:cecho("  <green>✔ " .. r.nm .. "\n")
-    else
-      GaldamUI.content:cecho("  <grey>🔒 " .. r.nm .. "\n")
+  local function bycat(items)
+    local g, ord = {}, {}
+    for _, r in ipairs(items) do
+      if not g[r.cat] then g[r.cat] = {}; ord[#ord + 1] = r.cat end
+      table.insert(g[r.cat], r)
     end
-    GaldamUI.content:cecho("    <grey>" .. r.desc .. "\n")
-    if r.first ~= "" then
-      GaldamUI.content:cecho("    <yellow>🥇 최초 " .. r.first .. "  <grey>· 달성 " .. r.cnt .. "명\n")
-    else
-      GaldamUI.content:cecho("    <grey>· 아직 아무도 달성하지 못함\n")
+    local sorted = {}
+    for _, c in ipairs(GaldamUI.ACHCATORDER) do if g[c] then sorted[#sorted + 1] = c end end
+    for _, c in ipairs(ord) do
+      local seen = false
+      for _, x in ipairs(sorted) do if x == c then seen = true end end
+      if not seen then sorted[#sorted + 1] = c end
+    end
+    return g, sorted
+  end
+  local function section(title, items, skey, color)
+    local closed = GaldamUI.achTopClosed[skey]
+    GaldamUI.content:cecho("  " .. color)
+    pcall(function() echoLink(mn, (closed and "▶ " or "▼ ") .. title .. " (" .. #items .. ")", "GaldamUI.achToggleTop([[" .. skey .. "]])", "펼치기/접기", true) end)
+    GaldamUI.content:echo("\n")
+    if closed then return end
+    local g, cats = bycat(items)
+    for _, cat in ipairs(cats) do
+      local ck = skey .. ":" .. cat
+      local cc = GaldamUI.achCatClosed[ck]
+      GaldamUI.content:cecho("     <cyan>")
+      pcall(function() echoLink(mn, (cc and "▸ " or "▾ ") .. cat .. " (" .. #g[cat] .. ")", "GaldamUI.achToggleCat([[" .. ck .. "]])", "펼치기/접기", true) end)
+      GaldamUI.content:echo("\n")
+      if not cc then
+        for _, r in ipairs(g[cat]) do
+          GaldamUI.content:cecho("        " .. (skey == "done" and "<green>✔ " or "<grey>🔒 "))
+          pcall(function() echoLink(mn, r.nm, "GaldamUI.achSelect([[" .. r.id .. "]])", "눌러 상세보기", true) end)
+          GaldamUI.content:echo("\n")
+          if GaldamUI.achSel == r.id then
+            GaldamUI.content:cecho("           <grey>" .. r.desc .. "\n")
+            if r.first ~= "" then
+              GaldamUI.content:cecho("           <yellow>🥇 최초 " .. r.first .. "  <grey>· 달성 " .. r.cnt .. "명\n")
+            else
+              GaldamUI.content:cecho("           <grey>· 아직 아무도 달성하지 못함\n")
+            end
+          end
+        end
+      end
     end
     GaldamUI.content:echo("\n")
   end
   GaldamUI.content:cecho("  <cyan>달성 " .. #done .. " / 전체 " .. (#done + #todo) .. "\n\n")
-  for _, r in ipairs(done) do line(r, true) end
-  for _, r in ipairs(todo) do line(r, false) end
+  section("달성", done, "done", "<green>")
+  section("미달성", todo, "todo", "<grey>")
 end
 
 -- ===== GMCP 핸들러 =====
