@@ -108,17 +108,18 @@ function GaldamUI.build()
   end
   -- 게이지 4 (가로, 좌측 78%)
   GaldamUI.gauges = {}
-  local function gauge(name, label, color, gx)
-    local g = Geyser.Gauge:new({name=name, x=gx, y=58, width="19%", height=56}, GaldamUI.bottom)
+  local function gauge(name, label, color, gx, w)
+    local g = Geyser.Gauge:new({name=name, x=gx, y=58, width=(w or "19%"), height=56}, GaldamUI.bottom)
     g.front:setStyleSheet("background-color:"..color.."; border-radius:5px;")
     g.back:setStyleSheet("background-color: rgba(40,40,40,200); border-radius:5px;")
-    g.text:setStyleSheet("color:#ffffff; font-size:18px; padding-left:6px;")
+    g.text:setStyleSheet("color:#ffffff; font-size:13px; padding-left:5px;")
     g:setValue(100,100,"<b>"..label.."</b>"); return g
   end
-  GaldamUI.hp     = gauge("GaldamHP",  "체력",     "#c0392b", "1%")
-  GaldamUI.thirst = gauge("GaldamThi", "목마름",   "#2471a3", "20.5%")
-  GaldamUI.hunger = gauge("GaldamHun", "배고픔",   "#d68910", "40%")
-  GaldamUI.stress = gauge("GaldamStr", "스트레스", "#f1c40f", "59.5%")
+  GaldamUI.hp     = gauge("GaldamHP",  "혈액",     "#c0392b", "1%",    "15%")
+  GaldamUI.cons   = gauge("GaldamCon", "의식",     "#27ae60", "16.5%", "15%")
+  GaldamUI.thirst = gauge("GaldamThi", "목마름",   "#2471a3", "32%",   "15%")
+  GaldamUI.hunger = gauge("GaldamHun", "배고픔",   "#d68910", "47.5%", "15%")
+  GaldamUI.stress = gauge("GaldamStr", "스트레스", "#f1c40f", "63%",   "15%")
 
   -- ===== 우측 탭 패널 =====
   GaldamUI.rpanel = Geyser.Container:new({name="GaldamRPanel", x="-"..PANEL_W*100 .."%", y=0, width=PANEL_W*100 .."%", height="100%"})
@@ -725,7 +726,8 @@ end
 function GaldamUI.onVitals()
   local v = gmcp.Char and gmcp.Char.Vitals
   if not (GaldamUI.built and v) then return end
-  if v.hp then GaldamUI.hp:setValue(tonumber(v.hp) or 0, tonumber(v.hp_max) or 100, "<b>체력 "..tostring(v.hp).."/"..tostring(v.hp_max).."</b>") end
+  if v.hp then GaldamUI.hp:setValue(tonumber(v.hp) or 0, tonumber(v.hp_max) or 100, "<b>혈액 "..tostring(v.hp).."</b>") end
+  if v.cons and GaldamUI.cons then GaldamUI.cons:setValue(tonumber(v.cons) or 0, tonumber(v.cons_max) or 100, "<b>의식 "..tostring(v.cons).."/"..tostring(v.cons_max).."</b>") end
   if v.thirst then local t=tonumber(v.thirst) or 0; GaldamUI.thirst:setValue(math.min(t,500),500,string.format("<b>목마름 %d</b>",math.floor(t))) end
   if v.hunger then local h=tonumber(v.hunger) or 0; GaldamUI.hunger:setValue(math.min(h,500),500,string.format("<b>배고픔 %d</b>",math.floor(h))) end
   if v.stress then local s=tonumber(v.stress) or 0; GaldamUI.stress:setValue(math.min(s,500),500,string.format("<b>스트레스 %d</b>",math.floor(s))) end
