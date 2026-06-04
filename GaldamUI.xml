@@ -30,7 +30,7 @@ pcall(function() lfs.mkdir(GaldamUI.imgDir) end)
 local IMGBASE = "https://cdn.jsdelivr.net/gh/Binkaze/galdamoosound@main/"
 local IMGFILES = {"up-arrow.png","down arrow.png","left-arrow.png","right-arrow.png","up.png","down.png","in.png","out.png","look.png","search.png",
   "status_cold.png","status_heat.png","status_wet.png","status_drunk.png","status_caffeine.png","status_smoke.png","status_nausea.png",
-  "status_bleeding.png","status_stunned.png","status_broken.png","status_hunger.png","status_thirst.png","status_fatigue.png","status_heavy.png"}
+  "status_bleeding.png","status_stunned.png","status_broken.png","status_hunger.png","status_thirst.png","status_fatigue.png","status_heavy.png","tile_grass.png","tile_grass2.png","tile_floor.png","tile_tree.png","tile_rock.png","tile_fire.png","tile_player.png","tile_npc.png","tile_enemy.png","tile_water.png","tile_blood.png"}
 local function imgPath(f) return GaldamUI.imgDir .. "/" .. f end
 local function imgTag(f, sz) return "<center><img src='"..imgPath(f).."' width='"..sz.."' height='"..sz.."'></center>" end
 GaldamUI.imgTag = imgTag; GaldamUI.imgPath = imgPath
@@ -1429,6 +1429,66 @@ GT.h1 = registerAnonymousEventHandler("gmcp.Galdam.Tac", "GaldamTac.onTac")
 GT.h2 = registerAnonymousEventHandler("gmcp.Galdam.Room", "GaldamTac.onRoom")
 GT.makeWindow()
 echo("[Galdam] 전술 격자 뷰 v5 로드됨 (지형/혈흔/시간대/암흑/날씨/태풍/광원/불연기).\n")
+
+
+-- ===== 스프라이트 타일 맛보기 (PNG 이미지 격자) =====
+GaldamTacSprite = GaldamTacSprite or {}
+local GTS = GaldamTacSprite
+function GTS.makeWindow()
+  if not GTS.win then
+    GTS.win = Geyser.Label:new({name="GaldamTacSpriteWin", x="2%", y="40%", width=286, height=300})
+    GTS.win:setStyleSheet("background-color: rgba(10,14,20,246); border: 2px solid #6a9ad8; border-radius: 8px; qproperty-alignment: AlignCenter;")
+    GTS.win:hide()
+  end
+end
+function GTS.render(d)
+  local w = tonumber(d.w) or 9
+  local h = tonumber(d.h) or 9
+  local biome = d.biome or "indoor"
+  local sx = d.self and tonumber(d.self[1])
+  local sy = d.self and tonumber(d.self[2])
+  local cover, actors, ground, fire = {}, {}, {}, {}
+  for _, c in ipairs(d.cover or {}) do cover[tonumber(c.x)..","..tonumber(c.y)] = c end
+  for _, a in ipairs(d.actors or {}) do actors[tonumber(a.x)..","..tonumber(a.y)] = a end
+  for _, g in ipairs(d.ground or {}) do ground[tonumber(g.x)..","..tonumber(g.y)] = g end
+  for _, f in ipairs(d.fx or {}) do if f.t == "fire" then fire[tonumber(f.x)..","..tonumber(f.y)] = true end end
+  local function tile(x, y)
+    local key = x..","..y
+    if sx==x and sy==y then return "tile_player" end
+    if fire[key] then return "tile_fire" end
+    local a = actors[key]
+    if a then return (a.k=="player") and "tile_player" or "tile_npc" end
+    local c = cover[key]
+    if c then if c.k=="tree" then return "tile_tree" elseif c.k=="rock" then return "tile_rock" else return "tile_rock" end end
+    local g = ground[key]
+    if g and g.t=="blood" then return "tile_blood" elseif g and g.t=="wet" then return "tile_water" end
+    if biome=="forest" then return ((x+y)%2==0) and "tile_grass" or "tile_grass2" end
+    return "tile_floor"
+  end
+  local ts = 20
+  local html = "<table cellspacing='0' cellpadding='0' border='0'>"
+  for y=0,h-1 do
+    html = html.."<tr>"
+    for x=0,w-1 do
+      html = html.."<td><img src='"..GaldamUI.imgPath(tile(x,y)..".png").."' width='"..ts.."' height='"..ts.."'></td>"
+    end
+    html = html.."</tr>"
+  end
+  html = html.."</table>"
+  GTS.win:echo(html)
+end
+function GTS.onTac()
+  local d = gmcp.Galdam and gmcp.Galdam.Tac
+  if not d then return end
+  GTS.makeWindow(); GTS.render(d); GTS.win:show()
+end
+function GTS.onRoom() if GTS.win then GTS.win:hide() end end
+if GTS.h1 then killAnonymousEventHandler(GTS.h1) end
+if GTS.h2 then killAnonymousEventHandler(GTS.h2) end
+GTS.h1 = registerAnonymousEventHandler("gmcp.Galdam.Tac", "GaldamTacSprite.onTac")
+GTS.h2 = registerAnonymousEventHandler("gmcp.Galdam.Room", "GaldamTacSprite.onRoom")
+GTS.makeWindow()
+echo("[Galdam] 스프라이트 타일 맛보기 로드됨 (좌하단 창).\n")
 ]]></script>
       <eventHandlerList></eventHandlerList>
     </Script>
