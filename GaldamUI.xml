@@ -1313,9 +1313,10 @@ function GT.render(d)
     return
   end
 
-  local cover, actors, ground, fire = {}, {}, {}, {}
+  local cover, actors, ground, fire, items = {}, {}, {}, {}, {}
   for _, c in ipairs(d.cover or {}) do cover[tonumber(c.x)..","..tonumber(c.y)] = c end
   for _, a in ipairs(d.actors or {}) do actors[tonumber(a.x)..","..tonumber(a.y)] = a end
+  for _, it in ipairs(d.items or {}) do items[tonumber(it.x)..","..tonumber(it.y)] = it end
   for _, g in ipairs(d.ground or {}) do ground[tonumber(g.x)..","..tonumber(g.y)] = g end
   for _, f in ipairs(d.fx or {}) do if f.t == "fire" then fire[tonumber(f.x)..","..tonumber(f.y)] = true end end
   local ex = {}
@@ -1428,6 +1429,7 @@ function GT.render(d)
         elseif p == "rain" then fg, glyph = "120,170,225", "\226\148\130 "
         elseif p == "storm" then fg, glyph = "165,195,235", "/ "
         elseif p == "snow" then fg, glyph = "230,235,245", "* "
+        elseif items[key] then fg, glyph = "255,216,84", "\226\151\134 "
         elseif cover[key] then
           local c = cover[key]
           if c.k == "tree" then fg, bg, glyph = tint("95,205,105"), tint("10,28,12"), "\226\153\160\226\153\160"
@@ -1460,7 +1462,7 @@ function GT.render(d)
     GT.win:echo("\n")
   end
   GT.win:decho(ex.S and ("<150,255,150>      \226\150\188 " .. ex.S .. "\n") or "\n")
-  GT.win:decho("<120,130,150>  @\235\130\152 N/X NPC/\236\160\129 \226\153\160\235\130\152\235\172\180 \226\151\143\235\176\148\236\156\204\n")
+  GT.win:decho("<120,130,150>  @\235\130\152 N/X NPC/\236\160\129 \226\153\160\235\130\152\235\172\180 \226\151\143\235\176\148\236\156\204 \226\151\134\236\149\132\236\157\180\237\133\156\n")
 end
 
 local function fxActive(d) return d and d.fx and type(d.fx)=="table" and #d.fx > 0 end
