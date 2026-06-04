@@ -1296,6 +1296,7 @@ function GT.render(d)
   local dark = tonumber(d.dark) or 0
   local litrad = tonumber(d.litrad) or 0
   local weather = d.weather or "clear"
+  local floor = d.floor or "ondol"
   local outdoor = (biome == "forest")
   local flash = (GT.flash or 0) > 0
   local sx = d.self and tonumber(d.self[1])
@@ -1340,8 +1341,12 @@ function GT.render(d)
     return r..","..g..","..b
   end
   local function floorBg(x, y)
-    if outdoor then local v=(x*7+y*11+x*y)%4; return ({"18,40,20","23,48,25","15,34,17","20,44,22"})[v+1]
-    else return "22,24,30" end
+    if outdoor then local v=(x*7+y*11+x*y)%4; return ({"18,40,20","23,48,25","15,34,17","20,44,22"})[v+1] end
+    local v = (x*5+y*7)%3
+    if floor == "wood" then return ({"46,35,24","52,41,29","41,31,21"})[v+1]
+    elseif floor == "tile" then return ((x+y)%2==0) and "54,58,66" or "46,50,58"
+    elseif floor == "concrete" then return ({"40,42,46","45,47,51","37,39,43"})[v+1]
+    else return ({"66,53,35","73,60,41","60,48,32"})[v+1] end
   end
   local function cellBg(x, y)
     if fire[x..","..y] then return "70,26,8" end
@@ -1428,7 +1433,12 @@ function GT.render(d)
         elseif g and g.t == "snow" then fg, glyph = "225,232,244", "\226\151\166 "
         elseif outdoor then
           if (x*3+y*5)%5==0 then fg, glyph = tint("78,130,62"), ", " else fg, glyph = tint("40,82,44"), " ." end
-        else fg, glyph = "70,74,88", ". " end
+        else
+          if floor == "wood" then fg = "80,64,46"; glyph = (y % 3 == 0) and "\226\148\128\226\148\128" or "\226\148\128 "
+          elseif floor == "tile" then fg = "92,96,106"; glyph = ". "
+          elseif floor == "concrete" then fg = "66,68,74"; glyph = ((x*3+y) % 5 == 0) and ": " or ". "
+          else fg = "98,82,58"; glyph = ((x+y) % 6 == 0) and "\226\151\166 " or ". " end
+        end
         local ffg, fbg = dim(fg, lm), dim(bg, lm)
         if flash then ffg = brighten(ffg); fbg = brighten(fbg) end
         GT.win:decho("<" .. ffg .. ":" .. fbg .. ">" .. glyph)
