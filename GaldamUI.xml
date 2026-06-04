@@ -1516,19 +1516,26 @@ local function bindKP(code, luacode, label)
   echo("[GK] " .. label .. " 실패: " .. tostring(id) .. " / " .. tostring(id2) .. "\n")
 end
 echo("\n[GK] tempKey=" .. type(tempKey) .. " — 숫자패드 바인딩(NumLock 켜야 함)\n")
+-- 직교 4방
 bindKP(0x38, [[send("\235\182\129")]], "Num8=북")
 bindKP(0x35, [[send("\235\130\168")]], "Num5=남")
 bindKP(0x34, [[send("\236\132\156")]], "Num4=서")
 bindKP(0x36, [[send("\235\143\153")]], "Num6=동")
-bindKP(0x32, [[send("\236\136\152\236\137\137")]], "Num2=수색")
+-- 대각 4방 (7북서 9북동 1남서 3남동)
+bindKP(0x37, [[send("\235\182\129\236\132\156")]], "Num7=북서")
+bindKP(0x39, [[send("\235\182\129\235\143\153")]], "Num9=북동")
+bindKP(0x31, [[send("\235\130\168\236\132\156")]], "Num1=남서")
+bindKP(0x33, [[send("\235\130\168\235\143\153")]], "Num3=남동")
+-- 행동: 2수색 0보기 (수색 바이트 수정: 색=\236\131\137)
+bindKP(0x32, [[send("\236\136\152\236\131\137")]], "Num2=수색")
 bindKP(0x30, [[send("\235\179\180\234\184\176")]], "Num0=보기")
 pcall(function()
-  if not GK.ind then GK.ind = Geyser.Label:new({name="GKInd", x="30%", y="6.5%", width=300, height=22}) end
+  if not GK.ind then GK.ind = Geyser.Label:new({name="GKInd", x="30%", y="6.5%", width=340, height=22}) end
   GK.ind:setStyleSheet("background-color: rgba(18,54,30,238); border:1px solid #5ac87a; border-radius:5px; qproperty-alignment:AlignCenter;")
-  GK.ind:echo("<font color='#9fe8b0'>Numpad 8/5/4/6 = \236\157\180\235\143\153</font>")
+  GK.ind:echo("<font color='#9fe8b0'>\235\132\152\237\140\168\235\147\156: 8\235\176\169\237\150\165 \236\136\171\236\158\144 (7/9/1/3 \235\140\128\234\176\129) 2\236\136\152\236\131\137 0\235\179\180\234\184\176</font>")
   GK.ind:show()
 end)
-echo("[Galdam] Numpad move loaded: " .. #GK.ids .. " keys. NumLock ON + press 8/5/4/6!\n")
+echo("[Galdam] Numpad 8-way + 2/0 loaded: " .. #GK.ids .. " keys. NumLock ON!\n")
 ]]></script>
       <eventHandlerList></eventHandlerList>
     </Script>
