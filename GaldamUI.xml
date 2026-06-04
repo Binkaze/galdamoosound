@@ -588,6 +588,70 @@ function GaldamUI.onObjMenu()
   end
 end
 
+-- ===== 전술뷰 아이콘 상호작용 (방패널 ctx메뉴 재사용) =====
+function GaldamUI.normId(id)
+  id = tostring(id or "")
+  return (id:gsub("^#", ""))
+end
+
+-- 전술뷰 아이콘 클릭 → 해당 객체 상호작용 메뉴 (빈 cmds → openCtxMenu가 _galdamobjcmds 요청)
+function GaldamUI.tacClick(id, name)
+  GaldamUI.openCtxMenu(name, {}, tostring(id))
+end
+
+-- 한 셀에 여러 객체 겹침 → 객체 선택 메뉴 → 선택 시 그 객체 메뉴
+function GaldamUI.tacStack(x, y)
+  local objs = GaldamTac and GaldamTac.cellObj and GaldamTac.cellObj[x .. "," .. y]
+  if not objs or #objs == 0 then return end
+  if #objs == 1 then GaldamUI.tacClick(objs[1].id, objs[1].name); return end
+  local mn = "GaldamCtxMenu"
+  if not GaldamUI.ctxMenu then
+    GaldamUI.ctxMenu = Geyser.MiniConsole:new({ name = mn, x = 0, y = 0, width = 200, height = 100 })
+    GaldamUI.ctxMenu:setColor(13, 19, 27)
+    pcall(function() GaldamUI.ctxMenu:setFontSize(11) end)
+    GaldamUI.ctxMenu:setWrap(44)
+  end
+  local w, h = 200, (#objs + 2) * 19 + 12
+  local mx, my = 0, 0
+  pcall(function() mx, my = getMousePosition() end)
+  local sw, sh = getMainWindowSize()
+  if mx + w > sw then mx = sw - w - 6 end
+  if my + h > sh then my = math.max(0, sh - h - 6) end
+  pcall(function() GaldamUI.ctxMenu:resize(w, h); GaldamUI.ctxMenu:move(mx, my) end)
+  GaldamUI.ctxOpenId = "stack:" .. x .. "," .. y
+  pcall(function() clearWindow(mn); cecho(mn, " <yellow><b>여러 개 (" .. #objs .. ")</b>\n") end)
+  for _, o in ipairs(objs) do
+    local lua = "GaldamUI.tacClick([[" .. o.id .. "]],[[" .. o.name .. "]])"
+    pcall(function()
+      setFgColor(mn, 150, 216, 160)
+      echoLink(mn, " ▸ " .. o.name, lua, o.name .. " 상호작용", true)
+      echo(mn, "\n")
+    end)
+  end
+  pcall(function() GaldamUI.ctxMenu:show(); raiseWindow(mn) end)
+  GaldamUI.ctxVisible = true
+  if GaldamUI.ctxTimer then pcall(function() killTimer(GaldamUI.ctxTimer) end) end
+  GaldamUI.ctxTimer = tempTimer(8, function() GaldamUI.closeCtxMenu() end)
+end
+
+-- 우측 패널: 상호작용 가능 거리(인접) 객체에 ✋초록 지속표시 (✨반짝 중인 행은 건너뜀)
+function GaldamUI.refreshNearHighlight()
+  if not GaldamUI.liveRows then return end
+  local near = (GaldamTac and GaldamTac.nearIds) or {}
+  local bu = GaldamUI.blinkUntil or {}
+  for _, lr in ipairs(GaldamUI.liveRows) do
+    if not bu[lr.id] then
+      if near[GaldamUI.normId(lr.id)] then
+        lr.lb:setStyleSheet("background-color: rgba(46,204,113,0.20); border:1px solid #2ecc71; border-radius:4px; qproperty-alignment:'AlignLeft';")
+        lr.lb:echo("<span style='color:#86f0b0;font-size:10pt;'>&nbsp;✋ " .. lr.name .. "</span>")
+      else
+        lr.lb:setStyleSheet("background-color: rgba(255,255,255,0.045); border-radius:4px; qproperty-alignment:'AlignLeft';")
+        lr.lb:echo("<span style='color:" .. lr.col .. ";font-size:10pt;'>&nbsp;▸ " .. lr.name .. "</span>")
+      end
+    end
+  end
+end
+
 -- 새 등장 항목 ✨반짝 펄스 (cycleStep 0.1초 루프에서 호출). 수배 별 깜빡임과 같은 결
 function GaldamUI.animateRoom()
   if not (GaldamUI.liveRows and GaldamUI.blinkUntil) then return end
@@ -605,8 +669,14 @@ function GaldamUI.animateRoom()
         end
       else
         GaldamUI.blinkUntil[lr.id] = nil
-        lr.lb:setStyleSheet("background-color: rgba(255,255,255,0.045); border-radius:4px; qproperty-alignment:'AlignLeft';")
-        lr.lb:echo("<span style='color:" .. lr.col .. ";font-size:10pt;'>&nbsp;▸ " .. lr.name .. "</span>")
+        local _near = GaldamTac and GaldamTac.nearIds and GaldamTac.nearIds[GaldamUI.normId(lr.id)]
+        if _near then
+          lr.lb:setStyleSheet("background-color: rgba(46,204,113,0.20); border:1px solid #2ecc71; border-radius:4px; qproperty-alignment:'AlignLeft';")
+          lr.lb:echo("<span style='color:#86f0b0;font-size:10pt;'>&nbsp;✋ " .. lr.name .. "</span>")
+        else
+          lr.lb:setStyleSheet("background-color: rgba(255,255,255,0.045); border-radius:4px; qproperty-alignment:'AlignLeft';")
+          lr.lb:echo("<span style='color:" .. lr.col .. ";font-size:10pt;'>&nbsp;▸ " .. lr.name .. "</span>")
+        end
       end
     end
   end
@@ -674,6 +744,7 @@ function GaldamUI.renderRoom()
   GaldamUI.prevIds = cur
   GaldamUI.prevRoomId = rid
   for i = idx + 1, #GaldamUI.roomRows do pcall(function() GaldamUI.roomRows[i]:hide() end) end
+  pcall(GaldamUI.refreshNearHighlight)
 end
 
 function GaldamUI.onRoom()
@@ -1319,6 +1390,31 @@ function GT.render(d)
   for _, it in ipairs(d.items or {}) do items[tonumber(it.x)..","..tonumber(it.y)] = it end
   for _, g in ipairs(d.ground or {}) do ground[tonumber(g.x)..","..tonumber(g.y)] = g end
   for _, f in ipairs(d.fx or {}) do if f.t == "fire" then fire[tonumber(f.x)..","..tonumber(f.y)] = true end end
+  -- 상호작용 객체 맵: 셀 -> {{id,name,kind},...} (가구/아이템/액터, id>0만 클릭가능)
+  local cellObj = {}
+  local function _addObj(cx, cy, id, nm, kind)
+    id = tonumber(id)
+    if not (cx and cy and id and id > 0) then return end
+    local k = cx .. "," .. cy
+    cellObj[k] = cellObj[k] or {}
+    table.insert(cellObj[k], { id = tostring(id), name = nm or "?", kind = kind })
+  end
+  for _, a in ipairs(d.actors or {}) do _addObj(tonumber(a.x), tonumber(a.y), a.id, a.n, "actor") end
+  for _, it in ipairs(d.items or {}) do _addObj(tonumber(it.x), tonumber(it.y), it.id, it.n, "item") end
+  for _, c in ipairs(d.cover or {}) do _addObj(tonumber(c.x), tonumber(c.y), c.id, c.n, "furniture") end
+  GT.cellObj = cellObj
+  -- 인접(체비셰프≤1) 상호작용 객체 id 집합 → 우측패널 하이라이트용
+  GaldamTac.nearIds = {}
+  if sx and sy then
+    for k, objs in pairs(cellObj) do
+      local cx, cy = k:match("(%-?%d+),(%-?%d+)")
+      cx, cy = tonumber(cx), tonumber(cy)
+      if cx and math.max(math.abs(cx - sx), math.abs(cy - sy)) <= 1 then
+        for _, o in ipairs(objs) do GaldamTac.nearIds[o.id] = true end
+      end
+    end
+  end
+  if GaldamUI and GaldamUI.refreshNearHighlight then pcall(GaldamUI.refreshNearHighlight) end
   local ex = {}
   for _, e in ipairs(d.exits or {}) do ex[e.edge] = e.dir end
   local smoke = GT.smoke or {}
@@ -1455,14 +1551,35 @@ function GT.render(d)
         end
         local ffg, fbg = dim(fg, lm), dim(bg, lm)
         if flash then ffg = brighten(ffg); fbg = brighten(fbg) end
-        GT.win:decho("<" .. ffg .. ":" .. fbg .. ">" .. glyph)
+        local _objs = cellObj[key]
+        if _objs and #_objs > 0 and not (sx == x and sy == y) then
+          local hint, lua
+          if #_objs == 1 then
+            hint = _objs[1].name
+            lua = "GaldamUI.tacClick([[" .. _objs[1].id .. "]],[[" .. _objs[1].name .. "]])"
+          else
+            local nms = {}
+            for _, oo in ipairs(_objs) do nms[#nms + 1] = oo.name end
+            hint = "여러 개 (" .. #_objs .. "): " .. table.concat(nms, ", ")
+            lua = "GaldamUI.tacStack(" .. x .. "," .. y .. ")"
+          end
+          local fr, fgc, fb = ffg:match("(%d+),(%d+),(%d+)")
+          local br, bgc, bb = fbg:match("(%d+),(%d+),(%d+)")
+          pcall(function()
+            GT.win:setFgColor(tonumber(fr), tonumber(fgc), tonumber(fb))
+            GT.win:setBgColor(tonumber(br), tonumber(bgc), tonumber(bb))
+            GT.win:echoLink(glyph, lua, hint, true)
+          end)
+        else
+          GT.win:decho("<" .. ffg .. ":" .. fbg .. ">" .. glyph)
+        end
       end
     end
     if y == midy and ex.E then GT.win:decho("<150,255,150>\226\150\182") end
     GT.win:echo("\n")
   end
   GT.win:decho(ex.S and ("<150,255,150>      \226\150\188 " .. ex.S .. "\n") or "\n")
-  GT.win:decho("<120,130,150>  @\235\130\152 N/X NPC/\236\160\129 \226\153\160\235\130\152\235\172\180 \226\151\143\235\176\148\236\156\204 \226\151\134\236\149\132\236\157\180\237\133\156\n")
+  GT.win:decho("<120,130,150>  @\235\130\152 N/X NPC/\236\160\129 \226\153\160\235\130\152\235\172\180 \226\151\143\235\176\148\236\156\204 \226\151\134\236\149\132\236\157\180\237\133\156\n  (\236\149\132\236\157\180\236\189\152 \237\129\180\235\166\173=\236\131\129\237\152\184\236\158\145\236\154\169, \235\167\136\236\154\176\236\138\164=\237\136\180\237\140\129)\n")
 end
 
 local function fxActive(d) return d and d.fx and type(d.fx)=="table" and #d.fx > 0 end
