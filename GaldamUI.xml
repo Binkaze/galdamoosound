@@ -1233,6 +1233,7 @@ function GT.render(d)
   local w = tonumber(d.w) or 9
   local h = tonumber(d.h) or 9
   local biome = d.biome or "indoor"
+  local tone = tonumber(d.tone) or 3
   local sx = d.self and tonumber(d.self[1])
   local sy = d.self and tonumber(d.self[2])
   local cover, actors, ground = {}, {}, {}
@@ -1242,6 +1243,19 @@ function GT.render(d)
   local ex = {}
   for _, e in ipairs(d.exits or {}) do ex[e.edge] = e.dir end
 
+  local TONE = {
+    [1] = {0.70, 8, 6, 26}, [2] = {0.90, 14, 11, 5}, [3] = {1.00, 0, 0, 0},
+    [4] = {0.84, 28, 9, 0}, [5] = {0.66, 52, 14, 2}, [6] = {0.40, 2, 6, 32},
+  }
+  local function tint(rgb)
+    if biome ~= "forest" then return rgb end
+    local t = TONE[tone] or TONE[3]
+    local r, g, b = rgb:match("(%d+),(%d+),(%d+)")
+    r = math.min(255, math.floor(tonumber(r)*t[1] + t[2]))
+    g = math.min(255, math.floor(tonumber(g)*t[1] + t[3]))
+    b = math.min(255, math.floor(tonumber(b)*t[1] + t[4]))
+    return r..","..g..","..b
+  end
   local function floorBg(x, y)
     if biome == "forest" then
       local v = (x*7 + y*11 + x*y) % 4
@@ -1258,13 +1272,16 @@ function GT.render(d)
     elseif g and g.t == "wet" then
       return "24,38,58"
     end
-    return floorBg(x, y)
+    return tint(floorBg(x, y))
   end
 
   GT.win:clear()
   local nm = (gmcp.Galdam and gmcp.Galdam.Room and gmcp.Galdam.Room.name) or "전술 격자"
   local hdr = (biome == "forest") and "<150,210,150>" or "<154,208,255>"
-  GT.win:decho(hdr .. "  \226\140\150 " .. nm .. "\n")
+  local tnames = {"새벽","아침","낮","저녁","노을","밤"}
+  GT.win:decho(hdr .. "  \226\140\150 " .. nm)
+  if biome == "forest" then GT.win:decho("<120,128,148>  (" .. (tnames[tone] or "") .. ")") end
+  GT.win:decho("\n")
   GT.win:decho(ex.N and ("<150,255,150>      \226\150\178 " .. ex.N .. "\n") or "\n")
   local midy = math.floor(h / 2)
   for y = 0, h - 1 do
@@ -1283,9 +1300,9 @@ function GT.render(d)
       elseif cover[key] then
         local c = cover[key]
         if c.k == "tree" then
-          GT.win:decho("<95,205,105:10,28,12>\226\153\160\226\153\160")
+          GT.win:decho("<" .. tint("95,205,105") .. ":" .. tint("10,28,12") .. ">\226\153\160\226\153\160")
         elseif c.k == "rock" then
-          GT.win:decho("<155,152,162:36,36,42>\226\151\143\226\151\143")
+          GT.win:decho("<" .. tint("155,152,162") .. ":" .. tint("36,36,42") .. ">\226\151\143\226\151\143")
         else
           GT.win:decho("<150,110,70:" .. bg .. ">\226\150\146\226\150\146")
         end
@@ -1302,8 +1319,8 @@ function GT.render(d)
           GT.win:decho("<90,150,210:" .. bg .. ">~ ")
         else
           if biome == "forest" then
-            if (x*3 + y*5) % 5 == 0 then GT.win:decho("<78,130,62:" .. bg .. ">, ")
-            else GT.win:decho("<40,82,44:" .. bg .. "> .") end
+            if (x*3 + y*5) % 5 == 0 then GT.win:decho("<" .. tint("78,130,62") .. ":" .. bg .. ">, ")
+            else GT.win:decho("<" .. tint("40,82,44") .. ":" .. bg .. "> .") end
           else
             GT.win:decho("<70,74,88:" .. bg .. ">. ")
           end
