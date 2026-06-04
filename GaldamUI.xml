@@ -1223,7 +1223,13 @@ function GT.makeWindow()
     GT.win:hide()
   end
 end
-if GaldamTacSprite and GaldamTacSprite.win then pcall(function() GaldamTacSprite.win:hide() end) end
+if GaldamTacSprite then
+  if GaldamTacSprite.h1 then pcall(killAnonymousEventHandler, GaldamTacSprite.h1); GaldamTacSprite.h1 = nil end
+  if GaldamTacSprite.h2 then pcall(killAnonymousEventHandler, GaldamTacSprite.h2); GaldamTacSprite.h2 = nil end
+  GaldamTacSprite.onTac = function() end
+  GaldamTacSprite.onRoom = function() end
+  if GaldamTacSprite.win then pcall(function() GaldamTacSprite.win:hide() end); pcall(function() GaldamTacSprite.win:setStyleSheet("background-color: rgba(0,0,0,0);") end) end
+end
 
 local function clampc(v) return math.max(0, math.min(255, math.floor(v))) end
 local function dim(rgb, m)
