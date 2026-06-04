@@ -1286,7 +1286,8 @@ function GT.render(d)
   local function cellBg(x, y)
     local g = ground[x..","..y]
     if g and g.t == "blood" then local l=tonumber(g.l) or 1; return (32+l*24)..",9,11"
-    elseif g and g.t == "wet" then return "24,38,58" end
+    elseif g and g.t == "wet" then return "24,38,58"
+    elseif g and g.t == "snow" then return "70,76,88" end
     return tint(floorBg(x, y))
   end
 
@@ -1341,6 +1342,7 @@ function GT.render(d)
           glyph = (l>=5) and "\226\150\147\226\150\147" or ((l>=4) and "\226\150\146\226\150\146" or ((l>=2) and ": " or ". "))
           fg = (115+l*20)..",26,28"
         elseif g and g.t == "wet" then fg, glyph = "90,150,210", "~ "
+        elseif g and g.t == "snow" then fg, glyph = "225,232,244", "iv "
         elseif outdoor then
           if (x*3+y*5)%5==0 then fg, glyph = tint("78,130,62"), ", " else fg, glyph = tint("40,82,44"), " ." end
         else fg, glyph = "70,74,88", ". " end
@@ -1360,7 +1362,7 @@ function GT.weatherTick()
   if wx ~= "rain" and wx ~= "snow" then GT.wtimer = nil; return end
   GT.frame = (GT.frame or 0) + 1
   if GT.win and GT.shown then GT.render(GT.lastData) end
-  GT.wtimer = tempTimer(0.15, "GaldamTac.weatherTick")
+  GT.wtimer = tempTimer(0.15, "GaldamTac.weatherTick()")
 end
 
 function GT.onTac()
@@ -1368,7 +1370,7 @@ function GT.onTac()
   if not d then return end
   GT.makeWindow(); GT.lastData = d; GT.render(d); GT.win:show(); GT.shown = true
   if (d.weather == "rain" or d.weather == "snow") and not GT.wtimer then
-    GT.wtimer = tempTimer(0.15, "GaldamTac.weatherTick")
+    GT.wtimer = tempTimer(0.15, "GaldamTac.weatherTick()")
   end
 end
 
