@@ -30,7 +30,7 @@ pcall(function() lfs.mkdir(GaldamUI.imgDir) end)
 local IMGBASE = "https://cdn.jsdelivr.net/gh/Binkaze/galdamoosound@main/"
 local IMGFILES = {"up-arrow.png","down arrow.png","left-arrow.png","right-arrow.png","up.png","down.png","in.png","out.png","look.png","search.png",
   "status_cold.png","status_heat.png","status_wet.png","status_drunk.png","status_caffeine.png","status_smoke.png","status_nausea.png",
-  "status_bleeding.png","status_stunned.png","status_broken.png","status_hunger.png","status_thirst.png","status_fatigue.png","status_heavy.png","tile_grass.png","tile_grass2.png","tile_floor.png","tile_tree.png","tile_rock.png","tile_fire.png","tile_player.png","tile_npc.png","tile_enemy.png","tile_water.png","tile_blood.png"}
+  "status_bleeding.png","status_stunned.png","status_broken.png","status_hunger.png","status_thirst.png","status_fatigue.png","status_heavy.png"}
 local function imgPath(f) return GaldamUI.imgDir .. "/" .. f end
 local function imgTag(f, sz) return "<center><img src='"..imgPath(f).."' width='"..sz.."' height='"..sz.."'></center>" end
 GaldamUI.imgTag = imgTag; GaldamUI.imgPath = imgPath
@@ -1208,11 +1208,12 @@ echo("[Galdam] 낚시 QTE v6 로드됨. 입질연출→챔질→힘겨루기(�
       <name>GaldamTacticalGrid</name>
       <packageName></packageName>
       <script><![CDATA[
--- ===== Galdam 전술 격자 뷰 v5: 지형/혈흔/시간대/암흑/날씨/태풍/광원/불연기 =====
+-- ===== Galdam 전술 격자 뷰 v6: +연기 셀룰러 확산 시뮬 (스프라이트 제거) =====
 GaldamTac = GaldamTac or {}
 local GT = GaldamTac
 GT.frame = GT.frame or 0
 GT.flash = GT.flash or 0
+GT.smoke = GT.smoke or {}
 
 function GT.makeWindow()
   if not GT.win then
@@ -1222,6 +1223,7 @@ function GT.makeWindow()
     GT.win:hide()
   end
 end
+if GaldamTacSprite and GaldamTacSprite.win then pcall(function() GaldamTacSprite.win:hide() end) end
 
 local function clampc(v) return math.max(0, math.min(255, math.floor(v))) end
 local function dim(rgb, m)
@@ -1233,6 +1235,52 @@ local function brighten(rgb)
   local r, g, b = rgb:match("(%d+),(%d+),(%d+)")
   return clampc(tonumber(r)+84)..","..clampc(tonumber(g)+84)..","..clampc(tonumber(b)+94)
 end
+local function smAdd(g, x, y, amt, t)
+  local k = x .. "," .. y
+  local c = g[k]
+  if c then c.d = math.min(10, c.d + amt) else g[k] = { d = math.min(10, amt), t = t } end
+end
+
+-- 연기 셀룰러 확산: emit(소스) → diffuse(이웃) → decay. 밀폐=잔류, 야외=흩어짐+바람
+function GT.smokeStep(d)
+  local w = tonumber(d.w) or 9
+  local h = tonumber(d.h) or 9
+  local outdoor = (d.biome == "forest")
+  local g = GT.smoke or {}
+  for _, f in ipairs(d.fx or {}) do
+    local x, y = tonumber(f.x), tonumber(f.y)
+    if f.t == "fire" then if y-1 >= 0 then smAdd(g, x, y-1, 3.6, "gray") end
+    elseif f.t == "smoke" then if y-1 >= 0 then smAdd(g, x, y-1, 2.2, "gray") end
+    elseif f.t == "teargas" then smAdd(g, x, y, 5, "gas")
+    elseif f.t == "breath" then if y-1 >= 0 then smAdd(g, x, y-1, 1.8, "white") end
+    elseif f.t == "steam" then if y-1 >= 0 then smAdd(g, x, y-1, 3, "white") end end
+  end
+  local decay = outdoor and 0.70 or 0.94
+  local spread = 0.5
+  local ng = {}
+  for k, c in pairs(g) do
+    local cx, cy = k:match("(%-?%d+),(%-?%d+)")
+    cx, cy = tonumber(cx), tonumber(cy)
+    local dens = c.d * decay
+    if dens > 0.35 then
+      smAdd(ng, cx, cy, dens * (1 - spread), c.t)
+      local nbrs
+      if c.t == "gas" then nbrs = {{cx,cy-1,0.5},{cx,cy+1,1.2},{cx-1,cy,1.4},{cx+1,cy,1.4}}
+      else nbrs = {{cx,cy-1,2.3},{cx,cy+1,0.5},{cx-1,cy,1},{cx+1,cy,1}} end
+      if outdoor then nbrs[#nbrs+1] = {cx+1,cy,1.8} end
+      local tot = 0
+      for _, nb in ipairs(nbrs) do tot = tot + nb[3] end
+      local give = dens * spread
+      for _, nb in ipairs(nbrs) do
+        if nb[1] >= 0 and nb[1] < w and nb[2] >= 0 and nb[2] < h then
+          smAdd(ng, nb[1], nb[2], give * nb[3] / tot, c.t)
+        end
+      end
+    end
+  end
+  GT.smoke = ng
+end
+local function smokeActive() return next(GT.smoke or {}) ~= nil end
 
 function GT.render(d)
   local w = tonumber(d.w) or 9
@@ -1258,31 +1306,14 @@ function GT.render(d)
     return
   end
 
-  local cover, actors, ground = {}, {}, {}
+  local cover, actors, ground, fire = {}, {}, {}, {}
   for _, c in ipairs(d.cover or {}) do cover[tonumber(c.x)..","..tonumber(c.y)] = c end
   for _, a in ipairs(d.actors or {}) do actors[tonumber(a.x)..","..tonumber(a.y)] = a end
   for _, g in ipairs(d.ground or {}) do ground[tonumber(g.x)..","..tonumber(g.y)] = g end
+  for _, f in ipairs(d.fx or {}) do if f.t == "fire" then fire[tonumber(f.x)..","..tonumber(f.y)] = true end end
   local ex = {}
   for _, e in ipairs(d.exits or {}) do ex[e.edge] = e.dir end
-
-  -- 효과(불/연기)
-  local fire, smoke = {}, {}
-  local srcs = {}
-  for _, f in ipairs(d.fx or {}) do
-    local fxx, fxy = tonumber(f.x), tonumber(f.y)
-    if f.t == "fire" then fire[fxx..","..fxy] = true; srcs[#srcs+1] = {fxx, fxy} 
-    elseif f.t == "smoke" then srcs[#srcs+1] = {fxx, fxy} end
-  end
-  for _, sc in ipairs(srcs) do
-    for k = 1, 3 do
-      local wav = ((GT.frame + k*3) % 5) - 2
-      local px, py = sc[1] + wav, sc[2] - k
-      if py >= 0 and px >= 0 and px < w then
-        local cur = smoke[px..","..py]
-        if not cur or k < cur then smoke[px..","..py] = k end
-      end
-    end
-  end
+  local smoke = GT.smoke or {}
 
   local function lightMul(x, y)
     if outdoor or dark < 1 then return 1.0 end
@@ -1308,6 +1339,13 @@ function GT.render(d)
   end
   local function cellBg(x, y)
     if fire[x..","..y] then return "70,26,8" end
+    local sm = smoke[x..","..y]
+    if sm and sm.d >= 3 then
+      local op = math.min(0.7, sm.d/12)
+      local base = (sm.t=="gas") and {150,150,90} or ((sm.t=="white") and {180,182,188} or {95,95,102})
+      local fb = floorBg(x,y); local r,g,b = (outdoor and tint(fb) or fb):match("(%d+),(%d+),(%d+)")
+      return clampc(tonumber(r)*(1-op)+base[1]*op)..","..clampc(tonumber(g)*(1-op)+base[2]*op)..","..clampc(tonumber(b)*(1-op)+base[3]*op)
+    end
     local g = ground[x..","..y]
     if g and g.t == "blood" then local l=tonumber(g.l) or 1; return (32+l*24)..",9,11"
     elseif g and g.t == "wet" then return "24,38,58"
@@ -1352,6 +1390,7 @@ function GT.render(d)
         local bg = cellBg(x, y)
         local g = ground[key]
         local p = part[key]
+        local sm = smoke[key]
         local fg, glyph
         if sx == x and sy == y then fg, glyph = "120,235,255", "@ "
         elseif actors[key] then
@@ -1361,11 +1400,12 @@ function GT.render(d)
         elseif fire[key] then
           fg = fcol[((GT.frame + x + y) % 3) + 1]
           glyph = (((GT.frame + x) % 2) == 0) and "\226\153\168 " or "\226\150\178 "
-        elseif smoke[key] then
-          local k = smoke[key]
-          local sv = 140 - k*30
-          fg = sv..","..(sv-3)..","..(sv-7)
-          glyph = (k <= 1) and "\194\176 " or ((k <= 2) and "\194\176 " or "\194\183 ")
+        elseif sm and sm.d > 0.4 then
+          local dd = sm.d
+          local sv = (sm.t=="gas") and "190,190,110" or ((sm.t=="white") and "215,218,226" or "140,140,148")
+          local jit = ((GT.frame + x*2 + y) % 7 < 4)
+          glyph = (dd>=5) and "\226\150\147\226\150\147" or ((dd>=3) and "\226\150\146\226\150\146" or ((dd>=1.5) and (jit and "\226\150\145\226\150\145" or "\194\176\194\176") or "\194\176 "))
+          fg = sv
         elseif p == "rain" then fg, glyph = "120,170,225", "\226\148\130 "
         elseif p == "storm" then fg, glyph = "165,195,235", "/ "
         elseif p == "snow" then fg, glyph = "230,235,245", "* "
@@ -1395,16 +1435,18 @@ function GT.render(d)
   GT.win:decho("<120,130,150>  @\235\130\152 N/X NPC/\236\160\129 \226\153\160\235\130\152\235\172\180 \226\151\143\235\176\148\236\156\204\n")
 end
 
-local function hasFx(d) return d and d.fx and type(d.fx) == "table" and #d.fx > 0 end
+local function fxActive(d) return d and d.fx and type(d.fx)=="table" and #d.fx > 0 end
 function GT.weatherTick()
   if not GT.lastData then GT.wtimer = nil; return end
-  local wx = GT.lastData.weather
-  local anim = (wx == "rain" or wx == "snow" or wx == "storm") or hasFx(GT.lastData)
+  local d = GT.lastData
+  local wx = d.weather
+  local anim = (wx == "rain" or wx == "snow" or wx == "storm") or fxActive(d) or smokeActive()
   if not anim then GT.wtimer = nil; return end
   GT.frame = (GT.frame or 0) + 1
   if (GT.flash or 0) > 0 then GT.flash = GT.flash - 1 end
   if wx == "storm" and (GT.flash or 0) <= 0 and math.random(100) <= 5 then GT.flash = 2 end
-  if GT.win and GT.shown then GT.render(GT.lastData) end
+  if (GT.frame % 2) == 0 then GT.smokeStep(d) end
+  if GT.win and GT.shown then GT.render(d) end
   GT.wtimer = tempTimer(0.12, "GaldamTac.weatherTick()")
 end
 
@@ -1413,13 +1455,14 @@ function GT.onTac()
   if not d then return end
   GT.makeWindow(); GT.lastData = d; GT.render(d); GT.win:show(); GT.shown = true
   local wx = d.weather
-  local anim = (wx == "rain" or wx == "snow" or wx == "storm") or hasFx(d)
+  local anim = (wx == "rain" or wx == "snow" or wx == "storm") or fxActive(d) or smokeActive()
   if anim and not GT.wtimer then GT.wtimer = tempTimer(0.12, "GaldamTac.weatherTick()") end
 end
 
 function GT.onRoom()
   if GT.win then GT.win:hide() end
   GT.shown = false
+  GT.smoke = {}
   if GT.wtimer then killTimer(GT.wtimer); GT.wtimer = nil end
 end
 
@@ -1428,67 +1471,7 @@ if GT.h2 then killAnonymousEventHandler(GT.h2) end
 GT.h1 = registerAnonymousEventHandler("gmcp.Galdam.Tac", "GaldamTac.onTac")
 GT.h2 = registerAnonymousEventHandler("gmcp.Galdam.Room", "GaldamTac.onRoom")
 GT.makeWindow()
-echo("[Galdam] 전술 격자 뷰 v5 로드됨 (지형/혈흔/시간대/암흑/날씨/태풍/광원/불연기).\n")
-
-
--- ===== 스프라이트 타일 맛보기 (PNG 이미지 격자) =====
-GaldamTacSprite = GaldamTacSprite or {}
-local GTS = GaldamTacSprite
-function GTS.makeWindow()
-  if not GTS.win then
-    GTS.win = Geyser.Label:new({name="GaldamTacSpriteWin", x="2%", y="40%", width=286, height=300})
-    GTS.win:setStyleSheet("background-color: rgba(10,14,20,246); border: 2px solid #6a9ad8; border-radius: 8px; qproperty-alignment: AlignCenter;")
-    GTS.win:hide()
-  end
-end
-function GTS.render(d)
-  local w = tonumber(d.w) or 9
-  local h = tonumber(d.h) or 9
-  local biome = d.biome or "indoor"
-  local sx = d.self and tonumber(d.self[1])
-  local sy = d.self and tonumber(d.self[2])
-  local cover, actors, ground, fire = {}, {}, {}, {}
-  for _, c in ipairs(d.cover or {}) do cover[tonumber(c.x)..","..tonumber(c.y)] = c end
-  for _, a in ipairs(d.actors or {}) do actors[tonumber(a.x)..","..tonumber(a.y)] = a end
-  for _, g in ipairs(d.ground or {}) do ground[tonumber(g.x)..","..tonumber(g.y)] = g end
-  for _, f in ipairs(d.fx or {}) do if f.t == "fire" then fire[tonumber(f.x)..","..tonumber(f.y)] = true end end
-  local function tile(x, y)
-    local key = x..","..y
-    if sx==x and sy==y then return "tile_player" end
-    if fire[key] then return "tile_fire" end
-    local a = actors[key]
-    if a then return (a.k=="player") and "tile_player" or "tile_npc" end
-    local c = cover[key]
-    if c then if c.k=="tree" then return "tile_tree" elseif c.k=="rock" then return "tile_rock" else return "tile_rock" end end
-    local g = ground[key]
-    if g and g.t=="blood" then return "tile_blood" elseif g and g.t=="wet" then return "tile_water" end
-    if biome=="forest" then return ((x+y)%2==0) and "tile_grass" or "tile_grass2" end
-    return "tile_floor"
-  end
-  local ts = 20
-  local html = "<table cellspacing='0' cellpadding='0' border='0'>"
-  for y=0,h-1 do
-    html = html.."<tr>"
-    for x=0,w-1 do
-      html = html.."<td><img src='"..GaldamUI.imgPath(tile(x,y)..".png").."' width='"..ts.."' height='"..ts.."'></td>"
-    end
-    html = html.."</tr>"
-  end
-  html = html.."</table>"
-  GTS.win:echo(html)
-end
-function GTS.onTac()
-  local d = gmcp.Galdam and gmcp.Galdam.Tac
-  if not d then return end
-  GTS.makeWindow(); GTS.render(d); GTS.win:show()
-end
-function GTS.onRoom() if GTS.win then GTS.win:hide() end end
-if GTS.h1 then killAnonymousEventHandler(GTS.h1) end
-if GTS.h2 then killAnonymousEventHandler(GTS.h2) end
-GTS.h1 = registerAnonymousEventHandler("gmcp.Galdam.Tac", "GaldamTacSprite.onTac")
-GTS.h2 = registerAnonymousEventHandler("gmcp.Galdam.Room", "GaldamTacSprite.onRoom")
-GTS.makeWindow()
-echo("[Galdam] 스프라이트 타일 맛보기 로드됨 (좌하단 창).\n")
+echo("[Galdam] 전술 격자 뷰 v6 로드됨 (+연기 확산 시뮬, 스프라이트 제거).\n")
 ]]></script>
       <eventHandlerList></eventHandlerList>
     </Script>
