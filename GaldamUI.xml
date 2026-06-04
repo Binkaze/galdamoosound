@@ -1502,63 +1502,27 @@ GT.makeWindow()
 echo("[Galdam] 전술 격자 뷰 v6 로드됨 (+연기 확산 시뮬, 스프라이트 제거).\n")
 
 
--- ===== 로그라이크 키보드 입력 모드 (실험) =====
+-- ===== [진단] 키보드 입력 테스트 =====
 GaldamKeys = GaldamKeys or {}
 local GK = GaldamKeys
-GK.ids = GK.ids or {}
-
-local function mkbind(code, luacode)
-  local ok, id = pcall(tempKeyBinding, code, luacode)
-  if not ok or id == nil then ok, id = pcall(tempKeyBinding, code, 0, luacode) end
-  if ok and id then return id end
+echo("\n[GK] ===== 키보드 진단 시작 =====\n")
+echo("[GK] tempKeyBinding 존재? : " .. type(tempKeyBinding) .. "\n")
+GK.hit = function(label) echo("\n[GK] >>>>> '" .. label .. "' 키 눌림 감지! <<<<<\n") end
+local function trybind(code, name)
+  local lc = "GaldamKeys.hit('" .. name .. "')"
+  local ok, id = pcall(tempKeyBinding, code, lc)
+  if ok and id then echo("[GK] " .. name .. " 바인딩(2인자) 성공 id=" .. tostring(id) .. "\n"); return id end
+  local ok2, id2 = pcall(tempKeyBinding, code, 0, lc)
+  if ok2 and id2 then echo("[GK] " .. name .. " 바인딩(3인자) 성공 id=" .. tostring(id2) .. "\n"); return id2 end
+  echo("[GK] " .. name .. " 바인딩 실패 (2인자err=" .. tostring(id) .. " 3인자err=" .. tostring(id2) .. ")\n")
   return nil
 end
-
-function GK.makeInd()
-  if not GK.ind then
-    GK.ind = Geyser.Label:new({name="GaldamKeyInd", x="30%", y="6.5%", width=300, height=22})
-  end
-end
-function GK.updateInd()
-  GK.makeInd()
-  if GK.on then
-    GK.ind:setStyleSheet("background-color: rgba(18,54,30,236); border:1px solid #5ac87a; border-radius:5px; qproperty-alignment:AlignCenter;")
-    GK.ind:echo("<font color='#9fe8b0'>&#9000; \237\130\164\235\179\180\235\147\156 \235\170\168\235\147\156 &#183; WASD\236\157\180\235\143\153 I\236\134\140\236\167\128\237\146\136 M\236\167\128\235\143\132 &#183; Esc=\236\177\132\237\140\133</font>")
-  else
-    GK.ind:setStyleSheet("background-color: rgba(58,40,18,236); border:1px solid #c8a05a; border-radius:5px; qproperty-alignment:AlignCenter;")
-    GK.ind:echo("<font color='#e8c89f'>&#128172; \236\177\132\237\140\133 \235\170\168\235\147\156 &#183; \236\158\144\236\156\160 \236\158\133\235\160\165 &#183; Esc=\237\130\164\235\179\180\235\147\156\235\170\168\235\147\156</font>")
-  end
-  GK.ind:show()
-end
-
-function GK.enable()
-  if GK.on then return end
-  GK.on = true
-  GK.ids = {}
-  local b = {
-    {0x57, [[send("\235\182\129")]]},  -- W 북
-    {0x41, [[send("\236\132\156")]]},  -- A 서
-    {0x53, [[send("\235\130\168")]]},  -- S 남
-    {0x44, [[send("\235\143\153")]]},  -- D 동
-    {0x4D, [[send("\236\167\128\235\143\132")]]},  -- M 지도
-    {0x49, [[send("\236\134\140\236\167\128\237\146\136")]]},  -- I 소지품
-  }
-  for _, kv in ipairs(b) do local id = mkbind(kv[1], kv[2]); if id then GK.ids[#GK.ids+1] = id end end
-  GK.updateInd()
-end
-function GK.disable()
-  for _, id in ipairs(GK.ids or {}) do pcall(killKey, id) end
-  GK.ids = {}
-  GK.on = false
-  GK.updateInd()
-end
-function GK.toggle() if GK.on then GK.disable() else GK.enable() end end
-
-if GK.escId then pcall(killKey, GK.escId) end
-GK.escId = mkbind(0x01000000, "GaldamKeys.toggle()")
-
-GK.enable()
-echo("[Galdam] 로그라이크 키보드 모드 로드 (실험): WASD 이동, Esc로 채팅\226\134\148키보드 전환.\n")
+GK.idF1  = trybind(16777264, "F1")
+GK.idW   = trybind(87, "W")
+GK.idEsc = trybind(16777216, "Esc")
+GK.idNum1 = trybind(16777265, "F2")
+echo("[GK] ===== 진단 로드 완료 =====\n")
+echo("[GK] 이제 F1 / F2 / W / Esc 눌러봐. '>>> 키 눌림 감지'가 뜨는 키를 알려줘!\n")
 ]]></script>
       <eventHandlerList></eventHandlerList>
     </Script>
