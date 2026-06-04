@@ -1235,31 +1235,30 @@ function GT.render(d)
   local biome = d.biome or "indoor"
   local sx = d.self and tonumber(d.self[1])
   local sy = d.self and tonumber(d.self[2])
-  local cover, actors = {}, {}
+  local cover, actors, ground = {}, {}, {}
   for _, c in ipairs(d.cover or {}) do cover[tonumber(c.x)..","..tonumber(c.y)] = c end
   for _, a in ipairs(d.actors or {}) do actors[tonumber(a.x)..","..tonumber(a.y)] = a end
+  for _, g in ipairs(d.ground or {}) do ground[tonumber(g.x)..","..tonumber(g.y)] = g end
   local ex = {}
   for _, e in ipairs(d.exits or {}) do ex[e.edge] = e.dir end
 
-  local function floorTile(x, y)
+  local function floorBg(x, y)
     if biome == "forest" then
       local v = (x*7 + y*11 + x*y) % 4
-      local bg = ({"18,40,20","23,48,25","15,34,17","20,44,22"})[v+1]
-      if (x*3 + y*5) % 5 == 0 then return "<78,130,62:"..bg..">, " end
-      return "<40,82,44:"..bg.."> ."
+      return ({"18,40,20","23,48,25","15,34,17","20,44,22"})[v+1]
     else
-      return "<60,64,78>. "
+      return "22,24,30"
     end
   end
-  local function coverTile(c)
-    local k = c.k or "cover"
-    if k == "tree" then
-      return "<95,205,105:10,28,12>\226\153\160\226\153\160"
-    elseif k == "rock" then
-      return "<155,152,162:36,36,42>\226\151\143\226\151\143"
-    else
-      return "<150,110,70>\226\150\146\226\150\146"
+  local function cellBg(x, y)
+    local g = ground[x..","..y]
+    if g and g.t == "blood" then
+      local l = tonumber(g.l) or 1
+      return (32 + l*24) .. ",9,11"
+    elseif g and g.t == "wet" then
+      return "24,38,58"
     end
+    return floorBg(x, y)
   end
 
   GT.win:clear()
@@ -1272,17 +1271,43 @@ function GT.render(d)
     if y == midy and ex.W then GT.win:decho("<150,255,150>\226\151\128") else GT.win:decho(" ") end
     for x = 0, w - 1 do
       local key = x .. "," .. y
+      local bg = cellBg(x, y)
+      local g = ground[key]
       if sx == x and sy == y then
-        GT.win:decho("<120,235,255:28,42,58>@ ")
+        GT.win:decho("<120,235,255:" .. bg .. ">@ ")
       elseif actors[key] then
         local a = actors[key]
-        local col = (a.k == "npc") and "<255,210,80>" or ((a.k == "player") and "<120,230,120>" or "<255,90,90>")
-        local g = (a.k == "player") and "P " or ((a.k == "npc") and "N " or "X ")
-        GT.win:decho(col .. g)
+        local col = (a.k == "npc") and "255,210,80" or ((a.k == "player") and "120,230,120" or "255,90,90")
+        local gl = (a.k == "player") and "P " or ((a.k == "npc") and "N " or "X ")
+        GT.win:decho("<" .. col .. ":" .. bg .. ">" .. gl)
       elseif cover[key] then
-        GT.win:decho(coverTile(cover[key]))
+        local c = cover[key]
+        if c.k == "tree" then
+          GT.win:decho("<95,205,105:10,28,12>\226\153\160\226\153\160")
+        elseif c.k == "rock" then
+          GT.win:decho("<155,152,162:36,36,42>\226\151\143\226\151\143")
+        else
+          GT.win:decho("<150,110,70:" .. bg .. ">\226\150\146\226\150\146")
+        end
       else
-        GT.win:decho(floorTile(x, y))
+        if g and g.t == "blood" then
+          local l = tonumber(g.l) or 1
+          local gl
+          if l >= 5 then gl = "\226\150\147\226\150\147"
+          elseif l >= 4 then gl = "\226\150\146\226\150\146"
+          elseif l >= 2 then gl = ": "
+          else gl = ". " end
+          GT.win:decho("<" .. (115 + l*20) .. ",26,28:" .. bg .. ">" .. gl)
+        elseif g and g.t == "wet" then
+          GT.win:decho("<90,150,210:" .. bg .. ">~ ")
+        else
+          if biome == "forest" then
+            if (x*3 + y*5) % 5 == 0 then GT.win:decho("<78,130,62:" .. bg .. ">, ")
+            else GT.win:decho("<40,82,44:" .. bg .. "> .") end
+          else
+            GT.win:decho("<70,74,88:" .. bg .. ">. ")
+          end
+        end
       end
     end
     if y == midy and ex.E then GT.win:decho("<150,255,150>\226\150\182") end
