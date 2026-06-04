@@ -1208,7 +1208,7 @@ echo("[Galdam] 낚시 QTE v6 로드됨. 입질연출→챔질→힘겨루기(�
       <name>GaldamTacticalGrid</name>
       <packageName></packageName>
       <script><![CDATA[
--- ===== Galdam 전술 격자 뷰 v4: 지형/혈흔/시간대/암흑/날씨(비눈안개태풍)/광원 =====
+-- ===== Galdam 전술 격자 뷰 v5: 지형/혈흔/시간대/암흑/날씨/태풍/광원/불연기 =====
 GaldamTac = GaldamTac or {}
 local GT = GaldamTac
 GT.frame = GT.frame or 0
@@ -1265,6 +1265,25 @@ function GT.render(d)
   local ex = {}
   for _, e in ipairs(d.exits or {}) do ex[e.edge] = e.dir end
 
+  -- 효과(불/연기)
+  local fire, smoke = {}, {}
+  local srcs = {}
+  for _, f in ipairs(d.fx or {}) do
+    local fxx, fxy = tonumber(f.x), tonumber(f.y)
+    if f.t == "fire" then fire[fxx..","..fxy] = true; srcs[#srcs+1] = {fxx, fxy} 
+    elseif f.t == "smoke" then srcs[#srcs+1] = {fxx, fxy} end
+  end
+  for _, sc in ipairs(srcs) do
+    for k = 1, 4 do
+      local wav = (math.floor((GT.frame + k*2) / 2) % 3) - 1
+      local px, py = sc[1] + wav, sc[2] - k
+      if py >= 0 and px >= 0 and px < w then
+        local cur = smoke[px..","..py]
+        if not cur or k < cur then smoke[px..","..py] = k end
+      end
+    end
+  end
+
   local function lightMul(x, y)
     if outdoor or dark < 1 then return 1.0 end
     if litrad <= 0 or not sx then return 0.0 end
@@ -1273,7 +1292,6 @@ function GT.render(d)
     if dist > R then return 0.0 end
     return math.max(0.14, 1.0 - dist / (R + 0.7))
   end
-
   local TONE = { [1]={0.70,8,6,26},[2]={0.90,14,11,5},[3]={1.00,0,0,0},[4]={0.84,28,9,0},[5]={0.66,52,14,2},[6]={0.40,2,6,32} }
   local function tint(rgb)
     if not outdoor then return rgb end
@@ -1289,6 +1307,7 @@ function GT.render(d)
     else return "22,24,30" end
   end
   local function cellBg(x, y)
+    if fire[x..","..y] then return "70,26,8" end
     local g = ground[x..","..y]
     if g and g.t == "blood" then local l=tonumber(g.l) or 1; return (32+l*24)..",9,11"
     elseif g and g.t == "wet" then return "24,38,58"
@@ -1320,6 +1339,7 @@ function GT.render(d)
   elseif dark >= 1 then GT.win:decho("<150,140,90>  (불빛)") end
   GT.win:decho("\n")
   GT.win:decho(ex.N and ("<150,255,150>      \226\150\178 " .. ex.N .. "\n") or "\n")
+  local fcol = {"255,150,32","255,92,20","255,205,70"}
   local midy = math.floor(h / 2)
   for y = 0, h - 1 do
     if y == midy and ex.W then GT.win:decho("<150,255,150>\226\151\128") else GT.win:decho(" ") end
@@ -1338,14 +1358,22 @@ function GT.render(d)
           local a = actors[key]
           fg = (a.k=="npc") and "255,210,80" or ((a.k=="player") and "120,230,120" or "255,90,90")
           glyph = (a.k=="player") and "P " or ((a.k=="npc") and "N " or "X ")
+        elseif fire[key] then
+          fg = fcol[((GT.frame + x + y) % 3) + 1]
+          glyph = (((GT.frame + x) % 2) == 0) and "\226\153\168 " or "\226\150\178 "
+        elseif smoke[key] then
+          local k = smoke[key]
+          local sv = 120 - k*16
+          fg = sv..","..sv..","..(sv+8)
+          glyph = (k <= 1) and "\226\150\146 " or ((k <= 2) and "\226\150\145 " or "\194\176 ")
+        elseif p == "rain" then fg, glyph = "120,170,225", "\226\148\130 "
+        elseif p == "storm" then fg, glyph = "165,195,235", "/ "
+        elseif p == "snow" then fg, glyph = "230,235,245", "* "
         elseif cover[key] then
           local c = cover[key]
           if c.k == "tree" then fg, bg, glyph = tint("95,205,105"), tint("10,28,12"), "\226\153\160\226\153\160"
           elseif c.k == "rock" then fg, bg, glyph = tint("155,152,162"), tint("36,36,42"), "\226\151\143\226\151\143"
           else fg, glyph = "150,110,70", "\226\150\146\226\150\146" end
-        elseif p == "rain" then fg, glyph = "120,170,225", "\226\148\130 "
-        elseif p == "storm" then fg, glyph = "165,195,235", "/ "
-        elseif p == "snow" then fg, glyph = "230,235,245", "* "
         elseif g and g.t == "blood" then
           local l = tonumber(g.l) or 1
           glyph = (l>=5) and "\226\150\147\226\150\147" or ((l>=4) and "\226\150\146\226\150\146" or ((l>=2) and ": " or ". "))
@@ -1367,10 +1395,12 @@ function GT.render(d)
   GT.win:decho("<120,130,150>  @\235\130\152 N/X NPC/\236\160\129 \226\153\160\235\130\152\235\172\180 \226\151\143\235\176\148\236\156\204\n")
 end
 
+local function hasFx(d) return d and d.fx and type(d.fx) == "table" and #d.fx > 0 end
 function GT.weatherTick()
   if not GT.lastData then GT.wtimer = nil; return end
   local wx = GT.lastData.weather
-  if wx ~= "rain" and wx ~= "snow" and wx ~= "storm" then GT.wtimer = nil; return end
+  local anim = (wx == "rain" or wx == "snow" or wx == "storm") or hasFx(GT.lastData)
+  if not anim then GT.wtimer = nil; return end
   GT.frame = (GT.frame or 0) + 1
   if (GT.flash or 0) > 0 then GT.flash = GT.flash - 1 end
   if wx == "storm" and (GT.flash or 0) <= 0 and math.random(100) <= 5 then GT.flash = 2 end
@@ -1383,9 +1413,8 @@ function GT.onTac()
   if not d then return end
   GT.makeWindow(); GT.lastData = d; GT.render(d); GT.win:show(); GT.shown = true
   local wx = d.weather
-  if (wx == "rain" or wx == "snow" or wx == "storm") and not GT.wtimer then
-    GT.wtimer = tempTimer(0.12, "GaldamTac.weatherTick()")
-  end
+  local anim = (wx == "rain" or wx == "snow" or wx == "storm") or hasFx(d)
+  if anim and not GT.wtimer then GT.wtimer = tempTimer(0.12, "GaldamTac.weatherTick()") end
 end
 
 function GT.onRoom()
@@ -1399,7 +1428,7 @@ if GT.h2 then killAnonymousEventHandler(GT.h2) end
 GT.h1 = registerAnonymousEventHandler("gmcp.Galdam.Tac", "GaldamTac.onTac")
 GT.h2 = registerAnonymousEventHandler("gmcp.Galdam.Room", "GaldamTac.onRoom")
 GT.makeWindow()
-echo("[Galdam] 전술 격자 뷰 v4 로드됨 (지형/혈흔/시간대/암흑/날씨/태풍/광원).\n")
+echo("[Galdam] 전술 격자 뷰 v5 로드됨 (지형/혈흔/시간대/암흑/날씨/태풍/광원/불연기).\n")
 ]]></script>
       <eventHandlerList></eventHandlerList>
     </Script>
