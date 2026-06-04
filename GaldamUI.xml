@@ -1502,30 +1502,33 @@ GT.makeWindow()
 echo("[Galdam] 전술 격자 뷰 v6 로드됨 (+연기 확산 시뮬, 스프라이트 제거).\n")
 
 
--- ===== 로그라이크 키보드 이동 (tempKey 정식 API) =====
+-- ===== 로그라이크 숫자패드 이동 (tempKey + Keypad 모디파이어) =====
 GaldamKeys = GaldamKeys or {}
 local GK = GaldamKeys
 for _, id in ipairs(GK.ids or {}) do pcall(killKey, id) end
 GK.ids = {}
-local function bind(code, luacode)
-  local ok, id = pcall(tempKey, code, luacode)
-  if ok and id then GK.ids[#GK.ids+1] = id; return true end
-  echo("[GK] 바인딩 실패(code=" .. code .. "): " .. tostring(id) .. "\n")
-  return false
+local KP = 0x20000000
+local function bindKP(code, luacode, label)
+  local ok, id = pcall(tempKey, KP, code, luacode)
+  if ok and id then GK.ids[#GK.ids+1] = id; echo("[GK] " .. label .. " OK (mod,key)\n"); return end
+  local ok2, id2 = pcall(tempKey, code, KP, luacode)
+  if ok2 and id2 then GK.ids[#GK.ids+1] = id2; echo("[GK] " .. label .. " OK (key,mod)\n"); return end
+  echo("[GK] " .. label .. " 실패: " .. tostring(id) .. " / " .. tostring(id2) .. "\n")
 end
--- 방향키 이동 (상시, 채팅 충돌 없음)
-bind(0x01000013, [[send("\235\182\129")]])  -- Up 북
-bind(0x01000015, [[send("\235\130\168")]])  -- Down 남
-bind(0x01000012, [[send("\236\132\156")]])  -- Left 서
-bind(0x01000014, [[send("\235\143\153")]])  -- Right 동
--- 시각 표시
+echo("\n[GK] tempKey=" .. type(tempKey) .. " — 숫자패드 바인딩(NumLock 켜야 함)\n")
+bindKP(0x38, [[send("\235\182\129")]], "Num8=북")
+bindKP(0x35, [[send("\235\130\168")]], "Num5=남")
+bindKP(0x34, [[send("\236\132\156")]], "Num4=서")
+bindKP(0x36, [[send("\235\143\153")]], "Num6=동")
+bindKP(0x32, [[send("\236\136\152\236\137\137")]], "Num2=수색")
+bindKP(0x30, [[send("\235\179\180\234\184\176")]], "Num0=보기")
 pcall(function()
   if not GK.ind then GK.ind = Geyser.Label:new({name="GKInd", x="30%", y="6.5%", width=300, height=22}) end
   GK.ind:setStyleSheet("background-color: rgba(18,54,30,238); border:1px solid #5ac87a; border-radius:5px; qproperty-alignment:AlignCenter;")
-  GK.ind:echo("<font color='#9fe8b0'>&#8593;&#8595;&#8592;&#8594; \236\157\180\235\143\153 (\235\176\169\235\130\168\236\132\156\235\143\153)</font>")
+  GK.ind:echo("<font color='#9fe8b0'>Numpad 8/5/4/6 = \236\157\180\235\143\153</font>")
   GK.ind:show()
 end)
-echo("\n[Galdam] Keyboard move loaded: tempKey=" .. type(tempKey) .. ", arrows bound=" .. #GK.ids .. ". Use ARROW KEYS to move!\n")
+echo("[Galdam] Numpad move loaded: " .. #GK.ids .. " keys. NumLock ON + press 8/5/4/6!\n")
 ]]></script>
       <eventHandlerList></eventHandlerList>
     </Script>
