@@ -1500,6 +1500,65 @@ GT.h1 = registerAnonymousEventHandler("gmcp.Galdam.Tac", "GaldamTac.onTac")
 GT.h2 = registerAnonymousEventHandler("gmcp.Galdam.Room", "GaldamTac.onRoom")
 GT.makeWindow()
 echo("[Galdam] 전술 격자 뷰 v6 로드됨 (+연기 확산 시뮬, 스프라이트 제거).\n")
+
+
+-- ===== 로그라이크 키보드 입력 모드 (실험) =====
+GaldamKeys = GaldamKeys or {}
+local GK = GaldamKeys
+GK.ids = GK.ids or {}
+
+local function mkbind(code, luacode)
+  local ok, id = pcall(tempKeyBinding, code, luacode)
+  if not ok or id == nil then ok, id = pcall(tempKeyBinding, code, 0, luacode) end
+  if ok and id then return id end
+  return nil
+end
+
+function GK.makeInd()
+  if not GK.ind then
+    GK.ind = Geyser.Label:new({name="GaldamKeyInd", x="30%", y="6.5%", width=300, height=22})
+  end
+end
+function GK.updateInd()
+  GK.makeInd()
+  if GK.on then
+    GK.ind:setStyleSheet("background-color: rgba(18,54,30,236); border:1px solid #5ac87a; border-radius:5px; qproperty-alignment:AlignCenter;")
+    GK.ind:echo("<font color='#9fe8b0'>&#9000; \237\130\164\235\179\180\235\147\156 \235\170\168\235\147\156 &#183; WASD\236\157\180\235\143\153 I\236\134\140\236\167\128\237\146\136 M\236\167\128\235\143\132 &#183; Esc=\236\177\132\237\140\133</font>")
+  else
+    GK.ind:setStyleSheet("background-color: rgba(58,40,18,236); border:1px solid #c8a05a; border-radius:5px; qproperty-alignment:AlignCenter;")
+    GK.ind:echo("<font color='#e8c89f'>&#128172; \236\177\132\237\140\133 \235\170\168\235\147\156 &#183; \236\158\144\236\156\160 \236\158\133\235\160\165 &#183; Esc=\237\130\164\235\179\180\235\147\156\235\170\168\235\147\156</font>")
+  end
+  GK.ind:show()
+end
+
+function GK.enable()
+  if GK.on then return end
+  GK.on = true
+  GK.ids = {}
+  local b = {
+    {0x57, [[send("\235\182\129")]]},  -- W 북
+    {0x41, [[send("\236\132\156")]]},  -- A 서
+    {0x53, [[send("\235\130\168")]]},  -- S 남
+    {0x44, [[send("\235\143\153")]]},  -- D 동
+    {0x4D, [[send("\236\167\128\235\143\132")]]},  -- M 지도
+    {0x49, [[send("\236\134\140\236\167\128\237\146\136")]]},  -- I 소지품
+  }
+  for _, kv in ipairs(b) do local id = mkbind(kv[1], kv[2]); if id then GK.ids[#GK.ids+1] = id end end
+  GK.updateInd()
+end
+function GK.disable()
+  for _, id in ipairs(GK.ids or {}) do pcall(killKey, id) end
+  GK.ids = {}
+  GK.on = false
+  GK.updateInd()
+end
+function GK.toggle() if GK.on then GK.disable() else GK.enable() end end
+
+if GK.escId then pcall(killKey, GK.escId) end
+GK.escId = mkbind(0x01000000, "GaldamKeys.toggle()")
+
+GK.enable()
+echo("[Galdam] 로그라이크 키보드 모드 로드 (실험): WASD 이동, Esc로 채팅\226\134\148키보드 전환.\n")
 ]]></script>
       <eventHandlerList></eventHandlerList>
     </Script>
