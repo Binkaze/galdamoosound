@@ -1502,27 +1502,30 @@ GT.makeWindow()
 echo("[Galdam] 전술 격자 뷰 v6 로드됨 (+연기 확산 시뮬, 스프라이트 제거).\n")
 
 
--- ===== [진단] 키보드 입력 테스트 =====
+-- ===== 로그라이크 키보드 이동 (tempKey 정식 API) =====
 GaldamKeys = GaldamKeys or {}
 local GK = GaldamKeys
-echo("\n[GK] ===== 키보드 진단 시작 =====\n")
-echo("[GK] tempKeyBinding 존재? : " .. type(tempKeyBinding) .. "\n")
-GK.hit = function(label) echo("\n[GK] >>>>> '" .. label .. "' 키 눌림 감지! <<<<<\n") end
-local function trybind(code, name)
-  local lc = "GaldamKeys.hit('" .. name .. "')"
-  local ok, id = pcall(tempKeyBinding, code, lc)
-  if ok and id then echo("[GK] " .. name .. " 바인딩(2인자) 성공 id=" .. tostring(id) .. "\n"); return id end
-  local ok2, id2 = pcall(tempKeyBinding, code, 0, lc)
-  if ok2 and id2 then echo("[GK] " .. name .. " 바인딩(3인자) 성공 id=" .. tostring(id2) .. "\n"); return id2 end
-  echo("[GK] " .. name .. " 바인딩 실패 (2인자err=" .. tostring(id) .. " 3인자err=" .. tostring(id2) .. ")\n")
-  return nil
+for _, id in ipairs(GK.ids or {}) do pcall(killKey, id) end
+GK.ids = {}
+local function bind(code, luacode)
+  local ok, id = pcall(tempKey, code, luacode)
+  if ok and id then GK.ids[#GK.ids+1] = id; return true end
+  echo("[GK] 바인딩 실패(code=" .. code .. "): " .. tostring(id) .. "\n")
+  return false
 end
-GK.idF1  = trybind(16777264, "F1")
-GK.idW   = trybind(87, "W")
-GK.idEsc = trybind(16777216, "Esc")
-GK.idNum1 = trybind(16777265, "F2")
-echo("[GK] ===== 진단 로드 완료 =====\n")
-echo("[GK] 이제 F1 / F2 / W / Esc 눌러봐. '>>> 키 눌림 감지'가 뜨는 키를 알려줘!\n")
+-- 방향키 이동 (상시, 채팅 충돌 없음)
+bind(0x01000013, [[send("\235\182\129")]])  -- Up 북
+bind(0x01000015, [[send("\235\130\168")]])  -- Down 남
+bind(0x01000012, [[send("\236\132\156")]])  -- Left 서
+bind(0x01000014, [[send("\235\143\153")]])  -- Right 동
+-- 시각 표시
+pcall(function()
+  if not GK.ind then GK.ind = Geyser.Label:new({name="GKInd", x="30%", y="6.5%", width=300, height=22}) end
+  GK.ind:setStyleSheet("background-color: rgba(18,54,30,238); border:1px solid #5ac87a; border-radius:5px; qproperty-alignment:AlignCenter;")
+  GK.ind:echo("<font color='#9fe8b0'>&#8593;&#8595;&#8592;&#8594; \236\157\180\235\143\153 (\235\176\169\235\130\168\236\132\156\235\143\153)</font>")
+  GK.ind:show()
+end)
+echo("\n[Galdam] Keyboard move loaded: tempKey=" .. type(tempKey) .. ", arrows bound=" .. #GK.ids .. ". Use ARROW KEYS to move!\n")
 ]]></script>
       <eventHandlerList></eventHandlerList>
     </Script>
