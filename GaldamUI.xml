@@ -1232,6 +1232,7 @@ end
 function GT.render(d)
   local w = tonumber(d.w) or 9
   local h = tonumber(d.h) or 9
+  local biome = d.biome or "indoor"
   local sx = d.self and tonumber(d.self[1])
   local sy = d.self and tonumber(d.self[2])
   local cover, actors = {}, {}
@@ -1240,9 +1241,31 @@ function GT.render(d)
   local ex = {}
   for _, e in ipairs(d.exits or {}) do ex[e.edge] = e.dir end
 
+  local function floorTile(x, y)
+    if biome == "forest" then
+      local v = (x*7 + y*11 + x*y) % 4
+      local bg = ({"18,40,20","23,48,25","15,34,17","20,44,22"})[v+1]
+      if (x*3 + y*5) % 5 == 0 then return "<78,130,62:"..bg..">, " end
+      return "<40,82,44:"..bg.."> ."
+    else
+      return "<60,64,78>. "
+    end
+  end
+  local function coverTile(c)
+    local k = c.k or "cover"
+    if k == "tree" then
+      return "<95,205,105:10,28,12>\226\153\160\226\153\160"
+    elseif k == "rock" then
+      return "<155,152,162:36,36,42>\226\151\143\226\151\143"
+    else
+      return "<150,110,70>\226\150\146\226\150\146"
+    end
+  end
+
   GT.win:clear()
   local nm = (gmcp.Galdam and gmcp.Galdam.Room and gmcp.Galdam.Room.name) or "전술 격자"
-  GT.win:decho("<154,208,255>  \226\140\150 " .. nm .. "\n")
+  local hdr = (biome == "forest") and "<150,210,150>" or "<154,208,255>"
+  GT.win:decho(hdr .. "  \226\140\150 " .. nm .. "\n")
   GT.win:decho(ex.N and ("<150,255,150>      \226\150\178 " .. ex.N .. "\n") or "\n")
   local midy = math.floor(h / 2)
   for y = 0, h - 1 do
@@ -1250,23 +1273,23 @@ function GT.render(d)
     for x = 0, w - 1 do
       local key = x .. "," .. y
       if sx == x and sy == y then
-        GT.win:decho("<90,200,255>@ ")
+        GT.win:decho("<120,235,255:28,42,58>@ ")
       elseif actors[key] then
         local a = actors[key]
         local col = (a.k == "npc") and "<255,210,80>" or ((a.k == "player") and "<120,230,120>" or "<255,90,90>")
         local g = (a.k == "player") and "P " or ((a.k == "npc") and "N " or "X ")
         GT.win:decho(col .. g)
       elseif cover[key] then
-        GT.win:decho("<150,110,70>\226\150\146\226\150\146")
+        GT.win:decho(coverTile(cover[key]))
       else
-        GT.win:decho("<60,64,78>. ")
+        GT.win:decho(floorTile(x, y))
       end
     end
     if y == midy and ex.E then GT.win:decho("<150,255,150>\226\150\182") end
     GT.win:echo("\n")
   end
   GT.win:decho(ex.S and ("<150,255,150>      \226\150\188 " .. ex.S .. "\n") or "\n")
-  GT.win:decho("<120,130,150>  @\235\130\152 N/X\235\130\168/\236\160\129 \226\150\146\234\176\128\234\181\172 .\235\176\148\235\139\165\n")
+  GT.win:decho("<120,130,150>  @\235\130\152 N/X NPC/\236\160\129 \226\153\160\235\130\152\235\172\180 \226\151\143\235\176\148\236\156\204\n")
 end
 
 function GT.onTac()
