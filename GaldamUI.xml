@@ -1298,9 +1298,9 @@ end
 function GT.fitWindow(w, h)
   if not GT.win then return end
   local fs = (w >= 22 or h >= 22) and 13 or 16
-  local cw = math.ceil(fs * 0.62) + 1
+  local cw = math.ceil(fs * 0.62)
   local lh = fs + 5
-  local px = (w + 2) * cw + 18
+  local px = (w * 2 + 2) * cw + 18   -- 셀 가로 2칸(글리프+공백)=종횡비 보정
   local py = (h + 5) * lh + 14
   pcall(function() GT.win:resize(px, py) end)
   pcall(function() GT.win:setFontSize(fs) end)
@@ -1552,7 +1552,7 @@ function GT.render(d)
       local key = x .. "," .. y
       local lm = lightMul(x, y)
       if lm <= 0.02 then
-        GT.win:decho("<8,8,11:5,5,8> ")
+        GT.win:decho("<8,8,11:5,5,8>  ")
       else
         local bg = cellBg(x, y)
         local g = ground[key]
@@ -1628,10 +1628,10 @@ function GT.render(d)
           pcall(function()
             GT.win:setFgColor(tonumber(fr), tonumber(fgc), tonumber(fb))
             GT.win:setBgColor(tonumber(br), tonumber(bgc), tonumber(bb))
-            GT.win:echoLink(glyph, lua, hint, true)
+            GT.win:echoLink(glyph .. " ", lua, hint, true)
           end)
         else
-          GT.win:decho("<" .. ffg .. ":" .. fbg .. ">" .. glyph)
+          GT.win:decho("<" .. ffg .. ":" .. fbg .. ">" .. glyph .. " ")
         end
       end
     end
