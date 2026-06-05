@@ -1345,6 +1345,16 @@ local function brighten(rgb)
   local r, g, b = rgb:match("(%d+),(%d+),(%d+)")
   return clampc(tonumber(r)+84)..","..clampc(tonumber(g)+84)..","..clampc(tonumber(b)+94)
 end
+-- 가로등 따뜻한 빛무리: 셀 색을 노란빛 쪽으로 끌어올림 (g=0~1 세기)
+local function warmGlow(rgb, g)
+  local r, gr, b = rgb:match("(%d+),(%d+),(%d+)")
+  r, gr, b = tonumber(r), tonumber(gr), tonumber(b)
+  local k = g * 0.6
+  r  = r  + (255 - r ) * k * 0.95
+  gr = gr + (214 - gr) * k * 0.80
+  b  = b  + (140 - b ) * k * 0.45
+  return clampc(r)..","..clampc(gr)..","..clampc(b)
+end
 local function smAdd(g, x, y, amt, t)
   local k = x .. "," .. y
   local c = g[k]
@@ -1421,6 +1431,8 @@ GT.TILE = {
   carL={u="\226\150\132",a="\226\150\132",fg="80,86,98",bg="170,178,192"}, carR={u="\226\150\132",a="\226\150\132",fg="80,86,98",bg="170,178,192"},
   truckL={u="\226\150\128",a="\226\150\128",fg="44,64,116",bg="80,124,210"}, truckR={u="\226\150\132",a="\226\150\132",fg="44,64,116",bg="80,124,210"},
   tracL={u="\226\150\132",a="\226\150\132",fg="96,44,22",bg="224,130,54"}, tracR={u="\226\151\143",a="\226\151\143",fg="50,50,56",bg="224,130,54"},
+  -- 경찰차(1×2): 차체는 흰/은빛, 렌더에서 경광등 빨강↔파랑 점멸 오버라이드
+  policeL={u="\226\150\132",a="\226\150\132",fg="40,46,58",bg="214,218,226"}, policeR={u="\226\150\132",a="\226\150\132",fg="40,46,58",bg="214,218,226"},
   -- 시골 디테일
   well={u="O",a="O",fg="120,150,200"}, jangdok={u="\226\151\143",a="o",fg="98,76,58"},
   dog={u="d",a="d",fg="196,136,84"}, clothes={u="\226\148\128",a="-",fg="222,222,228"},
@@ -1437,6 +1449,7 @@ GT.NAME = {
   corner="집 모서리", gate="대문", door="문", window="창문", greenhouse="비닐하우스",
   tree="나무", rock="바위", well="우물", jangdok="장독대", bench="평상",
   carL="자동차", carR="자동차", truckL="트럭", truckR="트럭", tracL="트랙터", tracR="트랙터",
+  policeL="경찰차", policeR="경찰차",
   paddy="논", field="밭", dirt2="흙길", clearing="마당", buoy="부표", reef="암초",
 }
 
@@ -1571,6 +1584,32 @@ function GT.render(d)
     end
   end
 
+  -- 가로등 빛무리: 야간 outdoor에서 lamp 주변 반경을 따뜻하게 + 아른거림(flicker)
+  local glow = {}
+  local glowOn = outdoor and ({[1]=0.30, [4]=0.45, [5]=0.72, [6]=1.0})[tone]
+  if glowOn and glowOn > 0 then
+    for _, c in ipairs(d.cover or {}) do
+      if c.k == "lamp" then
+        local lx, ly = tonumber(c.x), tonumber(c.y)
+        local fl = 0.86 + 0.14 * math.sin((GT.frame or 0) * 0.45 + lx * 1.7 + ly * 0.9)
+        local R = 2
+        for ddy = -R, R do
+          for ddx = -R, R do
+            local gx, gy = lx + ddx, ly + ddy
+            if gx >= 0 and gx < w and gy >= 0 and gy < h then
+              local dist = math.max(math.abs(ddx), math.abs(ddy))
+              local v = (1 - dist / (R + 1)) * glowOn * fl
+              if v > 0 then
+                local gk = gx .. "," .. gy
+                glow[gk] = math.min(1.0, (glow[gk] or 0) + v)
+              end
+            end
+          end
+        end
+      end
+    end
+  end
+
   local hdr = outdoor and "<150,210,150>" or "<154,208,255>"
   local tnames = {"새벽","아침","낮","저녁","노을","밤"}
   GT.win:decho(hdr .. "  \226\140\150 " .. nm)
@@ -1618,8 +1657,18 @@ function GT.render(d)
           local gg, sfg, sbg = glyphOf(struct[key].t); fg, glyph = tint(sfg), gg
           if sbg then bg = tint(sbg) end
         elseif cover[key] then
-          local gg, cfg, cbg = glyphOf(cover[key].k); fg, glyph = tint(cfg), gg
-          if cbg then bg = tint(cbg) end
+          local ck = cover[key].k
+          local gg, cfg, cbg = glyphOf(ck); glyph = gg
+          if ck == "policeL" or ck == "policeR" then
+            -- 경광등 점멸: 좌=빨강 우=파랑 교차로 빛났다 꺼졌다 (frame 기반)
+            local on = math.floor((GT.frame or 0) / 3) % 2
+            if ck == "policeL" then bg = (on == 0) and "235,40,40" or "70,30,34"
+            else bg = (on == 1) and "44,84,235" or "30,38,72" end
+            fg = "235,238,246"
+          else
+            fg = tint(cfg)
+            if cbg then bg = tint(cbg) end
+          end
         elseif g and g.t == "blood" then
           local l = tonumber(g.l) or 1
           glyph = (l>=5) and "#" or ((l>=2) and ":" or ".")
@@ -1649,6 +1698,13 @@ function GT.render(d)
         end
         local ffg, fbg = dim(fg, lm), dim(bg, lm)
         if flash then ffg = brighten(ffg); fbg = brighten(fbg) end
+        local gl = glow[key]
+        if gl and gl > 0.02 then
+          local cc = cover[key]
+          if not (cc and (cc.k == "policeL" or cc.k == "policeR")) then
+            ffg = warmGlow(ffg, gl); fbg = warmGlow(fbg, gl)
+          end
+        end
         local _objs = cellObj[key]
         local thint = nil
         if cover[key] then thint = GT.NAME[cover[key].k]
@@ -1693,11 +1749,23 @@ function GT.render(d)
 end
 
 local function fxActive(d) return d and d.fx and type(d.fx)=="table" and #d.fx > 0 end
+-- 환경 빛 애니메이션 필요 여부: 야간 가로등 빛무리 or 경찰차 경광등 점멸
+local function envAnim(d)
+  if not d or not d.cover then return false end
+  local outdoor = (d.biome=="forest" or d.biome=="road" or d.biome=="sea" or d.biome=="ocean")
+  local tone = tonumber(d.tone) or 3
+  local nightLamp = outdoor and (tone == 1 or tone >= 4)
+  for _, c in ipairs(d.cover) do
+    if c.k == "policeL" or c.k == "policeR" then return true end
+    if nightLamp and c.k == "lamp" then return true end
+  end
+  return false
+end
 function GT.weatherTick()
   if not GT.lastData then GT.wtimer = nil; return end
   local d = GT.lastData
   local wx = d.weather
-  local anim = (wx == "rain" or wx == "snow" or wx == "storm") or fxActive(d) or smokeActive() or (d.biome == "sea" or d.biome == "ocean")
+  local anim = (wx == "rain" or wx == "snow" or wx == "storm") or fxActive(d) or smokeActive() or (d.biome == "sea" or d.biome == "ocean") or envAnim(d)
   if not anim then GT.wtimer = nil; return end
   GT.frame = (GT.frame or 0) + 1
   if (GT.flash or 0) > 0 then GT.flash = GT.flash - 1 end
@@ -1712,7 +1780,7 @@ function GT.onTac()
   if not d then return end
   GT.makeWindow(); GT.lastData = d; GT.render(d); GT.win:show(); GT.shown = true
   local wx = d.weather
-  local anim = (wx == "rain" or wx == "snow" or wx == "storm") or fxActive(d) or smokeActive() or (d.biome == "sea" or d.biome == "ocean")
+  local anim = (wx == "rain" or wx == "snow" or wx == "storm") or fxActive(d) or smokeActive() or (d.biome == "sea" or d.biome == "ocean") or envAnim(d)
   if anim and not GT.wtimer then GT.wtimer = tempTimer(0.12, "GaldamTac.weatherTick()") end
 end
 
