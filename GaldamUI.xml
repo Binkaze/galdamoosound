@@ -1551,8 +1551,12 @@ function GT.render(d)
           local c = cover[key]
           if c.k == "tree" then fg, bg, glyph = tint("95,205,105"), tint("10,28,12"), "\226\153\160\226\153\160"
           elseif c.k == "rock" then fg, bg, glyph = tint("155,152,162"), tint("36,36,42"), "\226\151\143\226\151\143"
-          elseif c.k == "guardrail" then fg, bg, glyph = tint("180,180,190"), tint("40,40,46"), "\226\149\144\226\149\144"
-          elseif c.k == "curb" then fg, bg, glyph = tint("130,130,138"), tint("44,44,50"), "\226\150\172\226\150\172"
+          elseif c.k == "wall" then fg, bg, glyph = tint("178,150,108"), tint("60,50,36"), "\226\150\146\226\150\146"
+          elseif c.k == "building" then fg, bg, glyph = tint("164,144,122"), tint("66,56,48"), "\226\150\147\226\150\147"
+          elseif c.k == "car" then fg, bg, glyph = tint("95,150,210"), tint("28,38,54"), "\226\150\172\226\150\172"
+          elseif c.k == "tractor" then fg, bg, glyph = tint("215,150,55"), tint("58,46,24"), "\226\150\176\226\150\176"
+          elseif c.k == "pole" then fg, bg, glyph = tint("135,124,112"), tint("38,38,42"), "\226\148\130 "
+          elseif c.k == "bench" then fg, bg, glyph = tint("152,112,72"), tint("44,36,28"), "\226\150\173\226\150\173"
           elseif c.k == "buoy" then fg, bg, glyph = tint("240,140,60"), tint("22,60,92"), "\226\151\143 "
           elseif c.k == "reef" then fg, bg, glyph = tint("120,150,120"), tint("18,52,78"), "\226\153\160 "
           else fg, glyph = "150,110,70", "\226\150\146\226\150\146" end
