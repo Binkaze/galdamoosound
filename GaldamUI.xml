@@ -1373,6 +1373,16 @@ function GT.render(d)
   local flash = (GT.flash or 0) > 0
   local sx = d.self and tonumber(d.self[1])
   local sy = d.self and tonumber(d.self[2])
+  -- 뷰포트: 큰 실외 격자는 플레이어 중심 카메라(13×13)로 잘라 표시
+  local VIEW = 13
+  local vw = math.min(w, VIEW)
+  local vh = math.min(h, VIEW)
+  local vx0 = math.max(0, math.min((sx or math.floor(w/2)) - math.floor(vw/2), w - vw))
+  local vy0 = math.max(0, math.min((sy or math.floor(h/2)) - math.floor(vh/2), h - vh))
+  local scrollN = vy0 > 0
+  local scrollS = (vy0 + vh) < h
+  local scrollW = vx0 > 0
+  local scrollE = (vx0 + vw) < w
 
   GT.win:clear()
   local nm = (gmcp.Galdam and gmcp.Galdam.Room and gmcp.Galdam.Room.name) or "전술 격자"
@@ -1497,12 +1507,18 @@ function GT.render(d)
     GT.win:decho("<120,128,148>  " .. sub)
   elseif dark >= 1 then GT.win:decho("<150,140,90>  (불빛)") end
   GT.win:decho("\n")
-  GT.win:decho(ex.N and ("<150,255,150>      \226\150\178 " .. ex.N .. "\n") or "\n")
+  if scrollN then GT.win:decho("<110,140,170>      \226\150\178\226\150\178 (\235\141\148)\n")
+  elseif ex.N then GT.win:decho("<150,255,150>      \226\150\178 " .. ex.N .. "\n")
+  else GT.win:decho("\n") end
   local fcol = {"255,150,32","255,92,20","255,205,70"}
-  local midy = math.floor(h / 2)
-  for y = 0, h - 1 do
-    if y == midy and ex.W then GT.win:decho("<150,255,150>\226\151\128") else GT.win:decho(" ") end
-    for x = 0, w - 1 do
+  local midy = vy0 + math.floor(vh / 2)
+  for y = vy0, vy0 + vh - 1 do
+    if y == midy then
+      if scrollW then GT.win:decho("<110,140,170>\226\151\128")
+      elseif ex.W then GT.win:decho("<150,255,150>\226\151\128")
+      else GT.win:decho(" ") end
+    else GT.win:decho(" ") end
+    for x = vx0, vx0 + vw - 1 do
       local key = x .. "," .. y
       local lm = lightMul(x, y)
       if lm <= 0.02 then
@@ -1595,10 +1611,15 @@ function GT.render(d)
         end
       end
     end
-    if y == midy and ex.E then GT.win:decho("<150,255,150>\226\150\182") end
+    if y == midy then
+      if scrollE then GT.win:decho("<110,140,170>\226\150\182")
+      elseif ex.E then GT.win:decho("<150,255,150>\226\150\182") end
+    end
     GT.win:echo("\n")
   end
-  GT.win:decho(ex.S and ("<150,255,150>      \226\150\188 " .. ex.S .. "\n") or "\n")
+  if scrollS then GT.win:decho("<110,140,170>      \226\150\188\226\150\188 (\235\141\148)\n")
+  elseif ex.S then GT.win:decho("<150,255,150>      \226\150\188 " .. ex.S .. "\n")
+  else GT.win:decho("\n") end
   GT.win:decho("<120,130,150>  @\235\130\152 N/X NPC/\236\160\129 \226\153\160\235\130\152\235\172\180 \226\151\143\235\176\148\236\156\204 \226\151\134\236\149\132\236\157\180\237\133\156\n  (\236\149\132\236\157\180\236\189\152 \237\129\180\235\166\173=\236\131\129\237\152\184\236\158\145\236\154\169, \235\167\136\236\154\176\236\138\164=\237\136\180\237\140\129)\n")
 end
 
