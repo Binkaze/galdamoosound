@@ -1294,6 +1294,17 @@ function GT.makeWindow()
     GT.win:hide()
   end
 end
+-- 격자 전체를 한눈에: 창을 w×h에 맞춰 동적 resize (뷰포트 없음, 1칸 셀)
+function GT.fitWindow(w, h)
+  if not GT.win then return end
+  local fs = (w >= 22 or h >= 22) and 13 or 16
+  local cw = math.ceil(fs * 0.62) + 1
+  local lh = fs + 5
+  local px = (w + 2) * cw + 18
+  local py = (h + 5) * lh + 14
+  pcall(function() GT.win:resize(px, py) end)
+  pcall(function() GT.win:setFontSize(fs) end)
+end
 if GaldamTacSprite then
   if GaldamTacSprite.h1 then pcall(killAnonymousEventHandler, GaldamTacSprite.h1); GaldamTacSprite.h1 = nil end
   if GaldamTacSprite.h2 then pcall(killAnonymousEventHandler, GaldamTacSprite.h2); GaldamTacSprite.h2 = nil end
@@ -1359,6 +1370,38 @@ function GT.smokeStep(d)
 end
 local function smokeActive() return next(GT.smoke or {}) ~= nil end
 
+GT.GLYPH_MODE = "ascii"   -- "uni"|"ascii" — 전각폭 안전 기본. Mudlet 폰트 실측 후 토글
+-- 타일 타입 → {u유니코드, a아스키, fg, bg}. 글리프는 데이터(타입)가 아니라 표현 — brief §2
+GT.TILE = {
+  -- terrain
+  asphalt={u="\226\150\146",a=":",fg="86,91,97"}, dirt2={u="\226\150\145",a=".",fg="122,100,68"},
+  lane={u="\226\149\140",a="-",fg="207,200,159"}, crosswalk={u="=",a="=",fg="232,230,227"},
+  field={u="~",a="~",fg="156,107,53"}, paddy={u="\226\137\161",a="=",fg="70,160,110"},
+  water={u="\226\137\136",a="~",fg="74,144,217"}, clearing={u="\194\183",a=".",fg="74,68,60"},
+  rockground={u="^",a="^",fg="138,144,151"},
+  -- structure
+  wall={u="\226\150\147",a="#",fg="150,128,100"}, building={u="\226\150\147",a="#",fg="172,150,128"}, breakwater={u="\226\150\147",a="#",fg="138,141,146"},
+  wall_h={u="\226\148\128",a="-",fg="216,205,184"}, wall_v={u="\226\148\130",a="|",fg="216,205,184"},
+  corner={u="+",a="+",fg="216,205,184"}, gate={u="+",a="+",fg="210,165,80"},
+  door={u="+",a="+",fg="210,165,80"}, window={u="\226\150\161",a="o",fg="127,184,216"},
+  greenhouse={u="\226\136\169",a="n",fg="200,212,216"}, tetrapod={u="X",a="X",fg="125,132,138"},
+  lighthouse={u="I",a="I",fg="226,75,74"}, grave={u="\206\169",a="o",fg="134,168,90"},
+  -- object
+  pole={u="\206\168",a="Y",fg="160,166,172"}, tower={u="A",a="A",fg="154,160,166"},
+  tree={u="\226\153\163",a="&",fg="90,180,84"}, rock={u="\226\151\143",a="o",fg="155,152,162"},
+  tractor={u="T",a="T",fg="226,100,46"}, truck={u="u",a="u",fg="90,140,225"},
+  car={u="c",a="c",fg="200,205,212"}, moto={u="m",a="m",fg="154,160,166"},
+  boat={u="b",a="b",fg="220,227,232"}, net={u="%",a="%",fg="184,144,90"},
+  dryrack={u="x",a="x",fg="156,107,53"}, bench={u="\206\160",a="n",fg="190,150,96"},
+  busstop={u="B",a="B",fg="217,164,65"}, mailbox={u="!",a="!",fg="226,75,74"},
+  buoy={u="\226\151\145",a="o",fg="240,140,60"}, reef={u="\226\150\178",a="^",fg="120,150,120"},
+}
+local function glyphOf(t)
+  local e = GT.TILE[t]
+  if not e then return "?", "200,80,80" end
+  return ((GT.GLYPH_MODE=="uni") and e.u or e.a), e.fg, e.bg
+end
+
 function GT.render(d)
   local w = tonumber(d.w) or 9
   local h = tonumber(d.h) or 9
@@ -1373,17 +1416,7 @@ function GT.render(d)
   local flash = (GT.flash or 0) > 0
   local sx = d.self and tonumber(d.self[1])
   local sy = d.self and tonumber(d.self[2])
-  -- 뷰포트: 큰 실외 격자는 플레이어 중심 카메라(13×13)로 잘라 표시
-  local VIEW = 13
-  local vw = math.min(w, VIEW)
-  local vh = math.min(h, VIEW)
-  local vx0 = math.max(0, math.min((sx or math.floor(w/2)) - math.floor(vw/2), w - vw))
-  local vy0 = math.max(0, math.min((sy or math.floor(h/2)) - math.floor(vh/2), h - vh))
-  local scrollN = vy0 > 0
-  local scrollS = (vy0 + vh) < h
-  local scrollW = vx0 > 0
-  local scrollE = (vx0 + vw) < w
-
+  GT.fitWindow(w, h)
   GT.win:clear()
   local nm = (gmcp.Galdam and gmcp.Galdam.Room and gmcp.Galdam.Room.name) or "전술 격자"
 
@@ -1396,6 +1429,9 @@ function GT.render(d)
   end
 
   local cover, actors, ground, fire, items = {}, {}, {}, {}, {}
+  local struct, terr = {}, {}
+  for _, s in ipairs(d.struct or {}) do struct[tonumber(s.x)..","..tonumber(s.y)] = s end
+  for _, t in ipairs(d.terrain or {}) do terr[tonumber(t.x)..","..tonumber(t.y)] = t end
   for _, c in ipairs(d.cover or {}) do cover[tonumber(c.x)..","..tonumber(c.y)] = c end
   for _, a in ipairs(d.actors or {}) do actors[tonumber(a.x)..","..tonumber(a.y)] = a end
   for _, it in ipairs(d.items or {}) do items[tonumber(it.x)..","..tonumber(it.y)] = it end
@@ -1507,87 +1543,71 @@ function GT.render(d)
     GT.win:decho("<120,128,148>  " .. sub)
   elseif dark >= 1 then GT.win:decho("<150,140,90>  (불빛)") end
   GT.win:decho("\n")
-  if scrollN then GT.win:decho("<110,140,170>      \226\150\178\226\150\178 (\235\141\148)\n")
-  elseif ex.N then GT.win:decho("<150,255,150>      \226\150\178 " .. ex.N .. "\n")
-  else GT.win:decho("\n") end
+  if ex.N then GT.win:decho("<150,255,150>   \226\150\178 " .. ex.N .. "\n") else GT.win:decho("\n") end
   local fcol = {"255,150,32","255,92,20","255,205,70"}
-  local midy = vy0 + math.floor(vh / 2)
-  for y = vy0, vy0 + vh - 1 do
-    if y == midy then
-      if scrollW then GT.win:decho("<110,140,170>\226\151\128")
-      elseif ex.W then GT.win:decho("<150,255,150>\226\151\128")
-      else GT.win:decho(" ") end
-    else GT.win:decho(" ") end
-    for x = vx0, vx0 + vw - 1 do
+  local midy = math.floor(h / 2)
+  for y = 0, h - 1 do
+    if y == midy and ex.W then GT.win:decho("<150,255,150>\226\151\128") else GT.win:decho(" ") end
+    for x = 0, w - 1 do
       local key = x .. "," .. y
       local lm = lightMul(x, y)
       if lm <= 0.02 then
-        GT.win:decho("<8,8,11:5,5,8>  ")
+        GT.win:decho("<8,8,11:5,5,8> ")
       else
         local bg = cellBg(x, y)
         local g = ground[key]
         local p = part[key]
         local sm = smoke[key]
         local fg, glyph
-        if sx == x and sy == y then fg, glyph = "120,235,255", "@ "
+        if sx == x and sy == y then fg, glyph = "120,235,255", "@"
         elseif actors[key] then
           local a = actors[key]
           fg = (a.k=="npc") and "255,210,80" or ((a.k=="player") and "120,230,120" or "255,90,90")
-          glyph = (a.k=="player") and "P " or ((a.k=="npc") and "N " or "X ")
+          glyph = (a.k=="player") and "P" or ((a.k=="npc") and "v" or "W")
         elseif fire[key] then
           fg = fcol[((GT.frame + x + y) % 3) + 1]
-          glyph = (((GT.frame + x) % 2) == 0) and "\226\153\168 " or "\226\150\178 "
+          glyph = (((GT.frame + x) % 2) == 0) and "*" or "^"
         elseif sm and sm.d > 0.4 then
           local dd = sm.d
           local sv = (sm.t=="gas") and "190,190,110" or ((sm.t=="white") and "215,218,226" or "140,140,148")
-          local jit = ((GT.frame + x*2 + y) % 7 < 4)
-          glyph = (dd>=5) and "\226\150\147\226\150\147" or ((dd>=3) and "\226\150\146\226\150\146" or ((dd>=1.5) and (jit and "\226\150\145\226\150\145" or "\194\176\194\176") or "\194\176 "))
+          glyph = (dd>=5) and "#" or ((dd>=3) and ":" or ((dd>=1.5) and "." or "\194\176"))
           fg = sv
-        elseif p == "rain" then fg, glyph = "120,170,225", "\226\148\130 "
-        elseif p == "storm" then fg, glyph = "165,195,235", "/ "
-        elseif p == "snow" then fg, glyph = "230,235,245", "* "
-        elseif items[key] then fg, glyph = "255,216,84", "\226\151\134 "
+        elseif p == "rain" then fg, glyph = "120,170,225", "|"
+        elseif p == "storm" then fg, glyph = "165,195,235", "/"
+        elseif p == "snow" then fg, glyph = "230,235,245", "*"
+        elseif items[key] then fg, glyph = "255,216,84", "*"
+        elseif struct[key] then
+          local gg, sfg = glyphOf(struct[key].t); fg, glyph = tint(sfg), gg
         elseif cover[key] then
-          local c = cover[key]
-          if c.k == "tree" then fg, bg, glyph = tint("95,205,105"), tint("10,28,12"), "\226\153\160\226\153\160"
-          elseif c.k == "rock" then fg, bg, glyph = tint("155,152,162"), tint("36,36,42"), "\226\151\143\226\151\143"
-          elseif c.k == "wall" then fg, bg, glyph = tint("178,150,108"), tint("60,50,36"), "\226\150\146\226\150\146"
-          elseif c.k == "building" then fg, bg, glyph = tint("164,144,122"), tint("66,56,48"), "\226\150\147\226\150\147"
-          elseif c.k == "car" then fg, bg, glyph = tint("95,150,210"), tint("28,38,54"), "\226\150\172\226\150\172"
-          elseif c.k == "tractor" then fg, bg, glyph = tint("215,150,55"), tint("58,46,24"), "\226\150\176\226\150\176"
-          elseif c.k == "pole" then fg, bg, glyph = tint("135,124,112"), tint("38,38,42"), "\226\148\130 "
-          elseif c.k == "bench" then fg, bg, glyph = tint("152,112,72"), tint("44,36,28"), "\226\150\173\226\150\173"
-          elseif c.k == "buoy" then fg, bg, glyph = tint("240,140,60"), tint("22,60,92"), "\226\151\143 "
-          elseif c.k == "reef" then fg, bg, glyph = tint("120,150,120"), tint("18,52,78"), "\226\153\160 "
-          else fg, glyph = "150,110,70", "\226\150\146\226\150\146" end
+          local gg, cfg = glyphOf(cover[key].k); fg, glyph = tint(cfg), gg
         elseif g and g.t == "blood" then
           local l = tonumber(g.l) or 1
-          glyph = (l>=5) and "\226\150\147\226\150\147" or ((l>=4) and "\226\150\146\226\150\146" or ((l>=2) and ": " or ". "))
+          glyph = (l>=5) and "#" or ((l>=2) and ":" or ".")
           fg = (115+l*20)..",26,28"
-        elseif g and g.t == "wet" then fg, glyph = "90,150,210", "~ "
-        elseif g and g.t == "snow" then fg, glyph = "225,232,244", "\226\151\166 "
+        elseif g and g.t == "wet" then fg, glyph = "90,150,210", "~"
+        elseif g and g.t == "snow" then fg, glyph = "225,232,244", "\226\151\166"
+        elseif terr[key] then
+          local gg, tfg = glyphOf(terr[key].t); fg, glyph = tint(tfg), gg
         elseif outdoor then
           if biome == "road" then
-            local midx = math.floor(w/2)
-            if x == midx and (y % 2 == 0) then fg, glyph = tint("210,200,90"), "\226\148\131 "
-            elseif (x*3+y*5)%7==0 then fg, glyph = tint("70,70,76"), ". "
-            else fg, glyph = tint("52,52,58"), "  " end
+            if x == math.floor(w/2) then fg, glyph = tint("207,200,159"), ((y%2==0) and "-" or ":")
+            elseif (x*3+y*5)%7==0 then fg, glyph = tint("68,70,76"), "."
+            else fg, glyph = tint("56,58,64"), ":" end
           elseif watery then
             local ph = (x + y*2 + (GT.frame or 0)) % 5
-            if ph < 2 then fg, glyph = tint("90,165,205"), "\226\137\136 "
-            else fg, glyph = tint("60,120,165"), "~ " end
+            if ph < 2 then fg, glyph = tint("90,165,205"), "~" else fg, glyph = tint("60,120,165"), "~" end
           else
-            if (x*3+y*5)%5==0 then fg, glyph = tint("78,130,62"), ", " else fg, glyph = tint("40,82,44"), " ." end
+            if (x*3+y*5)%5==0 then fg, glyph = tint("78,130,62"), "," else fg, glyph = tint("40,82,44"), "." end
           end
         else
-          if floor == "wood" or floor == "hardwood" then fg = "84,68,48"; glyph = (y % 3 == 0) and "\226\148\128\226\148\128" or "\226\148\128 "
-          elseif floor == "tile" or floor == "marble" then fg = "104,108,118"; glyph = ". "
-          elseif floor == "stone" then fg = "82,82,86"; glyph = ((x*2+y) % 4 == 0) and "\226\149\178 " or ". "
-          elseif floor == "concrete" then fg = "66,68,74"; glyph = ((x*3+y) % 5 == 0) and ": " or ". "
-          elseif floor == "carpet" or floor == "carpet_blue" or floor == "carpet_green" then fg = "150,140,135"; glyph = "\194\176 "
-          elseif floor == "linoleum" then fg = "120,118,108"; glyph = ". "
-          elseif floor == "dirt" then fg = "92,78,58"; glyph = ((x+y*2) % 4 == 0) and ", " or ". "
-          else fg = "138,128,92"; glyph = ((x+y) % 6 == 0) and "\226\151\166 " or ". " end
+          if floor == "wood" or floor == "hardwood" then fg = "84,68,48"; glyph = "-"
+          elseif floor == "tile" or floor == "marble" then fg = "104,108,118"; glyph = "."
+          elseif floor == "stone" then fg = "82,82,86"; glyph = "."
+          elseif floor == "concrete" then fg = "66,68,74"; glyph = ((x*3+y) % 5 == 0) and ":" or "."
+          elseif floor == "carpet" or floor == "carpet_blue" or floor == "carpet_green" then fg = "150,140,135"; glyph = "\194\176"
+          elseif floor == "linoleum" then fg = "120,118,108"; glyph = "."
+          elseif floor == "dirt" then fg = "92,78,58"; glyph = ((x+y*2) % 4 == 0) and "," or "."
+          else fg = "138,128,92"; glyph = "." end
         end
         local ffg, fbg = dim(fg, lm), dim(bg, lm)
         if flash then ffg = brighten(ffg); fbg = brighten(fbg) end
@@ -1615,15 +1635,10 @@ function GT.render(d)
         end
       end
     end
-    if y == midy then
-      if scrollE then GT.win:decho("<110,140,170>\226\150\182")
-      elseif ex.E then GT.win:decho("<150,255,150>\226\150\182") end
-    end
+    if y == midy and ex.E then GT.win:decho("<150,255,150>\226\150\182") end
     GT.win:echo("\n")
   end
-  if scrollS then GT.win:decho("<110,140,170>      \226\150\188\226\150\188 (\235\141\148)\n")
-  elseif ex.S then GT.win:decho("<150,255,150>      \226\150\188 " .. ex.S .. "\n")
-  else GT.win:decho("\n") end
+  if ex.S then GT.win:decho("<150,255,150>   \226\150\188 " .. ex.S .. "\n") else GT.win:decho("\n") end
   GT.win:decho("<120,130,150>  @\235\130\152 N/X NPC/\236\160\129 \226\153\160\235\130\152\235\172\180 \226\151\143\235\176\148\236\156\204 \226\151\134\236\149\132\236\157\180\237\133\156\n  (\236\149\132\236\157\180\236\189\152 \237\129\180\235\166\173=\236\131\129\237\152\184\236\158\145\236\154\169, \235\167\136\236\154\176\236\138\164=\237\136\180\237\140\129)\n")
 end
 
