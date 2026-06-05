@@ -688,53 +688,75 @@ function GaldamUI.renderRoom()
   GaldamUI.roomRows = GaldamUI.roomRows or {}
   GaldamUI.liveRows = {}
   local r = gmcp.Galdam and gmcp.Galdam.Room
-  local rowH, y, idx, full = 20, 2, 0, false
-  local boxH = 200
-  pcall(function() boxH = GaldamUI.roomBox:get_height() end)
-  local function row(html, col, cmds, id)
-    if full or (y + rowH > boxH - 2) then full = true; return end
+  local rid = r and tostring(r.roomid) or nil
+  if rid ~= GaldamUI.prevRoomId then GaldamUI.roomPage = 1 end
+  -- 1) 항목 전부 수집 (헤더 포함, 자르지 않음)
+  local items = {}
+  local function add(html, col, cmds, id) items[#items + 1] = {html = html, col = col, cmds = cmds, id = id} end
+  if not r then
+    add("<span style='color:#6a7078;'>(방 정보 없음)</span>")
+  else
+    add("<span style='color:#e8d24a;font-size:10pt;'><b>● 사람</b></span>")
+    local hasP = false
+    for e in tostring(r.people or ""):gmatch("[^;]+") do local nm, cm, id = GaldamUI.parseEntity(e); add(nm, "#a8d8ff", cm, id); hasP = true end
+    if not hasP then add("<span style='color:#6a7078;font-size:9pt;'>   (없음)</span>") end
+    add("<span style='color:#e8d24a;font-size:10pt;'><b>● 물건</b></span>")
+    local hasO = false
+    for e in tostring(r.objects or ""):gmatch("[^;]+") do local nm, cm, id = GaldamUI.parseEntity(e); add(nm, "#cfe0a0", cm, id); hasO = true end
+    if not hasO then add("<span style='color:#6a7078;font-size:9pt;'>   (없음)</span>") end
+    if r.here and tostring(r.here) ~= "" then
+      local hc = GaldamUI.parseCmds(r.here)
+      if #hc > 0 then
+        add("<span style='color:#e8d24a;font-size:10pt;'><b>● 장소 명령어</b></span>")
+        add(tostring(r.name or "이 방"), "#9fd0e8", hc, nil)
+      end
+    end
+  end
+  -- 2) 페이지 계산
+  local rowH = 20
+  local boxH = 200; pcall(function() boxH = GaldamUI.roomBox:get_height() end)
+  local fitRows = math.max(1, math.floor((boxH - 2) / rowH))
+  local hasPage = #items > fitRows
+  local perPage = hasPage and math.max(1, math.floor((boxH - 24) / rowH)) or fitRows
+  local totalPages = math.max(1, math.ceil(#items / perPage))
+  local page = math.max(1, math.min(GaldamUI.roomPage or 1, totalPages))
+  GaldamUI.roomPage = page
+  -- 3) 현재 페이지 슬라이스만 렌더
+  local idx, y = 0, 2
+  local startI = (page - 1) * perPage + 1
+  local endI = math.min(#items, startI + perPage - 1)
+  for i = startI, endI do
+    local it = items[i]
     idx = idx + 1
     local lb = GaldamUI.getRow(idx)
-    if cmds then
+    if it.cmds then
       lb:setStyleSheet("background-color: rgba(255,255,255,0.045); border-radius:4px; qproperty-alignment:'AlignLeft';")
-      lb:echo("<span style='color:" .. col .. ";font-size:10pt;'>&nbsp;▸ " .. html .. "</span>")
-      lb:setOnEnter(function() GaldamUI.showCmdTip(html, cmds) end)
+      lb:echo("<span style='color:" .. it.col .. ";font-size:10pt;'>&nbsp;▸ " .. it.html .. "</span>")
+      lb:setOnEnter(function() GaldamUI.showCmdTip(it.html, it.cmds) end)
       lb:setOnLeave(function() GaldamUI.hideTip() end)
-      lb:setClickCallback(function() GaldamUI.openCtxMenu(html, cmds, id) end)
-      if id and id ~= "" then GaldamUI.liveRows[#GaldamUI.liveRows + 1] = {lb = lb, id = id, name = html, col = col} end
+      lb:setClickCallback(function() GaldamUI.openCtxMenu(it.html, it.cmds, it.id) end)
+      if it.id and it.id ~= "" then GaldamUI.liveRows[#GaldamUI.liveRows + 1] = {lb = lb, id = it.id, name = it.html, col = it.col} end
     else
       lb:setStyleSheet("background-color: rgba(0,0,0,0);")
-      lb:echo(html)
+      lb:echo(it.html)
       lb:setOnEnter(function() end); lb:setOnLeave(function() end); lb:setClickCallback(function() end)
     end
     lb:move(2, y); lb:resize("96%", rowH); lb:show(); y = y + rowH
   end
-  if not r then
-    row("<span style='color:#6a7078;'>(방 정보 없음)</span>")
-  else
-    row("<span style='color:#e8d24a;font-size:10pt;'><b>● 사람</b></span>")
-    local hasP = false
-    for e in tostring(r.people or ""):gmatch("[^;]+") do local nm, cm, id = GaldamUI.parseEntity(e); row(nm, "#a8d8ff", cm, id); hasP = true end
-    if not hasP then row("<span style='color:#6a7078;font-size:9pt;'>   (없음)</span>") end
-    row("<span style='color:#e8d24a;font-size:10pt;'><b>● 물건</b></span>")
-    local hasO = false
-    for e in tostring(r.objects or ""):gmatch("[^;]+") do local nm, cm, id = GaldamUI.parseEntity(e); row(nm, "#cfe0a0", cm, id); hasO = true end
-    if not hasO then row("<span style='color:#6a7078;font-size:9pt;'>   (없음)</span>") end
-    -- ● 여기(이 방) — 방 자체의 특수/환경 명령 (ex here). here는 push에 전체가 들어옴 → id 없음
-    if r.here and tostring(r.here) ~= "" then
-      local hc = GaldamUI.parseCmds(r.here)
-      if #hc > 0 then
-        row("<span style='color:#e8d24a;font-size:10pt;'><b>● 장소 명령어</b></span>")
-        row(tostring(r.name or "이 방"), "#9fd0e8", hc, nil)
-      end
-    end
-    if full then row("<span style='color:#6a7078;font-size:9pt;'>   …더 있음</span>") end
+  -- 4) 페이지 버튼 (클릭 = 다음 페이지 순환)
+  if hasPage then
+    idx = idx + 1
+    local lb = GaldamUI.getRow(idx)
+    lb:setStyleSheet("background-color: rgba(40,64,96,0.55); border-radius:4px; qproperty-alignment:'AlignCenter';")
+    lb:echo("<span style='color:#9fd0e8;font-size:10pt;'>◀  " .. page .. " / " .. totalPages .. "  ▶   (클릭=다음)</span>")
+    lb:setOnEnter(function() end); lb:setOnLeave(function() end)
+    lb:setClickCallback(function() GaldamUI.roomPage = (page % totalPages) + 1; GaldamUI.renderRoom() end)
+    lb:move(2, y); lb:resize("96%", rowH); lb:show(); y = y + rowH
   end
-  -- 새로 등장한 항목 ✨반짝 (방 이동 시엔 전체가 바뀌므로 제외)
+  -- 새로 등장한 항목 ✨반짝
   local cur = {}
   for _, lr in ipairs(GaldamUI.liveRows) do cur[lr.id] = true end
   GaldamUI.blinkUntil = GaldamUI.blinkUntil or {}
-  local rid = r and tostring(r.roomid) or nil
   if rid and GaldamUI.prevRoomId == rid then
     for id in pairs(cur) do
       if not (GaldamUI.prevIds and GaldamUI.prevIds[id]) then GaldamUI.blinkUntil[id] = (GaldamUI.tick or 0) + 32 end
