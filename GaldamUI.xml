@@ -1322,7 +1322,7 @@ end
 function GT.smokeStep(d)
   local w = tonumber(d.w) or 9
   local h = tonumber(d.h) or 9
-  local outdoor = (d.biome == "forest")
+  local outdoor = (d.biome == "forest" or d.biome == "road" or d.biome == "sea" or d.biome == "ocean")
   local g = GT.smoke or {}
   for _, f in ipairs(d.fx or {}) do
     local x, y = tonumber(f.x), tonumber(f.y)
@@ -1368,7 +1368,8 @@ function GT.render(d)
   local litrad = tonumber(d.litrad) or 0
   local weather = d.weather or "clear"
   local floor = d.floor or "ondol"
-  local outdoor = (biome == "forest")
+  local outdoor = (biome == "forest" or biome == "road" or biome == "sea" or biome == "ocean")
+  local watery = (biome == "sea" or biome == "ocean")
   local flash = (GT.flash or 0) > 0
   local sx = d.self and tonumber(d.self[1])
   local sy = d.self and tonumber(d.self[2])
@@ -1438,7 +1439,11 @@ function GT.render(d)
     return r..","..g..","..b
   end
   local function floorBg(x, y)
-    if outdoor then local v=(x*7+y*11+x*y)%4; return ({"18,40,20","23,48,25","15,34,17","20,44,22"})[v+1] end
+    if outdoor then
+      if biome == "road" then local v=(x*7+y*11)%4; return ({"38,38,42","44,44,49","33,33,37","41,41,46"})[v+1]
+      elseif watery then local v=(x+y+math.floor((GT.frame or 0)/3))%4; return ({"18,52,78","22,60,92","15,46,70","26,66,100"})[v+1]
+      else local v=(x*7+y*11+x*y)%4; return ({"18,40,20","23,48,25","15,34,17","20,44,22"})[v+1] end
+    end
     local v = (x*5+y*7)%3
     if floor == "wood" then return ({"46,35,24","52,41,29","41,31,21"})[v+1]
     elseif floor == "hardwood" then return ({"78,56,34","86,62,38","70,50,30"})[v+1]
@@ -1530,6 +1535,10 @@ function GT.render(d)
           local c = cover[key]
           if c.k == "tree" then fg, bg, glyph = tint("95,205,105"), tint("10,28,12"), "\226\153\160\226\153\160"
           elseif c.k == "rock" then fg, bg, glyph = tint("155,152,162"), tint("36,36,42"), "\226\151\143\226\151\143"
+          elseif c.k == "guardrail" then fg, bg, glyph = tint("180,180,190"), tint("40,40,46"), "\226\149\144\226\149\144"
+          elseif c.k == "curb" then fg, bg, glyph = tint("130,130,138"), tint("44,44,50"), "\226\150\172\226\150\172"
+          elseif c.k == "buoy" then fg, bg, glyph = tint("240,140,60"), tint("22,60,92"), "\226\151\143 "
+          elseif c.k == "reef" then fg, bg, glyph = tint("120,150,120"), tint("18,52,78"), "\226\153\160 "
           else fg, glyph = "150,110,70", "\226\150\146\226\150\146" end
         elseif g and g.t == "blood" then
           local l = tonumber(g.l) or 1
@@ -1538,7 +1547,18 @@ function GT.render(d)
         elseif g and g.t == "wet" then fg, glyph = "90,150,210", "~ "
         elseif g and g.t == "snow" then fg, glyph = "225,232,244", "\226\151\166 "
         elseif outdoor then
-          if (x*3+y*5)%5==0 then fg, glyph = tint("78,130,62"), ", " else fg, glyph = tint("40,82,44"), " ." end
+          if biome == "road" then
+            local midx = math.floor(w/2)
+            if x == midx and (y % 2 == 0) then fg, glyph = tint("210,200,90"), "\226\148\131 "
+            elseif (x*3+y*5)%7==0 then fg, glyph = tint("70,70,76"), ". "
+            else fg, glyph = tint("52,52,58"), "  " end
+          elseif watery then
+            local ph = (x + y*2 + (GT.frame or 0)) % 5
+            if ph < 2 then fg, glyph = tint("90,165,205"), "\226\137\136 "
+            else fg, glyph = tint("60,120,165"), "~ " end
+          else
+            if (x*3+y*5)%5==0 then fg, glyph = tint("78,130,62"), ", " else fg, glyph = tint("40,82,44"), " ." end
+          end
         else
           if floor == "wood" or floor == "hardwood" then fg = "84,68,48"; glyph = (y % 3 == 0) and "\226\148\128\226\148\128" or "\226\148\128 "
           elseif floor == "tile" or floor == "marble" then fg = "104,108,118"; glyph = ". "
@@ -1587,7 +1607,7 @@ function GT.weatherTick()
   if not GT.lastData then GT.wtimer = nil; return end
   local d = GT.lastData
   local wx = d.weather
-  local anim = (wx == "rain" or wx == "snow" or wx == "storm") or fxActive(d) or smokeActive()
+  local anim = (wx == "rain" or wx == "snow" or wx == "storm") or fxActive(d) or smokeActive() or (d.biome == "sea" or d.biome == "ocean")
   if not anim then GT.wtimer = nil; return end
   GT.frame = (GT.frame or 0) + 1
   if (GT.flash or 0) > 0 then GT.flash = GT.flash - 1 end
@@ -1602,7 +1622,7 @@ function GT.onTac()
   if not d then return end
   GT.makeWindow(); GT.lastData = d; GT.render(d); GT.win:show(); GT.shown = true
   local wx = d.weather
-  local anim = (wx == "rain" or wx == "snow" or wx == "storm") or fxActive(d) or smokeActive()
+  local anim = (wx == "rain" or wx == "snow" or wx == "storm") or fxActive(d) or smokeActive() or (d.biome == "sea" or d.biome == "ocean")
   if anim and not GT.wtimer then GT.wtimer = tempTimer(0.12, "GaldamTac.weatherTick()") end
 end
 
@@ -1618,7 +1638,7 @@ if GT.h2 then killAnonymousEventHandler(GT.h2) end
 GT.h1 = registerAnonymousEventHandler("gmcp.Galdam.Tac", "GaldamTac.onTac")
 GT.h2 = registerAnonymousEventHandler("gmcp.Galdam.Room", "GaldamTac.onRoom")
 GT.makeWindow()
-echo("[Galdam] 전술 격자 뷰 v6 로드됨 (+연기 확산 시뮬, 스프라이트 제거).\n")
+echo("[Galdam] 전술 격자 뷰 v7 로드됨 (+도로/바다 실외 격자).\n")
 
 
 -- ===== 로그라이크 숫자패드 이동 (tempKey + Keypad 모디파이어) =====
