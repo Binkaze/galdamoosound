@@ -1299,9 +1299,9 @@ function GT.fitWindow(w, h)
   if not GT.win then return end
   local fs = (w >= 22 or h >= 22) and 13 or 16
   local cw = math.ceil(fs * 0.72)    -- 글자폭 넉넉히(우측 짤림 방지)
-  local lh = fs + 5
+  local lh = fs + 6
   local px = (w * 2 + 3) * cw + 24   -- 셀 가로 2칸 + 좌우 엣지 여유
-  local py = (h + 5) * lh + 14
+  local py = (h + 7) * lh + 22       -- 헤더+출구+범례 여유(상하 짤림 방지)
   pcall(function() GT.win:resize(px, py) end)
   pcall(function() GT.win:setFontSize(fs) end)
 end
@@ -1402,6 +1402,7 @@ GT.TILE = {
   -- 시골 디테일
   well={u="O",a="O",fg="120,150,200"}, jangdok={u="\226\151\143",a="o",fg="98,76,58"},
   dog={u="d",a="d",fg="196,136,84"}, clothes={u="\226\148\128",a="-",fg="222,222,228"},
+  lamp={u="\194\161",a="i",fg="246,216,132"},
 }
 local function glyphOf(t)
   local e = GT.TILE[t]
