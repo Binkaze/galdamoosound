@@ -1396,9 +1396,9 @@ GT.TILE = {
   busstop={u="B",a="B",fg="217,164,65"}, mailbox={u="!",a="!",fg="226,75,74"},
   buoy={u="\226\151\145",a="o",fg="240,140,60"}, reef={u="\226\150\178",a="^",fg="120,150,120"},
   -- 멀티셀 차량(1×2): 좌/우 반쪽
-  carL={u="\226\150\159",a="[",fg="208,212,218"}, carR={u="\226\150\156",a="]",fg="208,212,218"},
-  truckL={u="u",a="u",fg="88,138,226"}, truckR={u="\226\150\166",a="=",fg="88,138,226"},
-  tracL={u="T",a="T",fg="228,102,46"}, tracR={u="\226\151\143",a="o",fg="118,118,126"},
+  carL={u="\226\150\132",a="\226\150\132",fg="80,86,98",bg="170,178,192"}, carR={u="\226\150\132",a="\226\150\132",fg="80,86,98",bg="170,178,192"},
+  truckL={u="\226\150\128",a="\226\150\128",fg="44,64,116",bg="80,124,210"}, truckR={u="\226\150\132",a="\226\150\132",fg="44,64,116",bg="80,124,210"},
+  tracL={u="\226\150\132",a="\226\150\132",fg="96,44,22",bg="224,130,54"}, tracR={u="\226\151\143",a="\226\151\143",fg="50,50,56",bg="224,130,54"},
   -- 시골 디테일
   well={u="O",a="O",fg="120,150,200"}, jangdok={u="\226\151\143",a="o",fg="98,76,58"},
   dog={u="d",a="d",fg="196,136,84"}, clothes={u="\226\148\128",a="-",fg="222,222,228"},
@@ -1409,6 +1409,14 @@ local function glyphOf(t)
   if not e then return "?", "200,80,80" end
   return ((GT.GLYPH_MODE=="uni") and e.u or e.a), e.fg, e.bg
 end
+-- 타일 종류 → 한글 이름 (마우스 hover 툴팁)
+GT.NAME = {
+  lamp="가로등", wall="담벼락", building="건물벽", wall_h="집 벽", wall_v="집 벽",
+  corner="집 모서리", gate="대문", door="문", window="창문", greenhouse="비닐하우스",
+  tree="나무", rock="바위", well="우물", jangdok="장독대", bench="평상",
+  carL="자동차", carR="자동차", truckL="트럭", truckR="트럭", tracL="트랙터", tracR="트랙터",
+  paddy="논", field="밭", dirt2="흙길", clearing="마당", buoy="부표", reef="암초",
+}
 
 function GT.render(d)
   local w = tonumber(d.w) or 9
@@ -1585,9 +1593,11 @@ function GT.render(d)
         elseif p == "snow" then fg, glyph = "230,235,245", "*"
         elseif items[key] then fg, glyph = "255,216,84", "*"
         elseif struct[key] then
-          local gg, sfg = glyphOf(struct[key].t); fg, glyph = tint(sfg), gg
+          local gg, sfg, sbg = glyphOf(struct[key].t); fg, glyph = tint(sfg), gg
+          if sbg then bg = tint(sbg) end
         elseif cover[key] then
-          local gg, cfg = glyphOf(cover[key].k); fg, glyph = tint(cfg), gg
+          local gg, cfg, cbg = glyphOf(cover[key].k); fg, glyph = tint(cfg), gg
+          if cbg then bg = tint(cbg) end
         elseif g and g.t == "blood" then
           local l = tonumber(g.l) or 1
           glyph = (l>=5) and "#" or ((l>=2) and ":" or ".")
@@ -1618,6 +1628,10 @@ function GT.render(d)
         local ffg, fbg = dim(fg, lm), dim(bg, lm)
         if flash then ffg = brighten(ffg); fbg = brighten(fbg) end
         local _objs = cellObj[key]
+        local thint = nil
+        if cover[key] then thint = GT.NAME[cover[key].k]
+        elseif struct[key] then thint = GT.NAME[struct[key].t]
+        elseif terr[key] then thint = GT.NAME[terr[key].t] end
         if _objs and #_objs > 0 and not (sx == x and sy == y) then
           local hint, lua
           if #_objs == 1 then
@@ -1635,6 +1649,14 @@ function GT.render(d)
             GT.win:setFgColor(tonumber(fr), tonumber(fgc), tonumber(fb))
             GT.win:setBgColor(tonumber(br), tonumber(bgc), tonumber(bb))
             GT.win:echoLink(glyph .. " ", lua, hint, true)
+          end)
+        elseif thint and not (sx == x and sy == y) then
+          local fr, fgc, fb = ffg:match("(%d+),(%d+),(%d+)")
+          local br, bgc, bb = fbg:match("(%d+),(%d+),(%d+)")
+          pcall(function()
+            GT.win:setFgColor(tonumber(fr), tonumber(fgc), tonumber(fb))
+            GT.win:setBgColor(tonumber(br), tonumber(bgc), tonumber(bb))
+            GT.win:echoLink(glyph .. " ", "", thint, true)
           end)
         else
           GT.win:decho("<" .. ffg .. ":" .. fbg .. ">" .. glyph .. " ")
@@ -1687,40 +1709,55 @@ GT.makeWindow()
 echo("[Galdam] 전술 격자 뷰 v7 로드됨 (+도로/바다 실외 격자).\n")
 
 
--- ===== 로그라이크 숫자패드 이동 (tempKey + Keypad 모디파이어) =====
+-- ===== 이동/채팅 모드 격리 (백틱 ` 토글) — WASD/QEZC + 숫자패드 8방향 =====
 GaldamKeys = GaldamKeys or {}
 local GK = GaldamKeys
+GK.on = GK.on or false
 for _, id in ipairs(GK.ids or {}) do pcall(killKey, id) end
 GK.ids = {}
+if GK.tid then pcall(killKey, GK.tid); GK.tid = nil end
 local KP = 0x20000000
-local function bindKP(code, luacode, label)
-  local ok, id = pcall(tempKey, KP, code, luacode)
-  if ok and id then GK.ids[#GK.ids+1] = id; echo("[GK] " .. label .. " OK (mod,key)\n"); return end
-  local ok2, id2 = pcall(tempKey, code, KP, luacode)
-  if ok2 and id2 then GK.ids[#GK.ids+1] = id2; echo("[GK] " .. label .. " OK (key,mod)\n"); return end
-  echo("[GK] " .. label .. " 실패: " .. tostring(id) .. " / " .. tostring(id2) .. "\n")
+local N=[[send("\235\182\129")]]; local S=[[send("\235\130\168")]]
+local W=[[send("\236\132\156")]]; local E=[[send("\235\143\153")]]
+local NW=[[send("\235\182\129\236\132\156")]]; local NE=[[send("\235\182\129\235\143\153")]]
+local SW=[[send("\235\130\168\236\132\156")]]; local SE=[[send("\235\130\168\235\143\153")]]
+local SR=[[send("\236\136\152\236\131\137")]]; local LK=[[send("\235\179\180\234\184\176")]]
+-- WASD/QEZC (NumLock 무관, 이동모드 전용) + F수색 R보기
+local WASD = {{0x57,N},{0x53,S},{0x41,W},{0x44,E},{0x51,NW},{0x45,NE},{0x5A,SW},{0x43,SE},{0x46,SR},{0x52,LK}}
+-- 숫자패드 (보조, NumLock 켜야)
+local NUM = {{0x38,N},{0x35,S},{0x34,W},{0x36,E},{0x37,NW},{0x39,NE},{0x31,SW},{0x33,SE},{0x32,SR},{0x30,LK}}
+function GK.unbind()
+  for _, id in ipairs(GK.ids) do pcall(killKey, id) end
+  GK.ids = {}
 end
-echo("\n[GK] tempKey=" .. type(tempKey) .. " — 숫자패드 바인딩(NumLock 켜야 함)\n")
--- 직교 4방
-bindKP(0x38, [[send("\235\182\129")]], "Num8=북")
-bindKP(0x35, [[send("\235\130\168")]], "Num5=남")
-bindKP(0x34, [[send("\236\132\156")]], "Num4=서")
-bindKP(0x36, [[send("\235\143\153")]], "Num6=동")
--- 대각 4방 (7북서 9북동 1남서 3남동)
-bindKP(0x37, [[send("\235\182\129\236\132\156")]], "Num7=북서")
-bindKP(0x39, [[send("\235\182\129\235\143\153")]], "Num9=북동")
-bindKP(0x31, [[send("\235\130\168\236\132\156")]], "Num1=남서")
-bindKP(0x33, [[send("\235\130\168\235\143\153")]], "Num3=남동")
--- 행동: 2수색 0보기 (수색 바이트 수정: 색=\236\131\137)
-bindKP(0x32, [[send("\236\136\152\236\131\137")]], "Num2=수색")
-bindKP(0x30, [[send("\235\179\180\234\184\176")]], "Num0=보기")
-pcall(function()
-  if not GK.ind then GK.ind = Geyser.Label:new({name="GKInd", x="30%", y="6.5%", width=340, height=22}) end
-  GK.ind:setStyleSheet("background-color: rgba(18,54,30,238); border:1px solid #5ac87a; border-radius:5px; qproperty-alignment:AlignCenter;")
-  GK.ind:echo("<font color='#9fe8b0'>\235\132\152\237\140\168\235\147\156: 8\235\176\169\237\150\165 \236\136\171\236\158\144 (7/9/1/3 \235\140\128\234\176\129) 2\236\136\152\236\131\137 0\235\179\180\234\184\176</font>")
-  GK.ind:show()
-end)
-echo("[Galdam] Numpad 8-way + 2/0 loaded: " .. #GK.ids .. " keys. NumLock ON!\n")
+function GK.bind()
+  GK.unbind()
+  for _, kv in ipairs(WASD) do
+    local ok, id = pcall(tempKey, kv[1], kv[2]); if ok and id then GK.ids[#GK.ids+1]=id end
+  end
+  for _, kv in ipairs(NUM) do
+    local o1,i1 = pcall(tempKey, KP, kv[1], kv[2])
+    if o1 and i1 then GK.ids[#GK.ids+1]=i1
+    else local o2,i2 = pcall(tempKey, kv[1], KP, kv[2]); if o2 and i2 then GK.ids[#GK.ids+1]=i2 end end
+  end
+end
+function GK.setMode(on)
+  GK.on = on
+  if on then GK.bind() else GK.unbind() end
+  pcall(function()
+    if not GK.ind then GK.ind = Geyser.Label:new({name="GKInd", x="30%", y="5.0%", width=370, height=22}) end
+    GK.ind:setStyleSheet("background-color: rgba(16,28,40,236); border:1px solid #5a8ac8; border-radius:5px; qproperty-alignment:AlignCenter;")
+    GK.ind:echo(on and "<font color='#9fe8b0'>\226\151\143 \236\157\180\235\143\153\235\170\168\235\147\156: WASD/QEZC \236\157\180\235\143\153  (\234\184\176 \235\176\177\237\139\137=\236\177\132\237\140\133)</font>"
+                    or "<font color='#c8a05a'>\226\151\139 \236\177\132\237\140\133\235\170\168\235\147\156  (\234\184\176 \235\176\177\237\139\137 \235\136\140\235\165\180\235\169\180 \236\157\180\235\143\153)</font>")
+    GK.ind:show()
+  end)
+end
+function GK.toggle() GK.setMode(not GK.on) end
+-- 토글 키: 백틱 ` (채팅에 거의 안 씀, NumLock 무관)
+local okt, tid = pcall(tempKey, 0x60, [[GaldamKeys.toggle()]])
+if okt and tid then GK.tid = tid end
+GK.setMode(GK.on)
+echo("[Galdam] 이동/채팅 모드 격리 로드 — 백틱(`)으로 토글. 이동모드: WASD+QEZC / 숫자패드\n")
 ]]></script>
       <eventHandlerList></eventHandlerList>
     </Script>
