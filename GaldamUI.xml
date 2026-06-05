@@ -1298,9 +1298,9 @@ end
 function GT.fitWindow(w, h)
   if not GT.win then return end
   local fs = (w >= 22 or h >= 22) and 13 or 16
-  local cw = math.ceil(fs * 0.62)
+  local cw = math.ceil(fs * 0.72)    -- 글자폭 넉넉히(우측 짤림 방지)
   local lh = fs + 5
-  local px = (w * 2 + 2) * cw + 18   -- 셀 가로 2칸(글리프+공백)=종횡비 보정
+  local px = (w * 2 + 3) * cw + 24   -- 셀 가로 2칸 + 좌우 엣지 여유
   local py = (h + 5) * lh + 14
   pcall(function() GT.win:resize(px, py) end)
   pcall(function() GT.win:setFontSize(fs) end)
