@@ -1607,7 +1607,7 @@ function GT.render(d)
 
   -- 가로등 빛무리: 야간 outdoor에서 lamp 주변 반경을 따뜻하게 + 아른거림(flicker)
   local glow = {}
-  local glowOn = outdoor and ({[1]=0.30, [4]=0.45, [5]=0.72, [6]=1.0})[tone]
+  local glowOn = outdoor and ({[1]=0.22, [4]=0.34, [5]=0.50, [6]=0.62})[tone]
   if glowOn and glowOn > 0 then
     for _, c in ipairs(d.cover or {}) do
       if c.k == "lamp" then
@@ -1713,7 +1713,7 @@ function GT.render(d)
         if gl and gl > 0.02 then
           local cc = cover[key]
           if not (cc and (cc.k == "policeL" or cc.k == "policeR")) then
-            ffg = warmGlow(ffg, gl); fbg = warmGlow(fbg, gl)
+            ffg = warmGlow(ffg, gl); fbg = warmGlow(fbg, gl * 0.42)
           end
         end
         local _pk = cover[key] and cover[key].k
