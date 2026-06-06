@@ -1386,7 +1386,7 @@ end
 function GT.smokeStep(d)
   local w = tonumber(d.w) or 9
   local h = tonumber(d.h) or 9
-  local outdoor = (d.biome == "forest" or d.biome == "road" or d.biome == "sea" or d.biome == "ocean")
+  local outdoor = (d.biome == "forest" or d.biome == "road" or d.biome == "sea" or d.biome == "ocean" or d.biome == "village")
   local g = GT.smoke or {}
   for _, f in ipairs(d.fx or {}) do
     local x, y = tonumber(f.x), tonumber(f.y)
@@ -1485,7 +1485,7 @@ function GT.render(d)
   local litrad = tonumber(d.litrad) or 0
   local weather = d.weather or "clear"
   local floor = d.floor or "ondol"
-  local outdoor = (biome == "forest" or biome == "road" or biome == "sea" or biome == "ocean")
+  local outdoor = (biome == "forest" or biome == "road" or biome == "sea" or biome == "ocean" or biome == "village")
   local watery = (biome == "sea" or biome == "ocean")
   local flash = (GT.flash or 0) > 0
   local sx = d.self and tonumber(d.self[1])
@@ -1562,6 +1562,7 @@ function GT.render(d)
     if outdoor then
       if biome == "road" then local v=(x*7+y*11)%4; return ({"38,38,42","44,44,49","33,33,37","41,41,46"})[v+1]
       elseif watery then local v=(x+y+math.floor((GT.frame or 0)/3))%4; return ({"18,52,78","22,60,92","15,46,70","26,66,100"})[v+1]
+      elseif biome == "village" then local v=(x*7+y*11+x*y)%4; return ({"58,49,37","64,55,41","52,44,33","60,64,46"})[v+1]
       else local v=(x*7+y*11+x*y)%4; return ({"18,40,20","23,48,25","15,34,17","20,44,22"})[v+1] end
     end
     local v = (x*5+y*7)%3
@@ -1785,7 +1786,7 @@ local function fxActive(d) return d and d.fx and type(d.fx)=="table" and #d.fx >
 -- 환경 빛 애니메이션 필요 여부: 야간 가로등 빛무리 or 경찰차 경광등 점멸
 local function envAnim(d)
   if not d or not d.cover then return false end
-  local outdoor = (d.biome=="forest" or d.biome=="road" or d.biome=="sea" or d.biome=="ocean")
+  local outdoor = (d.biome=="forest" or d.biome=="road" or d.biome=="sea" or d.biome=="ocean" or d.biome=="village")
   local tone = tonumber(d.tone) or 3
   local nightLamp = outdoor and (tone == 1 or tone >= 4)
   for _, c in ipairs(d.cover) do
