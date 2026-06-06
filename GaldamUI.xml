@@ -1881,8 +1881,10 @@ function GK.toggle() GK.setMode(not GK.on) end
 local okt, tid = pcall(tempKey, 0x60, [[GaldamKeys.toggle()]])
 if okt and tid then GK.tid = tid end
 GK.setMode(GK.on)
--- 재접속마다 모드/키 재적용 (reconnect시 tempKey 유실 → 모드 풀림 방지). 인디케이터 reuse픽스(gui85)와 함께라 충돌없음
-if not GK.conn then GK.conn = registerAnonymousEventHandler("sysConnectionEvent", function() GaldamKeys.setMode(GaldamKeys.on) end) end
+-- 업데이트(Client.GUI 재설치)로 tempKey 유실됨 → 접속 후 GMCP 도착(=재설치 완료 직후)에 재바인드.
+-- (GUI 핸들러처럼 매 로드 등록=가드X. sysConnectionEvent 즉시재바인드는 재설치보다 빨라 실패했음)
+registerAnonymousEventHandler("sysConnectionEvent", function() GaldamKeys._dirty = true end)
+registerAnonymousEventHandler("gmcp.Char.Vitals", function() if GaldamKeys._dirty then GaldamKeys._dirty = false; GaldamKeys.setMode(GaldamKeys.on) end end)
 echo("[Galdam] 이동/채팅 모드 격리 로드 — 백틱(`)으로 토글. 이동모드: WASD+QEZC / 숫자패드\n")
 ]]></script>
       <eventHandlerList></eventHandlerList>
