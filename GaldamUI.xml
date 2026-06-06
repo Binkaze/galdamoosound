@@ -1432,12 +1432,12 @@ GT.TILE = {
   field={u="~",a="~",fg="156,107,53"}, paddy={u="\226\137\161",a="=",fg="70,160,110"},
   water={u="\226\137\136",a="~",fg="74,144,217"}, clearing={u="\194\183",a=".",fg="74,68,60"},
   rockground={u="^",a="^",fg="138,144,151"},
-  weed={u="\226\128\154",a=",",fg="104,122,70"}, weed2={u="\226\128\153",a="'",fg="122,130,74"},
+  weed={u="\207\136",a="\"",fg="118,178,72"}, weed2={u="\206\189",a="'",fg="100,158,60"}, woodfloor={u="\226\148\128",a="-",fg="120,90,56",bg="58,42,28"},
   -- structure
   wall={u="\226\150\147",a="#",fg="150,128,100"}, building={u="\226\150\147",a="#",fg="172,150,128"}, breakwater={u="\226\150\147",a="#",fg="138,141,146"},
   wall_h={u="\226\148\128",a="-",fg="216,205,184"}, wall_v={u="\226\148\130",a="|",fg="216,205,184"},
-  corner={u="+",a="+",fg="216,205,184"}, gate={u="+",a="+",fg="210,165,80"},
-  door={u="+",a="+",fg="210,165,80"}, window={u="\226\150\161",a="o",fg="127,184,216"},
+  corner={u="+",a="+",fg="216,205,184"}, gate={u="\226\136\143",a="+",fg="210,165,80"},
+  door={u="\226\150\175",a="+",fg="210,165,80"}, window={u="\226\150\161",a="o",fg="127,184,216"},
   greenhouse={u="\226\136\169",a="n",fg="200,212,216"}, tetrapod={u="X",a="X",fg="125,132,138"},
   lighthouse={u="I",a="I",fg="226,75,74"}, grave={u="\206\169",a="o",fg="134,168,90"},
   -- object
@@ -1690,10 +1690,10 @@ function GT.render(d)
         elseif g and g.t == "wet" then fg, glyph = "90,150,210", "~"
         elseif g and g.t == "snow" then fg, glyph = "225,232,244", "\226\151\166"
         elseif terr[key] then
-          local gg, tfg = glyphOf(terr[key].t); fg, glyph = tint(tfg), gg
+          local gg, tfg, tbg = glyphOf(terr[key].t); fg, glyph = tint(tfg), gg; if tbg then bg = tint(tbg) end
         elseif outdoor then
           if biome == "road" then
-            if (x*3+y*5)%6==0 then fg, glyph = tint("114,95,66"), "," else fg, glyph = tint("90,76,54"), "." end
+            fg, glyph = tint("90,76,54"), " "
           elseif watery then
             local ph = (x + y*2 + (GT.frame or 0)) % 5
             if ph < 2 then fg, glyph = tint("90,165,205"), "~" else fg, glyph = tint("60,120,165"), "~" end
