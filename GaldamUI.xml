@@ -1868,6 +1868,7 @@ function GK.setMode(on)
   GK.on = on
   if on then GK.bind() else GK.unbind() end
   pcall(function()
+    GK.ind = GK.ind or GKInd
     if not GK.ind then GK.ind = Geyser.Label:new({name="GKInd", x="30%", y="5.0%", width=370, height=22}) end
     GK.ind:setStyleSheet("background-color: rgba(16,28,40,236); border:1px solid #5a8ac8; border-radius:5px; qproperty-alignment:AlignCenter;")
     GK.ind:echo(on and "<font color='#9fe8b0'>\226\151\143 \236\157\180\235\143\153\235\170\168\235\147\156: WASD/QEZC \236\157\180\235\143\153  (\234\184\176 \235\176\177\237\139\137=\236\177\132\237\140\133)</font>"
@@ -1880,8 +1881,6 @@ function GK.toggle() GK.setMode(not GK.on) end
 local okt, tid = pcall(tempKey, 0x60, [[GaldamKeys.toggle()]])
 if okt and tid then GK.tid = tid end
 GK.setMode(GK.on)
--- 재접속/패키지 업데이트마다 키바인딩 유실되는 문제 → 접속 이벤트에 모드 재적용(멱등)
-if not GK.conn then GK.conn = registerAnonymousEventHandler("sysConnectionEvent", function() GaldamKeys.setMode(GaldamKeys.on) end) end
 echo("[Galdam] 이동/채팅 모드 격리 로드 — 백틱(`)으로 토글. 이동모드: WASD+QEZC / 숫자패드\n")
 ]]></script>
       <eventHandlerList></eventHandlerList>
