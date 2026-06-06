@@ -1340,13 +1340,18 @@ end
 -- 격자 전체를 한눈에: 창을 w×h에 맞춰 동적 resize (뷰포트 없음, 1칸 셀)
 function GT.fitWindow(w, h)
   if not GT.win then return end
-  local fs = (w >= 22 or h >= 22) and 13 or 16
+  local fs = (w >= 30 or h >= 30) and 11 or ((w >= 22 or h >= 22) and 13 or 16)
   local cw = math.ceil(fs * 0.72)    -- 글자폭 넉넉히(우측 짤림 방지)
   local lh = fs + 6
   local px = (w * 2 + 3) * cw + 24   -- 셀 가로 2칸 + 좌우 엣지 여유
   local py = (h + 7) * lh + 22       -- 헤더+출구+범례 여유(상하 짤림 방지)
   pcall(function() GT.win:resize(px, py) end)
   pcall(function() GT.win:setFontSize(fs) end)
+  -- 화면 중앙 정렬 (좌측 쏠림 방지, 35폭 대응)
+  pcall(function()
+    local mw, mh = getMainWindowSize()
+    GT.win:move(math.max(8, math.floor((mw - px) / 2)), math.max(8, math.floor(mh * 0.10)))
+  end)
 end
 if GaldamTacSprite then
   if GaldamTacSprite.h1 then pcall(killAnonymousEventHandler, GaldamTacSprite.h1); GaldamTacSprite.h1 = nil end
@@ -1459,6 +1464,8 @@ GT.TILE = {
   well={u="O",a="O",fg="120,150,200"}, jangdok={u="\226\151\143",a="o",fg="98,76,58"},
   dog={u="d",a="d",fg="196,136,84"}, clothes={u="\226\148\128",a="-",fg="222,222,228"},
   lamp={u="\194\161",a="i",fg="246,216,132"},
+  fridge={u="\226\150\174",a="F",fg="200,212,222"}, table={u="\226\150\166",a="T",fg="150,110,68"},
+  bed={u="\226\150\173",a="B",fg="190,170,180"}, wardrobe={u="\226\150\165",a="W",fg="130,95,60"}, stove={u="\226\150\169",a="S",fg="120,118,126"},
 }
 local function glyphOf(t)
   local e = GT.TILE[t]
@@ -1473,7 +1480,8 @@ GT.NAME = {
   carL="자동차", carR="자동차", truckL="트럭", truckR="트럭", tracL="트랙터", tracR="트랙터",
   policeL="경찰차", policeR="경찰차",
   paddy="논", field="밭", dirt2="흙길", clearing="마당", buoy="부표", reef="암초",
-  weed="잡초", weed2="잡초",
+  weed="잡초", weed2="잡초", woodfloor="나무바닥",
+  fridge="냉장고", table="탁자", bed="침대", wardrobe="장롱", stove="난로",
 }
 
 function GT.render(d)
