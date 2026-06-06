@@ -1880,6 +1880,8 @@ function GK.toggle() GK.setMode(not GK.on) end
 local okt, tid = pcall(tempKey, 0x60, [[GaldamKeys.toggle()]])
 if okt and tid then GK.tid = tid end
 GK.setMode(GK.on)
+-- 재접속/패키지 업데이트마다 키바인딩 유실되는 문제 → 접속 이벤트에 모드 재적용(멱등)
+if not GK.conn then GK.conn = registerAnonymousEventHandler("sysConnectionEvent", function() GaldamKeys.setMode(GaldamKeys.on) end) end
 echo("[Galdam] 이동/채팅 모드 격리 로드 — 백틱(`)으로 토글. 이동모드: WASD+QEZC / 숫자패드\n")
 ]]></script>
       <eventHandlerList></eventHandlerList>
