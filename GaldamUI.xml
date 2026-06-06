@@ -1423,7 +1423,7 @@ function GT.smokeStep(d)
 end
 local function smokeActive() return next(GT.smoke or {}) ~= nil end
 
-GT.GLYPH_MODE = "ascii"   -- "uni"|"ascii" — 전각폭 안전 기본. Mudlet 폰트 실측 후 토글
+GT.GLYPH_MODE = "uni"   -- "uni"|"ascii" — 폰트 실측 테스트(2026-06-07). 정렬 깨지면 "ascii"로 복귀
 -- 타일 타입 → {u유니코드, a아스키, fg, bg}. 글리프는 데이터(타입)가 아니라 표현 — brief §2
 GT.TILE = {
   -- terrain
