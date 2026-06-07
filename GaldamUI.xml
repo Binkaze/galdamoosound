@@ -19,7 +19,7 @@ if GaldamUI._handlers then
   for _, id in ipairs(GaldamUI._handlers) do pcall(killAnonymousEventHandler, id) end
 end
 GaldamUI._handlers = {}
-GaldamUI.VERSION = "v31"   -- 업데이트 적용 확인용 (화면 우상단 표시)
+GaldamUI.VERSION = "v32"   -- 업데이트 적용 확인용 (화면 우상단 표시)
 
 local PANEL_W = 0.20      -- 우측 탭 패널 폭
 local BOTTOM_H = 120      -- 하단 HUD 바 높이
@@ -998,6 +998,7 @@ function GP.onRound()
   GP.pos = 0; GP.dir = 1; GP.active = true
   if GP.timer then killTimer(GP.timer) end
   GP.win:show()
+  pcall(function() raiseWindow("GaldamPickWin") end)  -- 격자맵보다 앞으로 (가려짐 방지)
   GP.tick()
 end
 
