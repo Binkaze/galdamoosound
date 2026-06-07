@@ -1437,7 +1437,7 @@ GT.TILE = {
   field={u="~",a="~",fg="156,107,53"}, paddy={u="\226\137\161",a="=",fg="70,160,110"},
   water={u="\226\137\136",a="~",fg="74,144,217"}, clearing={u="\194\183",a=".",fg="74,68,60"},
   rockground={u="^",a="^",fg="138,144,151"},
-  weed={u="\207\136",a="\"",fg="118,178,72"}, weed2={u="\206\189",a="'",fg="100,158,60"}, woodfloor={u="\226\148\128",a="-",fg="120,90,56",bg="58,42,28"},
+  weed={u="\207\136",a="\"",fg="118,178,72"}, weed2={u="\206\189",a="'",fg="100,158,60"}, woodfloor={u=" ",a=" ",fg="120,90,56",bg="74,54,34"},
   -- structure
   wall={u="\226\150\147",a="#",fg="150,128,100"}, building={u="\226\150\147",a="#",fg="172,150,128"}, breakwater={u="\226\150\147",a="#",fg="138,141,146"},
   wall_h={u="\226\148\128",a="-",fg="216,205,184"}, wall_v={u="\226\148\130",a="|",fg="216,205,184"},
@@ -1690,7 +1690,7 @@ function GT.render(d)
           if sbg then bg = tint(sbg) end
         elseif cover[key] then
           local gg, cfg, cbg = glyphOf(cover[key].k); fg, glyph = tint(cfg), gg
-          if cbg then bg = tint(cbg) end
+          if cbg then bg = tint(cbg) elseif terr[key] then local _c1, _c2, ctb = glyphOf(terr[key].t); if ctb then bg = tint(ctb) end end
         elseif g and g.t == "blood" then
           local l = tonumber(g.l) or 1
           glyph = (l>=5) and "#" or ((l>=2) and ":" or ".")
