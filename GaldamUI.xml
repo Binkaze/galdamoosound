@@ -19,7 +19,7 @@ if GaldamUI._handlers then
   for _, id in ipairs(GaldamUI._handlers) do pcall(killAnonymousEventHandler, id) end
 end
 GaldamUI._handlers = {}
-GaldamUI.VERSION = "v32"   -- 업데이트 적용 확인용 (화면 우상단 표시)
+GaldamUI.VERSION = "v33"   -- 업데이트 적용 확인용 (화면 우상단 표시)
 
 local PANEL_W = 0.20      -- 우측 탭 패널 폭
 local BOTTOM_H = 120      -- 하단 HUD 바 높이
@@ -1382,6 +1382,13 @@ local function warmGlow(rgb, g)
   b  = b  + (140 - b ) * k * 0.45
   return clampc(r)..","..clampc(gr)..","..clampc(b)
 end
+-- 임의 색 빛무리: 셀 색을 target(tr,tg,tb)쪽으로 끌어올림 (경광등 빨강/파랑용, a=0~1 세기)
+local function colorGlow(rgb, a, tr, tg, tb)
+  local r, gr, b = rgb:match("(%d+),(%d+),(%d+)")
+  r, gr, b = tonumber(r), tonumber(gr), tonumber(b)
+  local k = a * 0.6
+  return clampc(r + (tr - r) * k) .. "," .. clampc(gr + (tg - gr) * k) .. "," .. clampc(b + (tb - b) * k)
+end
 local function smAdd(g, x, y, amt, t)
   local k = x .. "," .. y
   local c = g[k]
@@ -1653,6 +1660,37 @@ function GT.render(d)
     end
   end
 
+  -- 경찰차 경광등 빛무리: 점멸 위상에 따라 빨강/파랑이 주변으로 옅게 퍼짐 (야간일수록 강함)
+  local pbGlow = {}
+  local beaconOn = outdoor and ({[1]=0.34, [4]=0.50, [5]=0.66, [6]=0.85})[tone]
+  if beaconOn and beaconOn > 0 then
+    local on = math.floor((GT.frame or 0) / 3) % 2
+    local pulse = 0.72 + 0.28 * math.abs(math.sin((GT.frame or 0) * 0.9))
+    local tr = (on == 0) and 245 or 64
+    local tg = (on == 0) and 58 or 104
+    local tb = (on == 0) and 58 or 245
+    for _, c in ipairs(d.cover or {}) do
+      if c.k == "policeL" or c.k == "policeR" then
+        local lx, ly = tonumber(c.x), tonumber(c.y)
+        local R = 3
+        for ddy = -R, R do
+          for ddx = -R, R do
+            local gx, gy = lx + ddx, ly + ddy
+            if gx >= 0 and gx < w and gy >= 0 and gy < h then
+              local dist = math.abs(ddx) + math.abs(ddy)
+              local v = (1 - dist / (R + 1.5)) * beaconOn * pulse
+              if v > 0 then
+                local gk = gx .. "," .. gy
+                local e = pbGlow[gk]
+                if not e or v > e.v then pbGlow[gk] = {v = math.min(1.0, v), r = tr, g = tg, b = tb} end
+              end
+            end
+          end
+        end
+      end
+    end
+  end
+
   local hdr = outdoor and "<150,210,150>" or "<154,208,255>"
   local tnames = {"새벽","아침","낮","저녁","노을","밤"}
   GT.win:decho(hdr .. "  \226\140\150 " .. nm)
@@ -1736,6 +1774,13 @@ function GT.render(d)
           local cc = cover[key]
           if not (cc and (cc.k == "policeL" or cc.k == "policeR")) then
             ffg = warmGlow(ffg, gl); fbg = warmGlow(fbg, gl * 0.6)
+          end
+        end
+        local pb = pbGlow[key]
+        if pb and pb.v > 0.03 then
+          local cc2 = cover[key]
+          if not (cc2 and (cc2.k == "policeL" or cc2.k == "policeR")) then
+            ffg = colorGlow(ffg, pb.v, pb.r, pb.g, pb.b); fbg = colorGlow(fbg, pb.v * 0.7, pb.r, pb.g, pb.b)
           end
         end
         local _pk = cover[key] and cover[key].k
