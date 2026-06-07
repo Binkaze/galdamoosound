@@ -1440,6 +1440,7 @@ GT.TILE = {
   weed={u="\207\136",a="\"",fg="118,178,72"}, weed2={u="\206\189",a="'",fg="100,158,60"}, woodfloor={u=" ",a=" ",fg="120,90,56",bg="74,54,34"},
   -- structure
   wall={u="\226\150\147",a="#",fg="150,128,100"}, building={u="\226\150\147",a="#",fg="172,150,128"}, breakwater={u="\226\150\147",a="#",fg="138,141,146"},
+  fence={u="\226\150\146",a=":",fg="160,140,104"},
   wall_h={u="\226\148\128",a="-",fg="216,205,184"}, wall_v={u="\226\148\130",a="|",fg="216,205,184"},
   corner={u="+",a="+",fg="216,205,184"}, gate={u="\226\136\143",a="+",fg="210,165,80"},
   door={u="\226\150\175",a="+",fg="210,165,80"}, window={u="\226\150\161",a="o",fg="127,184,216"},
@@ -1480,7 +1481,7 @@ local function glyphOf(t)
 end
 -- 타일 종류 → 한글 이름 (마우스 hover 툴팁)
 GT.NAME = {
-  lamp="가로등", wall="담벼락", building="건물벽", wall_h="집 벽", wall_v="집 벽",
+  lamp="가로등", wall="집 벽", fence="담장", building="건물벽", wall_h="집 벽", wall_v="집 벽",
   corner="집 모서리", gate="대문", door="문", window="창문", greenhouse="비닐하우스",
   tree="나무", rock="바위", well="우물", jangdok="장독대", bench="평상",
   carL="자동차", carR="자동차", truckL="트럭", truckR="트럭", tracL="트랙터", tracR="트랙터",
