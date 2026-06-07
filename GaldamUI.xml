@@ -1340,7 +1340,7 @@ end
 -- 격자 전체를 한눈에: 창을 w×h에 맞춰 동적 resize (뷰포트 없음, 1칸 셀)
 function GT.fitWindow(w, h)
   if not GT.win then return end
-  local fs = (w >= 30 or h >= 30) and 11 or ((w >= 22 or h >= 22) and 13 or 16)
+  local fs = (w >= 36 or h >= 36) and 10 or ((w >= 30 or h >= 30) and 11 or ((w >= 22 or h >= 22) and 13 or 16))
   local cw = math.ceil(fs * 0.72)    -- 글자폭 넉넉히(우측 짤림 방지)
   local lh = fs + 6
   local px = (w * 2 + 3) * cw + 24   -- 셀 가로 2칸 + 좌우 엣지 여유
@@ -1464,8 +1464,14 @@ GT.TILE = {
   well={u="O",a="O",fg="120,150,200"}, jangdok={u="\226\151\143",a="o",fg="98,76,58"},
   dog={u="d",a="d",fg="196,136,84"}, clothes={u="\226\148\128",a="-",fg="222,222,228"},
   lamp={u="\194\161",a="i",fg="246,216,132"},
-  fridge={u="\226\150\174",a="F",fg="200,212,222"}, table={u="\226\150\166",a="T",fg="150,110,68"},
-  bed={u="\226\150\173",a="B",fg="190,170,180"}, wardrobe={u="\226\150\165",a="W",fg="130,95,60"}, stove={u="\226\150\169",a="S",fg="120,118,126"},
+  fridge={u="\226\150\174",a="F",fg="208,216,224"}, sink={u="\226\151\176",a="K",fg="180,190,200"}, gasrange={u="\226\138\158",a="G",fg="120,120,128"},
+  cupboard={u="\226\150\168",a="c",fg="150,110,68"}, table={u="\226\150\173",a="T",fg="150,110,68"}, dtable={u="\226\150\173",a="T",fg="150,110,68"},
+  toilet={u="\226\151\147",a="t",fg="210,214,220"}, bathtub={u="\226\151\150",a="b",fg="200,214,222"}, washbasin={u="\226\151\139",a="s",fg="200,210,218"},
+  bed={u="\226\150\177",a="B",fg="190,170,180"}, wardrobe={u="\226\150\165",a="W",fg="130,95,60"}, desk={u="\226\151\179",a="d",fg="150,110,68"},
+  computer={u="\226\150\163",a="p",fg="120,132,152"}, dresser={u="\226\151\167",a="v",fg="180,150,160"}, drawers={u="\226\150\166",a="r",fg="140,100,64"},
+  safe={u="\226\138\160",a="X",fg="92,94,100"}, sofa={u="\226\150\172",a="S",fg="120,140,170"}, tv={u="\226\150\176",a="V",fg="64,68,76"},
+  bookshelf={u="\226\150\167",a="L",fg="150,110,68"}, washer={u="\226\138\159",a="m",fg="190,196,204"}, stove={u="\226\150\169",a="o",fg="120,118,126"},
+  tilefloor={u=" ",a=" ",fg="120,124,132",bg="70,74,82"}, deck={u="\226\148\128",a="=",fg="130,98,62",bg="66,50,32"},
 }
 local function glyphOf(t)
   local e = GT.TILE[t]
@@ -1481,7 +1487,10 @@ GT.NAME = {
   policeL="경찰차", policeR="경찰차",
   paddy="논", field="밭", dirt2="흙길", clearing="마당", buoy="부표", reef="암초",
   weed="잡초", weed2="잡초", woodfloor="나무바닥",
-  fridge="냉장고", table="탁자", bed="침대", wardrobe="장롱", stove="난로",
+  fridge="냉장고", sink="싱크대", gasrange="가스레인지", cupboard="그릇장", table="식탁", dtable="식탁",
+  toilet="변기", bathtub="욕조", washbasin="세면대", bed="침대", wardrobe="옷장", desk="책상",
+  computer="컴퓨터", dresser="화장대", drawers="서랍장", safe="금고", sofa="소파", tv="티비",
+  bookshelf="책장", washer="세탁기", stove="난로", tilefloor="타일바닥", deck="데크",
 }
 
 function GT.render(d)
