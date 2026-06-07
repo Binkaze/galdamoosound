@@ -19,7 +19,7 @@ if GaldamUI._handlers then
   for _, id in ipairs(GaldamUI._handlers) do pcall(killAnonymousEventHandler, id) end
 end
 GaldamUI._handlers = {}
-GaldamUI.VERSION = "v34"   -- 업데이트 적용 확인용 (화면 우상단 표시)
+GaldamUI.VERSION = "v35"   -- 업데이트 적용 확인용 (화면 우상단 표시)
 
 local PANEL_W = 0.20      -- 우측 탭 패널 폭
 local BOTTOM_H = 120      -- 하단 HUD 바 높이
@@ -1751,6 +1751,10 @@ function GT.render(d)
           local l = tonumber(g.l) or 1
           glyph = (l>=3) and "\226\128\187" or ((l>=2) and ":" or "\194\183")
           fg = "172,202,226"
+        elseif g and g.t == "mess" then
+          local l = tonumber(g.l) or 1
+          glyph = (l>=2) and ";" or ","
+          fg = "150,120,82"
         elseif terr[key] then
           local gg, tfg, tbg = glyphOf(terr[key].t); fg, glyph = tint(tfg), gg; if tbg then bg = tint(tbg) end
         elseif outdoor then
