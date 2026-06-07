@@ -19,7 +19,7 @@ if GaldamUI._handlers then
   for _, id in ipairs(GaldamUI._handlers) do pcall(killAnonymousEventHandler, id) end
 end
 GaldamUI._handlers = {}
-GaldamUI.VERSION = "v35"   -- 업데이트 적용 확인용 (화면 우상단 표시)
+GaldamUI.VERSION = "v36"   -- 업데이트 적용 확인용 (화면 우상단 표시)
 
 local PANEL_W = 0.20      -- 우측 탭 패널 폭
 local BOTTOM_H = 120      -- 하단 HUD 바 높이
@@ -1951,14 +1951,22 @@ function GK.setMode(on)
   end)
 end
 function GK.toggle() GK.setMode(not GK.on) end
--- 토글 키: 백틱 ` (채팅에 거의 안 씀, NumLock 무관)
-local okt, tid = pcall(tempKey, 0x60, [[GaldamKeys.toggle()]])
-if okt and tid then GK.tid = tid end
-GK.setMode(GK.on)
--- 업데이트(Client.GUI 재설치)로 tempKey 유실됨 → 접속 후 GMCP 도착(=재설치 완료 직후)에 재바인드.
--- (GUI 핸들러처럼 매 로드 등록=가드X. sysConnectionEvent 즉시재바인드는 재설치보다 빨라 실패했음)
-registerAnonymousEventHandler("sysConnectionEvent", function() GaldamKeys._dirty = true end)
-registerAnonymousEventHandler("gmcp.Char.Vitals", function() if GaldamKeys._dirty then GaldamKeys._dirty = false; GaldamKeys.setMode(GaldamKeys.on) end end)
+-- 토글 키: 백틱 ` (채팅에 거의 안 씀, NumLock 무관). 재접속마다 유실되므로 함수화.
+function GK.bindToggle()
+  if GK.tid then pcall(killKey, GK.tid); GK.tid = nil end
+  local okt, tid = pcall(tempKey, 0x60, [[GaldamKeys.toggle()]])
+  if okt and tid then GK.tid = tid end
+end
+-- 전체 재바인드(토글+이동키). 재접속/재설치 후 GMCP 도착 시 호출.
+function GK.reinit() GK.bindToggle(); GK.setMode(GK.on) end
+GK.reinit()
+-- ⚠️재접속마다 tempKey(토글+이동키) 전부 유실 → GMCP Char.Vitals 도착(=재접속/재설치 완료 직후)에 전체 reinit.
+-- 이전 버그: Vitals에서 setMode만 호출해 토글키 미복원 → 채팅모드(off)에선 백틱이 죽어 모드 진입 불가.
+-- sysConnectionEvent 즉시재바인드는 재설치보다 빨라 실패하므로 Vitals 사용. 핸들러는 중복누적 가드.
+if GK.h_conn then pcall(killAnonymousEventHandler, GK.h_conn) end
+if GK.h_vit then pcall(killAnonymousEventHandler, GK.h_vit) end
+GK.h_conn = registerAnonymousEventHandler("sysConnectionEvent", function() GaldamKeys._dirty = true end)
+GK.h_vit = registerAnonymousEventHandler("gmcp.Char.Vitals", function() if GaldamKeys._dirty then GaldamKeys._dirty = false; GaldamKeys.reinit() end end)
 echo("[Galdam] 이동/채팅 모드 격리 로드 — 백틱(`)으로 토글. 이동모드: WASD+QEZC / 숫자패드\n")
 ]]></script>
       <eventHandlerList></eventHandlerList>
