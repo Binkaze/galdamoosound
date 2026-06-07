@@ -19,7 +19,7 @@ if GaldamUI._handlers then
   for _, id in ipairs(GaldamUI._handlers) do pcall(killAnonymousEventHandler, id) end
 end
 GaldamUI._handlers = {}
-GaldamUI.VERSION = "v38"   -- 업데이트 적용 확인용 (화면 우상단 표시)
+GaldamUI.VERSION = "v39"   -- 업데이트 적용 확인용 (화면 우상단 표시)
 
 local PANEL_W = 0.20      -- 우측 탭 패널 폭
 local BOTTOM_H = 120      -- 하단 HUD 바 높이
@@ -1904,9 +1904,15 @@ GT.h1 = registerAnonymousEventHandler("gmcp.Galdam.Tac", "GaldamTac.onTac")
 GT.h2 = registerAnonymousEventHandler("gmcp.Galdam.Room", "GaldamTac.onRoom")
 GT.makeWindow()
 echo("[Galdam] 전술 격자 뷰 v7 로드됨 (+도로/바다 실외 격자).\n")
-
-
--- ===== 이동/채팅 모드 격리 (백틱 ` 토글) — 영구키(permKey) 우선, tempKey 폴백 =====
+]]></script>
+      <eventHandlerList></eventHandlerList>
+    </Script>
+   <Script isActive="yes" isFolder="no">
+      <name>GaldamMoveKeys</name>
+      <packageName></packageName>
+      <script><![CDATA[
+-- ===== 이동/채팅 모드 격리 (백틱 ` 토글) — 독립 블록(큰 블록 로드실패에도 생존) =====
+-- 영구키(permKey) 우선, tempKey 폴백.
 -- ⚠️tempKey는 재접속마다 유실(3번 시도 다 실패)→ 영구키로 전환. 영구키는 프로필에 저장돼 재접속/재설치에도 유지.
 --   모드격리 = 채팅모드(이동키 disable=키입력 통과→타이핑) / 이동모드(이동키 enable=캡쳐→이동).
 --   permKey/enableKey 불가시 tempKey bind/unbind 폴백(=기존 동작, 무회귀).
