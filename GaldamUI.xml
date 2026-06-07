@@ -19,7 +19,7 @@ if GaldamUI._handlers then
   for _, id in ipairs(GaldamUI._handlers) do pcall(killAnonymousEventHandler, id) end
 end
 GaldamUI._handlers = {}
-GaldamUI.VERSION = "v39"   -- 업데이트 적용 확인용 (화면 우상단 표시)
+GaldamUI.VERSION = "v40"   -- 업데이트 적용 확인용 (화면 우상단 표시)
 
 local PANEL_W = 0.20      -- 우측 탭 패널 폭
 local BOTTOM_H = 120      -- 하단 HUD 바 높이
@@ -1911,15 +1911,18 @@ echo("[Galdam] 전술 격자 뷰 v7 로드됨 (+도로/바다 실외 격자).\n"
       <name>GaldamMoveKeys</name>
       <packageName></packageName>
       <script><![CDATA[
--- ===== 이동/채팅 모드 격리 (백틱 ` 토글) — 독립 블록(큰 블록 로드실패에도 생존) =====
--- 영구키(permKey) 우선, tempKey 폴백.
--- ⚠️tempKey는 재접속마다 유실(3번 시도 다 실패)→ 영구키로 전환. 영구키는 프로필에 저장돼 재접속/재설치에도 유지.
---   모드격리 = 채팅모드(이동키 disable=키입력 통과→타이핑) / 이동모드(이동키 enable=캡쳐→이동).
---   permKey/enableKey 불가시 tempKey bind/unbind 폴백(=기존 동작, 무회귀).
+-- ===== 이동/채팅 모드 격리 (백틱 ` 토글) — 독립 블록 + tempKey =====
+-- 블록 분리(gui105)로 Mudlet 재시작에도 이 블록은 로드됨 → tempKey 매로드 재생성으로 충분.
+-- ⚠️v38/v39 permKey 잔재(GK_*)는 백틱 중복바인딩 유발 → 이름으로 kill+disable 정리.
 GaldamKeys = GaldamKeys or {}
 local GK = GaldamKeys
 GK.on = GK.on or false
--- 기존 키 전부 정리(재설치 중복방지): 추적 영구키 id + tempKey id + 토글
+GK.usePerm = nil
+-- 구 permKey 잔재 제거(이름) + 비활성화 (둘중 되는걸로)
+for _, nm in ipairs({"GK_toggle","GK_W","GK_S","GK_A","GK_D","GK_Q","GK_E","GK_Z","GK_C","GK_F","GK_R","GK_N8","GK_N5","GK_N4","GK_N6","GK_N7","GK_N9","GK_N1","GK_N3","GK_N2","GK_N0"}) do
+  pcall(function() killKey(nm) end)
+  pcall(function() disableKey(nm) end)
+end
 for _, id in ipairs(GK.permIds or {}) do pcall(killKey, id) end
 GK.permIds = {}
 for _, id in ipairs(GK.ids or {}) do pcall(killKey, id) end
@@ -1931,34 +1934,8 @@ local W=[[send("\236\132\156")]]; local E=[[send("\235\143\153")]]
 local NW=[[send("\235\182\129\236\132\156")]]; local NE=[[send("\235\182\129\235\143\153")]]
 local SW=[[send("\235\130\168\236\132\156")]]; local SE=[[send("\235\130\168\235\143\153")]]
 local SR=[[send("\236\136\152\236\131\137")]]; local LK=[[send("\235\179\180\234\184\176")]]
--- 이동키: {이름, keyCode, modifier, lua}
-local MOVE = {
-  {"GK_W",0x57,0,N},{"GK_S",0x53,0,S},{"GK_A",0x41,0,W},{"GK_D",0x44,0,E},
-  {"GK_Q",0x51,0,NW},{"GK_E",0x45,0,NE},{"GK_Z",0x5A,0,SW},{"GK_C",0x43,0,SE},
-  {"GK_F",0x46,0,SR},{"GK_R",0x52,0,LK},
-  {"GK_N8",0x38,KP,N},{"GK_N5",0x35,KP,S},{"GK_N4",0x34,KP,W},{"GK_N6",0x36,KP,E},
-  {"GK_N7",0x37,KP,NW},{"GK_N9",0x39,KP,NE},{"GK_N1",0x31,KP,SW},{"GK_N3",0x33,KP,SE},
-  {"GK_N2",0x32,KP,LK},{"GK_N0",0x30,KP,SR},
-}
--- tempKey 폴백용
 local WASD = {{0x57,N},{0x53,S},{0x41,W},{0x44,E},{0x51,NW},{0x45,NE},{0x5A,SW},{0x43,SE},{0x46,SR},{0x52,LK}}
 local NUM = {{0x38,N},{0x35,S},{0x34,W},{0x36,E},{0x37,NW},{0x39,NE},{0x31,SW},{0x33,SE},{0x32,LK},{0x30,SR}}
--- 영구키 시도: 이미 있으면 재생성 스킵(중복방지), 없으면 생성. 성공시 usePerm=true
-GK.moveNames = {}
-for _, k in ipairs(MOVE) do GK.moveNames[#GK.moveNames+1] = k[1] end
-local function tryPerm()
-  if type(permKey) ~= "function" or type(enableKey) ~= "function" then return false end
-  local tok, tid = pcall(permKey, "GK_toggle", "", 0x60, 0, [[GaldamKeys.toggle()]])
-  if not (tok and type(tid) == "number" and tid > 0) then return false end
-  GK.tid = tid; GK.permIds[#GK.permIds+1] = tid
-  for _, k in ipairs(MOVE) do
-    local o, i = pcall(permKey, k[1], "", k[2], k[3], k[4])
-    if o and type(i) == "number" and i > 0 then GK.permIds[#GK.permIds+1] = i end
-  end
-  return true
-end
-GK.usePerm = tryPerm()
--- tempKey 폴백 bind/unbind
 function GK.unbind()
   for _, id in ipairs(GK.ids) do pcall(killKey, id) end
   GK.ids = {}
@@ -1972,21 +1949,9 @@ function GK.bind()
     else local o2,i2 = pcall(tempKey, kv[1], KP, kv[2]); if o2 and i2 then GK.ids[#GK.ids+1]=i2 end end
   end
 end
-function GK.bindToggle()  -- 폴백 전용 토글(영구키면 불필요)
-  if GK.usePerm then return end
-  if GK.tid then pcall(killKey, GK.tid); GK.tid = nil end
-  local okt, tid = pcall(tempKey, 0x60, [[GaldamKeys.toggle()]])
-  if okt and tid then GK.tid = tid end
-end
 function GK.setMode(on)
   GK.on = on
-  if GK.usePerm then
-    for _, nm in ipairs(GK.moveNames or {}) do
-      if on then pcall(enableKey, nm) else pcall(disableKey, nm) end
-    end
-  else
-    if on then GK.bind() else GK.unbind() end
-  end
+  if on then GK.bind() else GK.unbind() end
   pcall(function()
     GK.ind = GK.ind or GKInd
     if not GK.ind then GK.ind = Geyser.Label:new({name="GKInd", x="30%", y="5.0%", width=370, height=22}) end
@@ -1997,21 +1962,22 @@ function GK.setMode(on)
   end)
 end
 function GK.toggle() GK.setMode(not GK.on) end
-GK.bindToggle()
-GK.setMode(GK.on)  -- 초기 모드 적용 (영구키=enable/disable, 폴백=bind)
--- 안전망: 폴백(tempKey)일 때만 재접속 재바인드 필요(영구키는 프로필저장이라 자동유지).
-function GK.reconnect()
-  if not GK.usePerm then GK.bindToggle() end
-  GK.setMode(GK.on)
+function GK.bindToggle()
+  if GK.tid then pcall(killKey, GK.tid); GK.tid = nil end
+  local okt, tid = pcall(tempKey, 0x60, [[GaldamKeys.toggle()]])
+  if okt and tid then GK.tid = tid end
 end
+GK.bindToggle()
+GK.setMode(GK.on)
+-- 세션 중 패치 재설치 대비 안전망
+function GK.reinit() GK.bindToggle(); GK.setMode(GK.on) end
 if GK.h_conn then pcall(killAnonymousEventHandler, GK.h_conn) end
 if GK.h_vit then pcall(killAnonymousEventHandler, GK.h_vit); GK.h_vit = nil end
 GK.h_conn = registerAnonymousEventHandler("sysConnectionEvent", function()
-  pcall(function() GaldamKeys.reconnect() end)
-  pcall(function() tempTimer(2.5, function() GaldamKeys.reconnect() end) end)
-  pcall(function() tempTimer(6, function() GaldamKeys.reconnect() end) end)
+  pcall(function() GaldamKeys.reinit() end)
+  pcall(function() tempTimer(2.5, function() GaldamKeys.reinit() end) end)
 end)
-echo("[Galdam] 이동/채팅 모드 격리 로드 (" .. (GK.usePerm and "\236\152\129\234\181\172\237\130\164" or "tempKey\237\143\180\235\176\177") .. ") — 백틱(`) 토글\n")
+echo("[Galdam] 이동/채팅 모드 격리 로드 (독립블록/tempKey) — 백틱(`) 토글\n")
 ]]></script>
       <eventHandlerList></eventHandlerList>
     </Script>
