@@ -19,7 +19,7 @@ if GaldamUI._handlers then
   for _, id in ipairs(GaldamUI._handlers) do pcall(killAnonymousEventHandler, id) end
 end
 GaldamUI._handlers = {}
-GaldamUI.VERSION = "v33"   -- 업데이트 적용 확인용 (화면 우상단 표시)
+GaldamUI.VERSION = "v34"   -- 업데이트 적용 확인용 (화면 우상단 표시)
 
 local PANEL_W = 0.20      -- 우측 탭 패널 폭
 local BOTTOM_H = 120      -- 하단 HUD 바 높이
@@ -1452,6 +1452,7 @@ GT.TILE = {
   wall_h={u="\226\148\128",a="-",fg="216,205,184"}, wall_v={u="\226\148\130",a="|",fg="216,205,184"},
   corner={u="+",a="+",fg="216,205,184"}, gate={u="\226\136\143",a="+",fg="210,165,80"},
   door={u="\226\150\175",a="+",fg="210,165,80"}, window={u="\226\150\161",a="o",fg="127,184,216"},
+  window_open={u="\226\150\171",a="-",fg="150,220,235"}, window_broken={u="\226\128\187",a="*",fg="184,206,222"},
   greenhouse={u="\226\136\169",a="n",fg="200,212,216"}, tetrapod={u="X",a="X",fg="125,132,138"},
   lighthouse={u="I",a="I",fg="226,75,74"}, grave={u="\206\169",a="o",fg="134,168,90"},
   -- object
@@ -1490,7 +1491,7 @@ end
 -- 타일 종류 → 한글 이름 (마우스 hover 툴팁)
 GT.NAME = {
   lamp="가로등", wall="집 벽", fence="담장", building="건물벽", wall_h="집 벽", wall_v="집 벽",
-  corner="집 모서리", gate="대문", door="문", window="창문", greenhouse="비닐하우스",
+  corner="집 모서리", gate="대문", door="문", window="창문", window_open="열린 창문", window_broken="깨진 창문", greenhouse="비닐하우스",
   tree="나무", rock="바위", well="우물", jangdok="장독대", bench="평상",
   carL="자동차", carR="자동차", truckL="트럭", truckR="트럭", tracL="트랙터", tracR="트랙터",
   policeL="경찰차", policeR="경찰차",
@@ -1746,6 +1747,10 @@ function GT.render(d)
           fg = (115+l*20)..",26,28"
         elseif g and g.t == "wet" then fg, glyph = "90,150,210", "~"
         elseif g and g.t == "snow" then fg, glyph = "225,232,244", "\226\151\166"
+        elseif g and g.t == "glass" then
+          local l = tonumber(g.l) or 1
+          glyph = (l>=3) and "\226\128\187" or ((l>=2) and ":" or "\194\183")
+          fg = "172,202,226"
         elseif terr[key] then
           local gg, tfg, tbg = glyphOf(terr[key].t); fg, glyph = tint(tfg), gg; if tbg then bg = tint(tbg) end
         elseif outdoor then
