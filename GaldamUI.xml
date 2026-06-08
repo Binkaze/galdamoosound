@@ -19,7 +19,7 @@ if GaldamUI._handlers then
   for _, id in ipairs(GaldamUI._handlers) do pcall(killAnonymousEventHandler, id) end
 end
 GaldamUI._handlers = {}
-GaldamUI.VERSION = "v43"   -- 업데이트 적용 확인용 (화면 우상단 표시)
+GaldamUI.VERSION = "v44"   -- 업데이트 적용 확인용 (화면 우상단 표시)
 
 local PANEL_W = 0.20      -- 우측 탭 패널 폭
 local BOTTOM_H = 120      -- 하단 HUD 바 높이
@@ -31,9 +31,9 @@ local IMGBASE = "https://cdn.jsdelivr.net/gh/Binkaze/galdamoosound@main/"
 local IMGFILES = {"up-arrow.png","down arrow.png","left-arrow.png","right-arrow.png","up.png","down.png","in.png","out.png","look.png","search.png",
   "status_cold.png","status_heat.png","status_wet.png","status_drunk.png","status_caffeine.png","status_smoke.png","status_nausea.png",
   "status_bleeding.png","status_stunned.png","status_broken.png","status_hunger.png","status_thirst.png","status_fatigue.png","status_heavy.png"}
-local STANCE_IMGFILES = {"stance_stand.png","stance_sit.png","stance_prone.png","stance_walk.png","stance_fastwalk.png","stance_run.png"}
+local STANCE_IMGFILES = {"stance_stand_v2.png","stance_sit_v2.png","stance_prone_v2.png","stance_walk_v2.png","stance_fastwalk_v2.png","stance_run_v2.png"}
 for _, f in ipairs(STANCE_IMGFILES) do IMGFILES[#IMGFILES + 1] = f end
-local STANCE_DISABLED_IMGFILES = {"stance_walk_disabled.png","stance_fastwalk_disabled.png","stance_run_disabled.png"}
+local STANCE_DISABLED_IMGFILES = {"stance_walk_v2_disabled.png","stance_fastwalk_v2_disabled.png","stance_run_v2_disabled.png"}
 for _, f in ipairs(STANCE_DISABLED_IMGFILES) do IMGFILES[#IMGFILES + 1] = f end
 for i = 0, 20 do IMGFILES[#IMGFILES + 1] = string.format("stance_cd_%02d.png", i) end
 local function imgPath(f) return GaldamUI.imgDir .. "/" .. f end
@@ -826,12 +826,12 @@ end
 -- 자세/속도 아이콘 컨트롤
 GaldamUI.stanceState = GaldamUI.stanceState or {posture = 0, speed = 0}
 GaldamUI.STANCE_ITEMS = {
-  {key = "stand", label = "서기", icon = "stance_stand.png", cmd = "서기", kind = "posture", posture = 0},
-  {key = "sit", label = "앉기", icon = "stance_sit.png", cmd = "앉기", kind = "posture", posture = 1},
-  {key = "prone", label = "눕기", icon = "stance_prone.png", cmd = "눕기", kind = "posture", posture = 2},
-  {key = "walk", label = "걷기", icon = "stance_walk.png", disabledIcon = "stance_walk_disabled.png", cmd = "걷기", kind = "speed", speed = 0},
-  {key = "fast", label = "빠른걷기", icon = "stance_fastwalk.png", disabledIcon = "stance_fastwalk_disabled.png", cmd = "빠른걷기", kind = "speed", speed = 1},
-  {key = "run", label = "달리기", icon = "stance_run.png", disabledIcon = "stance_run_disabled.png", cmd = "달리기", kind = "speed", speed = 2},
+  {key = "stand", label = "서기", icon = "stance_stand_v2.png", cmd = "서기", kind = "posture", posture = 0},
+  {key = "sit", label = "앉기", icon = "stance_sit_v2.png", cmd = "앉기", kind = "posture", posture = 1},
+  {key = "prone", label = "눕기", icon = "stance_prone_v2.png", cmd = "눕기", kind = "posture", posture = 2},
+  {key = "walk", label = "걷기", icon = "stance_walk_v2.png", disabledIcon = "stance_walk_v2_disabled.png", cmd = "걷기", kind = "speed", speed = 0},
+  {key = "fast", label = "빠른걷기", icon = "stance_fastwalk_v2.png", disabledIcon = "stance_fastwalk_v2_disabled.png", cmd = "빠른걷기", kind = "speed", speed = 1},
+  {key = "run", label = "달리기", icon = "stance_run_v2.png", disabledIcon = "stance_run_v2_disabled.png", cmd = "달리기", kind = "speed", speed = 2},
 }
 
 function GaldamUI.stanceItem(key)
