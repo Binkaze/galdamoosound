@@ -19,7 +19,7 @@ if GaldamUI._handlers then
   for _, id in ipairs(GaldamUI._handlers) do pcall(killAnonymousEventHandler, id) end
 end
 GaldamUI._handlers = {}
-GaldamUI.VERSION = "v46"   -- 업데이트 적용 확인용 (화면 우상단 표시)
+GaldamUI.VERSION = "v47"   -- 업데이트 적용 확인용 (화면 우상단 표시)
 
 local PANEL_W = 0.20      -- 우측 탭 패널 폭
 local BOTTOM_H = 120      -- 하단 HUD 바 높이
@@ -695,6 +695,19 @@ function GaldamUI.renderRoom()
   GaldamUI.roomRows = GaldamUI.roomRows or {}
   GaldamUI.liveRows = {}
   local r = gmcp.Galdam and gmcp.Galdam.Room
+  -- NPC 의심도 게이지: tac 데이터(GaldamTac.lastData)에서 id별 suspicion 교차참조 (서버 수정 0)
+  local susById = {}
+  if GaldamTac and GaldamTac.lastData and GaldamTac.lastData.actors then
+    for _, a in ipairs(GaldamTac.lastData.actors) do
+      local sv = a.sus and tonumber(a.sus)
+      if a.k == "npc" and sv and sv > 0 then susById[GaldamUI.normId(tostring(a.id))] = sv end
+    end
+  end
+  local function susBar(sus)
+    local filled = math.min(5, math.floor(sus / 90 * 5 + 0.999)); if filled < 1 then filled = 1 end
+    local col = (sus >= 61) and "#ff5040" or ((sus >= 31) and "#ff9640" or "#ffd24a")
+    return " <span style='color:" .. col .. ";font-size:9pt;'>" .. string.rep("▰", filled) .. string.rep("▱", 5 - filled) .. "</span>"
+  end
   local rid = r and tostring(r.roomid) or nil
   if rid ~= GaldamUI.prevRoomId then GaldamUI.roomPage = 1 end
   -- 1) 항목 전부 수집 (헤더 포함, 자르지 않음)
@@ -738,7 +751,8 @@ function GaldamUI.renderRoom()
     local lb = GaldamUI.getRow(idx)
     if it.cmds then
       lb:setStyleSheet("background-color: rgba(255,255,255,0.045); border-radius:4px; qproperty-alignment:'AlignLeft';")
-      lb:echo("<span style='color:" .. it.col .. ";font-size:10pt;'>&nbsp;▸ " .. it.html .. "</span>")
+      local _sv = it.id and it.id ~= "" and susById[GaldamUI.normId(it.id)]
+      lb:echo("<span style='color:" .. it.col .. ";font-size:10pt;'>&nbsp;▸ " .. it.html .. "</span>" .. (_sv and susBar(_sv) or ""))
       lb:setOnEnter(function() GaldamUI.showCmdTip(it.html, it.cmds) end)
       lb:setOnLeave(function() GaldamUI.hideTip() end)
       lb:setClickCallback(function() GaldamUI.openCtxMenu(it.html, it.cmds, it.id) end)
