@@ -19,7 +19,7 @@ if GaldamUI._handlers then
   for _, id in ipairs(GaldamUI._handlers) do pcall(killAnonymousEventHandler, id) end
 end
 GaldamUI._handlers = {}
-GaldamUI.VERSION = "v45"   -- 업데이트 적용 확인용 (화면 우상단 표시)
+GaldamUI.VERSION = "v46"   -- 업데이트 적용 확인용 (화면 우상단 표시)
 
 local PANEL_W = 0.20      -- 우측 탭 패널 폭
 local BOTTOM_H = 120      -- 하단 HUD 바 높이
@@ -1694,6 +1694,7 @@ function GT.render(d)
   local outdoor = (biome == "forest" or biome == "road" or biome == "sea" or biome == "ocean" or biome == "village")
   local watery = (biome == "sea" or biome == "ocean")
   local flash = (GT.flash or 0) > 0
+  local watch = (tonumber(d.watch) or 0) == 1   -- 경계상황(실내/알림/수배/잠입)에서만 평시 원뿔 표시
   local sx = d.self and tonumber(d.self[1])
   local sy = d.self and tonumber(d.self[2])
   GT.fitWindow(w, h)
@@ -1880,7 +1881,8 @@ function GT.render(d)
       local sr = tonumber(a.sr) or 5
       local ct = tonumber(a.ct) or 1
       local sus = tonumber(a.sus) or 0
-      if ox and fxv and (fxv ~= 0 or fyv ~= 0) then
+      -- 경계상황(watch)이거나 의심중인 NPC만 원뿔 표시. 평시 공개장소=숨김
+      if ox and fxv and (watch or sus > 0) and (fxv ~= 0 or fyv ~= 0) then
         for cyy = 0, h - 1 do
           for cxx = 0, w - 1 do
             local vx, vy = cxx - ox, cyy - oy
@@ -1931,8 +1933,13 @@ function GT.render(d)
         elseif actors[key] then
           local a = actors[key]
           if a.k == "npc" then
-            glyph = (a.f and GT.arrowOf) and GT.arrowOf(tonumber(a.f[1]), tonumber(a.f[2])) or "v"
             local sus = tonumber(a.sus) or 0
+            -- 경계상황이거나 의심중인 NPC만 시선 화살표. 평시엔 평범한 글리프
+            if (watch or sus > 0) and a.f and GT.arrowOf then
+              glyph = GT.arrowOf(tonumber(a.f[1]), tonumber(a.f[2]))
+            else
+              glyph = "v"
+            end
             if sus >= 61 then fg = "255,80,60"
             elseif sus >= 31 then fg = "255,150,60"
             elseif sus >= 1 then fg = "255,205,90"
