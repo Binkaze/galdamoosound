@@ -19,7 +19,7 @@ if GaldamUI._handlers then
   for _, id in ipairs(GaldamUI._handlers) do pcall(killAnonymousEventHandler, id) end
 end
 GaldamUI._handlers = {}
-GaldamUI.VERSION = "v44"   -- 업데이트 적용 확인용 (화면 우상단 표시)
+GaldamUI.VERSION = "v45"   -- 업데이트 적용 확인용 (화면 우상단 표시)
 
 local PANEL_W = 0.20      -- 우측 탭 패널 폭
 local BOTTOM_H = 120      -- 하단 HUD 바 높이
@@ -1668,6 +1668,20 @@ GT.NAME = {
   bookshelf="책장", washer="세탁기", stove="난로", tilefloor="타일바닥", deck="데크",
 }
 
+-- facing {fx,fy} → 방향 화살표 글리프 (1칸폭)
+function GT.arrowOf(fx, fy)
+  fx = tonumber(fx) or 0; fy = tonumber(fy) or 0
+  if fx > 0 and fy < 0 then return "\226\134\151"      -- ↗ 북동
+  elseif fx > 0 and fy > 0 then return "\226\134\152"  -- ↘ 남동
+  elseif fx < 0 and fy > 0 then return "\226\134\153"  -- ↙ 남서
+  elseif fx < 0 and fy < 0 then return "\226\134\150"  -- ↖ 북서
+  elseif fx > 0 then return "\226\150\182"             -- ▶ 동
+  elseif fx < 0 then return "\226\151\128"             -- ◀ 서
+  elseif fy > 0 then return "\226\150\188"             -- ▼ 남
+  elseif fy < 0 then return "\226\150\178"             -- ▲ 북
+  else return "v" end
+end
+
 function GT.render(d)
   local w = tonumber(d.w) or 9
   local h = tonumber(d.h) or 9
@@ -1857,6 +1871,36 @@ function GT.render(d)
     end
   end
 
+  -- NPC 시야 원뿔 (코만도스식): facing+시야로 cone 셀에 누적. 평시 초록, 의심↑ 주황→빨강
+  local cone = {}
+  for _, a in ipairs(d.actors or {}) do
+    if a.k == "npc" and a.f then
+      local ox, oy = tonumber(a.x), tonumber(a.y)
+      local fxv, fyv = tonumber(a.f[1]), tonumber(a.f[2])
+      local sr = tonumber(a.sr) or 5
+      local ct = tonumber(a.ct) or 1
+      local sus = tonumber(a.sus) or 0
+      if ox and fxv and (fxv ~= 0 or fyv ~= 0) then
+        for cyy = 0, h - 1 do
+          for cxx = 0, w - 1 do
+            local vx, vy = cxx - ox, cyy - oy
+            local dist = math.max(math.abs(vx), math.abs(vy))
+            if dist >= 1 and dist <= sr then
+              local fdot = fxv * vx + fyv * vy
+              local fcr = fxv * vy - fyv * vx
+              if fdot > 0 and math.abs(fcr) <= fdot * ct then
+                local k = cxx .. "," .. cyy
+                local inten = (1 - dist / (sr + 1.5)) * 0.55
+                local e = cone[k]
+                if not e or inten > e.v then cone[k] = { v = inten, sus = sus } end
+              end
+            end
+          end
+        end
+      end
+    end
+  end
+
   local hdr = outdoor and "<150,210,150>" or "<154,208,255>"
   local tnames = {"새벽","아침","낮","저녁","노을","밤"}
   GT.win:decho(hdr .. "  \226\140\150 " .. nm)
@@ -1886,8 +1930,15 @@ function GT.render(d)
         if sx == x and sy == y then fg, glyph = "120,235,255", "@"
         elseif actors[key] then
           local a = actors[key]
-          fg = (a.k=="npc") and "255,210,80" or ((a.k=="player") and "120,230,120" or "255,90,90")
-          glyph = (a.k=="player") and "P" or ((a.k=="npc") and "v" or "W")
+          if a.k == "npc" then
+            glyph = (a.f and GT.arrowOf) and GT.arrowOf(tonumber(a.f[1]), tonumber(a.f[2])) or "v"
+            local sus = tonumber(a.sus) or 0
+            if sus >= 61 then fg = "255,80,60"
+            elseif sus >= 31 then fg = "255,150,60"
+            elseif sus >= 1 then fg = "255,205,90"
+            else fg = "230,200,90" end
+          elseif a.k == "player" then fg, glyph = "120,230,120", "P"
+          else fg, glyph = "255,90,90", "W" end
         elseif fire[key] then
           fg = fcol[((GT.frame + x + y) % 3) + 1]
           glyph = (((GT.frame + x) % 2) == 0) and "*" or "^"
@@ -1956,6 +2007,14 @@ function GT.render(d)
           if not (cc2 and (cc2.k == "policeL" or cc2.k == "policeR")) then
             ffg = colorGlow(ffg, pb.v, pb.r, pb.g, pb.b); fbg = colorGlow(fbg, pb.v * 0.7, pb.r, pb.g, pb.b)
           end
+        end
+        local cn = cone[key]
+        if cn and cn.v > 0.03 and not (cover[key] and (cover[key].k == "policeL" or cover[key].k == "policeR")) then
+          local cr, cg, cb = 70, 200, 90
+          if cn.sus >= 61 then cr, cg, cb = 235, 70, 60
+          elseif cn.sus >= 31 then cr, cg, cb = 235, 150, 60
+          elseif cn.sus >= 1 then cr, cg, cb = 220, 200, 70 end
+          fbg = colorGlow(fbg, cn.v, cr, cg, cb)
         end
         local _pk = cover[key] and cover[key].k
         if (_pk == "policeL" or _pk == "policeR") and not (sx == x and sy == y) then
