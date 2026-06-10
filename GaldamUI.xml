@@ -2582,7 +2582,9 @@ function GTV.render(d)
     oi = oi + 1
     local l = lbl("obj", oi)
     sty(l, imgcss(f)); geo(l, PX + x * CS, PY + y * CS, CS, CS)
-    setTip(l, name or kindTip)   -- 이름 없으면 종류 한글명 (담장/대문 등)
+    -- 실물객체(id>0)=객체이름, 셀(id없음)=종류 한글명 우선 (셀의 name은 영문 kind라 한글명을 덮는 버그)
+    local realObj = id and tonumber(id) and tonumber(id) > 0
+    setTip(l, (realObj and name) or kindTip or name)
     -- 콜백은 대상이 바뀐 라벨만 재설정 (매 렌더 클로저 재생성 = 프레임 출렁임 원인)
     local ck = tostring(id or 0) .. ":" .. (name or "")
     if l._cid ~= ck then
@@ -2668,7 +2670,9 @@ function GTV.render(d)
     if l._cid ~= ck then
       l._cid = ck
       pcall(function()
-        if id and tonumber(id) and tonumber(id) > 0 then l:setClickCallback(function() GaldamUI.tacClick(tostring(id), name or "?") end) end
+        -- id 없는 액터(=나)는 콜백을 비워야 함: 풀 라벨에 남은 이전 NPC 콜백이 그대로 살면 "나 클릭=딴사람" 버그
+        if id and tonumber(id) and tonumber(id) > 0 then l:setClickCallback(function() GaldamUI.tacClick(tostring(id), name or "?") end)
+        else l:setClickCallback(function() end) end
         if GaldamUI and GaldamUI.attachTip then GaldamUI.attachTip(l, name or "?") end
       end)
     end
