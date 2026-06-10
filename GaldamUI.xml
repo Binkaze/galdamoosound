@@ -2243,6 +2243,11 @@ function GT.onTac()
 end
 
 function GT.onRoom()
+  -- 같은 룸 Room 재푸시(내용물 변화)면 뷰 유지 — 무조건 숨김이 "화면 사라짐" 원인이었음
+  local rids = gmcp.Galdam and gmcp.Galdam.Room and gmcp.Galdam.Room.roomid
+  local rid = rids and tonumber((tostring(rids):gsub("#", ""))) or nil
+  if rid and rid == GT.curRoom then return end
+  GT.curRoom = rid
   if GT.win then GT.win:hide() end
   GT.shown = false
   GT.smoke = {}
@@ -2829,9 +2834,24 @@ function GTV.tick()
   end
 end
 
+-- 룸 전환 시 풀 라벨의 모든 캐시 무효화 (잔상/스테일 방지 — 룸 바뀔 때만 1회 전체 재도색)
+function GTV.flushCaches()
+  for ly, pool in pairs(GTV.P or {}) do
+    for _, l in ipairs(pool) do l._css = nil; l._geo = nil; l._cid = nil; l._tip = nil end
+  end
+  GTV.fog = nil; GTV.fogKey = nil; GTV._wingeo = nil
+end
+
 function GTV.onTac()
   local d = gmcp.Galdam and gmcp.Galdam.Tac
   if not d then return end
+  -- 룸 식별 게이트: 다른 룸의 Tac는 렌더하지 않고 보류 (Room보다 Tac가 먼저 오는 경우 대비)
+  local rm = tonumber(d.rid)
+  if rm and GTV.curRoom and rm ~= GTV.curRoom then
+    GTV.pendingTac = d
+    dlog("타룸 Tac 보류 (rid=" .. tostring(rm) .. " cur=" .. tostring(GTV.curRoom) .. ")")
+    return
+  end
   GTV.lastData = d
   GTV.fogKey = nil
   if GTV.on then
@@ -2842,14 +2862,37 @@ function GTV.onTac()
       dlog("render 오류: " .. tostring(err))
     end
   end
-  dlog("Tac 수신 (on=" .. tostring(GTV.on) .. ")")
+  dlog("Tac 수신 (rid=" .. tostring(rm) .. ")")
 end
 
 function GTV.onRoom()
-  dlog("Room 수신 → 뷰 숨김")
-  if GTV.win then GTV.win:hide() end
+  local rids = gmcp.Galdam and gmcp.Galdam.Room and gmcp.Galdam.Room.roomid
+  local rid = rids and tonumber((tostring(rids):gsub("#", ""))) or nil
+  local changed = (rid ~= GTV.curRoom)
+  GTV.curRoom = rid
+  if not changed then
+    -- 같은 룸의 Room 재푸시(내용물 변화 sigchg) = 뷰 유지! (기존: 무조건 숨김 → "화면 사라짐" 버그)
+    dlog("Room 재수신(같은 룸 " .. tostring(rids) .. ") → 유지")
+    return
+  end
+  dlog("Room 수신 → 룸 전환 (" .. tostring(rids) .. ")")
+  GTV.flushCaches()
   if GTV.timer then pcall(killTimer, GTV.timer); GTV.timer = nil end
-  GTV.lastData = nil
+  -- 새 룸의 Tac를 이미 보유중이면(보류분/직전 수신) 즉시 렌더, 아니면 숨기고 Tac 대기
+  local cand = nil
+  local pd = GTV.pendingTac
+  GTV.pendingTac = nil
+  if pd and rid and tonumber(pd.rid) == rid then cand = pd
+  elseif GTV.lastData and rid and tonumber(GTV.lastData.rid) == rid then cand = GTV.lastData end
+  if cand and GTV.on then
+    GTV.lastData = cand
+    GTV.fogKey = nil
+    local ok, err = pcall(GTV.render, cand)
+    if ok then GTV.win:show() else dlog("render 오류: " .. tostring(err)) end
+  else
+    if GTV.win then GTV.win:hide() end
+    GTV.lastData = nil
+  end
 end
 
 -- 타일 다운로드 완료 → 스타일 캐시 비우고 재도색 (Qt가 '깨진 이미지'를 캐시한 칸 복구)
@@ -2906,7 +2949,7 @@ GTV.h2 = registerAnonymousEventHandler("gmcp.Galdam.Room", "GaldamTileView.onRoo
 GTV.h3 = registerAnonymousEventHandler("sysDownloadDone", "GaldamTileView.onDl")
 GTV.makeWin()
 GTV.ensureTiles()
-echo("[Galdam] 타일뷰 v3.1 로드됨 — 창 우측배치/전체 셀 툴팁/진단('타일로그'). '타일뷰'=글리프 전환\n")
+echo("[Galdam] 타일뷰 v3.2 로드됨 — 룸ID 동기화(잔상/사라짐 수정)+룸전환 캐시 플러시. '타일뷰'=글리프\n")
 ]]></script>
       <eventHandlerList></eventHandlerList>
     </Script>
