@@ -2489,6 +2489,10 @@ function GTV.render(d)
 
   local stmap, tmap = {}, {}
   for _, s in ipairs(d.struct or {}) do stmap[tonumber(s.x) .. "," .. tonumber(s.y)] = s.t end
+  -- 실내 룸은 벽/문/창이 struct가 아니라 cover(tac_grid)로 옴 → 구조물 kind는 stmap에 합류 (벽/문 풀셀타일+fog 적용)
+  for _, c in ipairs(d.cover or {}) do
+    if SFULL[c.k] or SOVER[c.k] or c.k == "fence" then stmap[tonumber(c.x) .. "," .. tonumber(c.y)] = c.k end
+  end
   for _, t in ipairs(d.terrain or {}) do tmap[tonumber(t.x) .. "," .. tonumber(t.y)] = t.t end
   -- 애니 레지스트리: 경량 틱이 이 라벨들'만' 갱신 (전체 재렌더 = 프레임 출렁임 원인이라 폐지)
   GTV.A = {pol = {}, fire = {}, water = {}}
@@ -2605,8 +2609,10 @@ function GTV.render(d)
     end
   end
   for _, c in ipairs(d.cover or {}) do
-    local f = OBJF[c.k] or "prop"
-    objAt(tonumber(c.x), tonumber(c.y), f, c.id, c.n, tipOf(c.k))
+    if not (SFULL[c.k] or SOVER[c.k] or c.k == "fence") then
+      local f = OBJF[c.k] or "prop"
+      objAt(tonumber(c.x), tonumber(c.y), f, c.id, c.n, tipOf(c.k))
+    end
   end
   hideRest("obj", oi)
 
