@@ -19,7 +19,7 @@ if GaldamUI._handlers then
   for _, id in ipairs(GaldamUI._handlers) do pcall(killAnonymousEventHandler, id) end
 end
 GaldamUI._handlers = {}
-GaldamUI.VERSION = "v47"   -- 업데이트 적용 확인용 (화면 우상단 표시)
+GaldamUI.VERSION = "v48"   -- 업데이트 적용 확인용 (화면 우상단 표시)
 
 local PANEL_W = 0.20      -- 우측 탭 패널 폭
 local BOTTOM_H = 120      -- 하단 HUD 바 높이
@@ -30,7 +30,8 @@ pcall(function() lfs.mkdir(GaldamUI.imgDir) end)
 local IMGBASE = "https://cdn.jsdelivr.net/gh/Binkaze/galdamoosound@main/"
 local IMGFILES = {"up-arrow.png","down arrow.png","left-arrow.png","right-arrow.png","up.png","down.png","in.png","out.png","look.png","search.png",
   "status_cold.png","status_heat.png","status_wet.png","status_drunk.png","status_caffeine.png","status_smoke.png","status_nausea.png",
-  "status_bleeding.png","status_stunned.png","status_broken.png","status_hunger.png","status_thirst.png","status_fatigue.png","status_heavy.png"}
+  "status_bleeding.png","status_stunned.png","status_broken.png","status_hunger.png","status_thirst.png","status_fatigue.png","status_heavy.png",
+  "man_stat.png","woman_stat.png"}
 local STANCE_IMGFILES = {"stance_stand_v2.png","stance_sit_v2.png","stance_prone_v2.png","stance_walk_v2.png","stance_fastwalk_v2.png","stance_run_v2.png"}
 for _, f in ipairs(STANCE_IMGFILES) do IMGFILES[#IMGFILES + 1] = f end
 local STANCE_DISABLED_IMGFILES = {"stance_walk_v2_disabled.png","stance_fastwalk_v2_disabled.png","stance_run_v2_disabled.png"}
@@ -95,6 +96,7 @@ GaldamUI.TABS = {
   {key="help",    name="도움말", icon=nil, render="renderHelp"},
   {key="ach",     name="도전과제", icon=nil, render="renderAch"},
   {key="events",  name="이벤트", icon=nil, render="renderEvents"},
+  {key="body",    name="신체",   icon=nil, render="renderBody"},
 }
 
 function GaldamUI.build()
@@ -156,6 +158,11 @@ function GaldamUI.build()
   GaldamUI.content:setColor(14, 18, 26)
   pcall(function() GaldamUI.content:setFontSize(11) end)
   GaldamUI.content:setWrap(28)
+  -- 신체 상태 뷰 (신체 탭 전용 — 확장 모드에서 방 패널 자리까지 사용)
+  GaldamUI.bodyBox = Geyser.Container:new({name="GaldamBodyBox", x=0, y=88, width="100%", height=200}, GaldamUI.rpanel)
+  GaldamUI.bodyImg = Geyser.Label:new({name="GaldamBodyImg", x=0, y=0, width=10, height=10}, GaldamUI.bodyBox)
+  GaldamUI.bodyRows = {}
+  GaldamUI.bodyBox:hide()
 
   -- ===== d-pad 미니창 (드래그) =====
   pcall(function()
@@ -233,15 +240,36 @@ function GaldamUI.relayout()
     local contentH = avail - roomH           -- 하단: 탭 콘텐츠
     GaldamUI.locHeader:move(0, 0); GaldamUI.locHeader:resize(rw, headH)
     local roomY = headH + gap
-    GaldamUI.roomBox:move(0, roomY); GaldamUI.roomBox:resize(rw, roomH)
-    local tabY = roomY + roomH + gap
+    -- 신체 탭 = 확장 모드: 방 패널을 숨기고 탭열을 위로, 신체 뷰가 나머지 전체 사용
+    local bodyMode = (GaldamUI.activeTab == "body")
+    local tabY
+    if bodyMode then
+      tabY = roomY
+      pcall(function() GaldamUI.roomBox:hide() end)
+    else
+      GaldamUI.roomBox:move(0, roomY); GaldamUI.roomBox:resize(rw, roomH)
+      pcall(function() GaldamUI.roomBox:show() end)
+      tabY = roomY + roomH + gap
+    end
     local n = #GaldamUI.TABS
     local bw = math.floor(rw / n)
     for i, t in ipairs(GaldamUI.TABS) do
       local b = GaldamUI.tabBtns[t.key]
       if b then b:move((i - 1) * bw, tabY); b:resize(bw - 2, tabH) end
     end
-    GaldamUI.content:move(0, tabY + tabH + gap); GaldamUI.content:resize(rw, contentH)
+    local cY = tabY + tabH + gap
+    if bodyMode then
+      pcall(function() GaldamUI.content:hide() end)
+      if GaldamUI.bodyBox then
+        GaldamUI.bodyBox:move(0, cY); GaldamUI.bodyBox:resize(rw, ph - cY - gap)
+        GaldamUI.bodyBox:show()
+        pcall(GaldamUI.renderBody)
+      end
+    else
+      if GaldamUI.bodyBox then pcall(function() GaldamUI.bodyBox:hide() end) end
+      GaldamUI.content:move(0, cY); GaldamUI.content:resize(rw, contentH)
+      pcall(function() GaldamUI.content:show() end)
+    end
   end)
   GaldamUI.renderRoom()
 end
@@ -267,7 +295,10 @@ end
 -- ===== 탭 전환 / 렌더 =====
 function GaldamUI.selectTab(key)
   if not GaldamUI.built then return end
+  local prev = GaldamUI.activeTab
   GaldamUI.activeTab = key
+  pcall(GaldamUI.relayout)
+  if prev == "body" and key ~= "body" then pcall(GaldamUI.renderRoom) end
   for _, t in ipairs(GaldamUI.TABS) do
     local b = GaldamUI.tabBtns[t.key]
     if b then
@@ -691,6 +722,11 @@ end
 
 function GaldamUI.renderRoom()
   if not (GaldamUI.built and GaldamUI.roomBox) then return end
+  if GaldamUI.activeTab == "body" then
+    -- 신체 탭(확장 모드) 동안엔 방 패널 행을 그리지 않음 (숨긴 컨테이너 위로 떠오름 방지)
+    for i = 1, #(GaldamUI.roomRows or {}) do pcall(function() GaldamUI.roomRows[i]:hide() end) end
+    return
+  end
   pcall(function() GaldamUI.closeCtxMenu() end)
   GaldamUI.roomRows = GaldamUI.roomRows or {}
   GaldamUI.liveRows = {}
@@ -1077,6 +1113,95 @@ function GaldamUI.onMap()
   end
 end
 
+-- ===== 신체 상태 탭 (man_stat/woman_stat 배경 + 실시간 부위HP/골절/절단/장비 오버레이) =====
+-- 좌표는 원본 이미지(1024x1536) 픽셀 기준 {바x0, 바y, 바x1} — 표시 크기로 스케일됨
+GaldamUI.BODYPOS = {
+  m = {head={432,152,550}, face={156,248,318}, eye={104,376,264}, neck={696,376,856}, chest={440,538,582}, arm={784,620,938}, abdomen={112,710,256}, hand={804,902,952}, groin={436,944,560}, ass={136,1008,284}, leg={726,1114,876}, foot={440,1436,584}},
+  f = {head={434,148,588}, face={158,250,312}, neck={696,374,848}, eye={114,380,260}, chest={440,540,580}, arm={780,616,922}, abdomen={108,708,250}, ass={786,918,920}, hand={100,922,236}, groin={430,946,554}, leg={714,1108,856}, foot={434,1436,570}},
+}
+GaldamUI.BPNAME = {head="머리", face="얼굴", eye="눈", neck="목", chest="가슴", abdomen="복부", arm="팔", hand="손", groin="사타구니", ass="엉덩이", leg="다리", foot="발"}
+
+function GaldamUI.renderBody()
+  if not (GaldamUI.built and GaldamUI.bodyBox) then return end
+  local d = gmcp.Galdam and gmcp.Galdam.Body
+  local g = (d and d.gender == "f") and "f" or "m"
+  local pdata = {}
+  if d and d.list and d.list ~= "" then
+    for entry in tostring(d.list):gmatch("[^;]+") do
+      local k, cur, mx, st, sv, items = entry:match("([^|]*)|([^|]*)|([^|]*)|([^|]*)|([^|]*)|(.*)")
+      if k then pdata[k] = {cur = tonumber(cur) or 0, mx = tonumber(mx) or 1, st = tonumber(st) or 0, sv = tonumber(sv) or 0, items = items or ""} end
+    end
+  end
+  local bw, bh = 100, 100
+  pcall(function() bw = GaldamUI.bodyBox:get_width(); bh = GaldamUI.bodyBox:get_height() end)
+  local ih = bh
+  local iw = math.floor(ih * 2 / 3)
+  if iw > bw then iw = bw; ih = math.floor(iw * 3 / 2) end
+  local ox = math.floor((bw - iw) / 2)
+  GaldamUI.bodyImg:move(ox, 0); GaldamUI.bodyImg:resize(iw, ih)
+  local imgf = (g == "f") and "woman_stat.png" or "man_stat.png"
+  GaldamUI.bodyImg:setStyleSheet("border-image: url(" .. imgPath(imgf) .. ") 0 0 0 0 stretch stretch; background-color:#141414;")
+  local s = iw / 1024
+  GaldamUI.bodyRows = GaldamUI.bodyRows or {}
+  for k, bp in pairs(GaldamUI.BODYPOS[g]) do
+    local pd = pdata[k] or {cur = 0, mx = 1, st = 0, sv = 0, items = ""}
+    local x0, by, x1 = bp[1], bp[2], bp[3]
+    local row = GaldamUI.bodyRows[k]
+    if not row then
+      row = {
+        num = Geyser.Label:new({name = "gbNum_" .. k, x = 0, y = 0, width = 10, height = 10}, GaldamUI.bodyBox),
+        bar = Geyser.Label:new({name = "gbBar_" .. k, x = 0, y = 0, width = 10, height = 10}, GaldamUI.bodyBox),
+        eq  = Geyser.Label:new({name = "gbEq_" .. k, x = 0, y = 0, width = 10, height = 10}, GaldamUI.bodyBox),
+      }
+      GaldamUI.bodyRows[k] = row
+    end
+    local pct = (pd.mx > 0) and (pd.cur / pd.mx) or 0
+    -- 숫자 라벨: 배경에 구워진 예시 숫자를 덮고 실시간 값 표시
+    row.num:move(math.floor(ox + (x0 - 14) * s), math.floor((by - 50) * s))
+    row.num:resize(math.ceil((x1 - x0 + 28) * s), math.ceil(44 * s))
+    local col = "#bfe6bf"
+    if pd.sv == 1 then col = "#7d7d7d" elseif pd.cur <= 0 then col = "#ff5544" elseif pct < 0.3 then col = "#ff8866" elseif pct < 0.55 then col = "#ffd966" end
+    local txt = (pd.sv == 1) and "절단됨" or (pd.cur .. " / " .. pd.mx)
+    local extra = ""
+    if pd.sv == 0 and pd.st >= 3 then extra = " <span style='color:#e67e22;'>골절</span>"
+    elseif pd.sv == 0 and pd.cur <= 0 then extra = " <span style='color:#c0392b;'>너덜</span>" end
+    local fpx = math.max(8, math.floor(27 * s))
+    row.num:setStyleSheet("background-color:#191919; qproperty-alignment:'AlignCenter';")
+    row.num:echo("<center><span style='font-size:" .. fpx .. "px; color:" .. col .. ";'><b>" .. txt .. extra .. "</b></span></center>")
+    -- 체력바: 구워진 바를 덮고 실시간 비율 표시
+    row.bar:move(math.floor(ox + (x0 - 5) * s), math.floor((by - 5) * s))
+    row.bar:resize(math.ceil((x1 - x0 + 10) * s), math.max(4, math.floor(14 * s)))
+    local p1 = math.max(0, math.min(1, pct))
+    local bcol = "#37a93c"
+    if pd.sv == 1 then bcol = "#3a3a3a" elseif pd.cur <= 0 then bcol = "#7a1f1f" elseif pct < 0.3 then bcol = "#e74c3c" elseif pct < 0.55 then bcol = "#e6b820" end
+    local css
+    if pd.sv == 1 then css = "background-color:#2a2a2a;"
+    elseif p1 <= 0 then css = "background-color:#23150f;"
+    elseif p1 >= 1 then css = "background-color:" .. bcol .. ";"
+    else css = string.format("background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 %s, stop:%.3f %s, stop:%.3f #23150f, stop:1 #23150f);", bcol, p1, bcol, math.min(1, p1 + 0.003)) end
+    row.bar:setStyleSheet(css .. " border:1px solid #0b0b0b; border-radius:2px;")
+    -- 장비: 박스 아래에 장착 아이템 (✋=손에 든 것)
+    row.eq:move(math.floor(ox + (x0 - 30) * s), math.floor((by + 14) * s))
+    row.eq:resize(math.ceil((x1 - x0 + 60) * s), math.ceil(50 * s))
+    local efpx = math.max(7, math.floor(23 * s))
+    local full, disp
+    if pd.items == "" then
+      disp = "<span style='color:#46503f;'>─</span>"
+      full = (GaldamUI.BPNAME[k] or k) .. " · 장착 없음"
+    else
+      local list = {}
+      for it in pd.items:gmatch("[^,]+") do list[#list + 1] = it end
+      disp = "<span style='color:#cfe3b8;'>" .. table.concat(list, " · ") .. "</span>"
+      full = (GaldamUI.BPNAME[k] or k) .. " · " .. table.concat(list, ", ")
+    end
+    row.eq:setStyleSheet("background-color: rgba(0,0,0,0); qproperty-alignment:'AlignCenter';")
+    row.eq:echo("<center><span style='font-size:" .. efpx .. "px;'>" .. disp .. "</span></center>")
+    GaldamUI.attachTip(row.num, full)
+    GaldamUI.attachTip(row.eq, full)
+    row.num:show(); row.bar:show(); row.eq:show()
+  end
+end
+
 function GaldamUI.refresh()
   if not GaldamUI.built then return end
   pcall(function()
@@ -1096,6 +1221,7 @@ table.insert(GaldamUI._handlers, registerAnonymousEventHandler("gmcp.Galdam.Map"
 table.insert(GaldamUI._handlers, registerAnonymousEventHandler("gmcp.Galdam.Players", function() if GaldamUI.activeTab=="players" then GaldamUI.renderTab() end end))
 table.insert(GaldamUI._handlers, registerAnonymousEventHandler("gmcp.Galdam.Skills", function() if GaldamUI.activeTab=="skills" then GaldamUI.renderTab() end end))
 table.insert(GaldamUI._handlers, registerAnonymousEventHandler("gmcp.Galdam.Achievements", function() if GaldamUI.activeTab=="ach" then GaldamUI.renderTab() end end))
+table.insert(GaldamUI._handlers, registerAnonymousEventHandler("gmcp.Galdam.Body", function() if GaldamUI.activeTab=="body" then GaldamUI.renderBody() end end))
 table.insert(GaldamUI._handlers, registerAnonymousEventHandler("sysWindowResizeEvent", function() GaldamUI.relayout() end))
 table.insert(GaldamUI._handlers, registerAnonymousEventHandler("sysDownloadDone", function() GaldamUI.refresh() end))
 GaldamUI.onRoom(); GaldamUI.onVitals(); GaldamUI.onStatus(); GaldamUI.onMap()
