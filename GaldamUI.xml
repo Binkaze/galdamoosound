@@ -2275,7 +2275,7 @@ GTV.frame = GTV.frame or 0
 GTV.TILEVER = 2
 GTV.zdirty = true          -- 로드 직후 z순서 1회 재구축 (레이어 순서 변경 반영)
 GTV.size = GTV.size or 32  -- 현재 셀 크기 (s16/s20/s24/s28/s32 사전생성 타일 = 무스케일링, 블러 방지)
-GTV.haveSize = GTV.haveSize or {}
+GTV.haveSize = {}          -- 세션마다 리셋 → 매 접속 1회 무결성 재검사 (깨진 파일 복구 기회)
 local TDIR = getMudletHomeDir() .. "/galdamtiles"
 pcall(function() lfs.mkdir(TDIR) end)
 local TBASE = "https://cdn.jsdelivr.net/gh/Binkaze/galdamoosound@main/tiles/"
@@ -2297,6 +2297,14 @@ for _, f in ipairs({"wood","hardwood","tile","marble","stone","concrete","carpet
 end
 
 local function tp(f) return TDIR .. "/s" .. GTV.size .. "/" .. f .. ".png" end
+-- PNG 무결성: 0바이트/404 HTML/반쯤 받은 파일 = 검은 칸의 원인 → 매직바이트 검사로 걸러 재다운
+local function validPng(p)
+  local h = io.open(p, "rb")
+  if not h then return false end
+  local b = h:read(8)
+  h:close()
+  return b ~= nil and #b >= 8 and b:byte(1) == 137 and b:sub(2, 4) == "PNG"
+end
 function GTV.ensureTiles(size)
   size = size or GTV.size
   if GTV.haveSize[size] then return end
@@ -2307,7 +2315,7 @@ function GTV.ensureTiles(size)
   local force = not (io.exists and io.exists(mark))
   for _, f in ipairs(TFILES) do
     local lp = sdir .. "/" .. f .. ".png"
-    if force or not (io.exists and io.exists(lp)) then pcall(downloadFile, lp, TBASE .. "s" .. size .. "/" .. f .. ".png") end
+    if force or not validPng(lp) then pcall(downloadFile, lp, TBASE .. "s" .. size .. "/" .. f .. ".png") end
   end
   pcall(function() local h = io.open(mark, "w"); if h then h:write("ok"); h:close() end end)
 end
@@ -2408,8 +2416,10 @@ function GTV.render(d)
   local watch = (tonumber(d.watch) or 0) == 1
   local sx = d.self and tonumber(d.self[1])
   local sy = d.self and tonumber(d.self[2])
-  -- 셀 크기: 사전생성 타일 크기로 양자화 → Qt 리스케일 0 = 또렷한 픽셀 (뽀샤시 방지)
-  local rawCS = math.floor(560 / math.max(w, h))
+  -- 셀 크기: 화면 크기 비례 예산(가로 62%/세로 80%) → 사전생성 타일 크기로 양자화(무리스케일=또렷)
+  local mw, mh = 1280, 800
+  pcall(function() mw, mh = getMainWindowSize() end)
+  local rawCS = math.floor(math.min((mw * 0.62 - 16) / math.max(1, w), (mh * 0.80 - 36) / math.max(1, h)))
   local CS = 16
   for _, s in ipairs({32, 28, 24, 20}) do if rawCS >= s then CS = s; break end end
   GTV.size = CS
@@ -2420,8 +2430,7 @@ function GTV.render(d)
     GTV._wingeo = wg
     pcall(function()
       GTV.win:resize(w * CS + PX * 2, h * CS + PY + 8)
-      local mw, mh = getMainWindowSize()
-      GTV.win:move(math.max(8, math.floor((mw - (w * CS + PX * 2)) / 2)), math.max(8, math.floor(mh * 0.08)))
+      GTV.win:move(math.max(8, math.floor((mw - (w * CS + PX * 2)) / 2)), math.max(8, math.floor(mh * 0.06)))
     end)
   end
   local nm = (gmcp.Galdam and gmcp.Galdam.Room and gmcp.Galdam.Room.name) or "전술 격자"
@@ -2475,7 +2484,8 @@ function GTV.render(d)
       local f
       if st and SFULL[st] then f = SFULL[st]
       else f = groundFile(biome, d.floor, x, y, tmap[key]) end
-      sty(l, imgcss(f))
+      -- 바닥은 이미지 실패시 검정 대신 흙색 폴백 (다운로드 중 검은 칸 방지)
+      sty(l, "border-image: url(" .. tp(f) .. "); background-color: #4a4238;")
       geo(l, PX + x * CS, PY + y * CS, CS, CS)
       if watery and not st and w * h <= 400 then GTV.A.water[#GTV.A.water + 1] = l end
     end
@@ -2776,6 +2786,28 @@ function GTV.onRoom()
   GTV.lastData = nil
 end
 
+-- 타일 다운로드 완료 → 스타일 캐시 비우고 재도색 (Qt가 '깨진 이미지'를 캐시한 칸 복구)
+function GTV.refreshTiles()
+  for ly, pool in pairs(GTV.P or {}) do
+    for _, l in ipairs(pool) do
+      if l._css and l._css:find("border-image", 1, true) then pcall(function() l:setStyleSheet("background: transparent;") end) end
+      l._css = nil
+    end
+  end
+  if GTV.on and GTV.lastData then GTV.render(GTV.lastData) end
+end
+function GTV.dlRefresh()
+  GTV.dlTimer = nil
+  GTV.refreshTiles()
+end
+function GTV.onDl(_, path)
+  if type(path) ~= "string" or not path:find("galdamtiles", 1, true) then return end
+  if not (GTV.on and GTV.lastData) then return end
+  -- 114개가 연달아 도착하므로 디바운스 (마지막 도착 후 한 번만 재도색)
+  if GTV.dlTimer then pcall(killTimer, GTV.dlTimer) end
+  GTV.dlTimer = tempTimer(0.7, "GaldamTileView.dlRefresh()")
+end
+
 function GTV.toggle()
   GTV.on = not GTV.on
   if GTV.on then
@@ -2800,11 +2832,13 @@ if GTV.alias then pcall(killAlias, GTV.alias) end
 GTV.alias = tempAlias("^타일뷰$", [[GaldamTileView.toggle()]])
 if GTV.h1 then pcall(killAnonymousEventHandler, GTV.h1) end
 if GTV.h2 then pcall(killAnonymousEventHandler, GTV.h2) end
+if GTV.h3 then pcall(killAnonymousEventHandler, GTV.h3) end
 GTV.h1 = registerAnonymousEventHandler("gmcp.Galdam.Tac", "GaldamTileView.onTac")
 GTV.h2 = registerAnonymousEventHandler("gmcp.Galdam.Room", "GaldamTileView.onRoom")
+GTV.h3 = registerAnonymousEventHandler("sysDownloadDone", "GaldamTileView.onDl")
 GTV.makeWin()
 GTV.ensureTiles()
-echo("[Galdam] 타일뷰 v2 로드됨 — '타일뷰' 토글 (크기별 타일=또렷, 경량애니틱, 원뿔 강조)\n")
+echo("[Galdam] 타일뷰 v2.1 로드됨 — '타일뷰' 토글 (PNG무결성검사+다운완료 자동재도색, 화면비례 크기)\n")
 ]]></script>
       <eventHandlerList></eventHandlerList>
     </Script>
