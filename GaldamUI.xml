@@ -2360,6 +2360,34 @@ function GTV.gcss(rgbA, rgbB)
 end
 GTV.imgcss = imgcss
 
+-- 진단 로그: '타일로그' 입력으로 최근 이벤트 확인 (룸전환/렌더 오류 추적용)
+GTV.log = GTV.log or {}
+local function dlog(msg)
+  local t = GTV.log
+  t[#t + 1] = os.date("%H:%M:%S") .. " " .. msg
+  if #t > 40 then table.remove(t, 1) end
+end
+
+-- 셀 툴팁: 글리프뷰 GT.NAME 재사용 + 타일뷰 보강분
+local EXTRA_NAME = {asphalt="아스팔트", lane="차선", crosswalk="횡단보도", water="물", rockground="바위땅",
+  woodfloor="나무바닥", grave="무덤", lighthouse="등대", tetrapod="테트라포드", breakwater="방파제",
+  net="그물", dryrack="건조대", boat="배", dog="개", pole="전봇대", mailbox="우체통", busstop="버스정류장", rock="바위", tree="나무"}
+local function tipOf(kind)
+  if not kind then return nil end
+  local nmt = (GaldamTac and GaldamTac.NAME) or {}
+  return nmt[kind] or EXTRA_NAME[kind]
+end
+local function setTip(l, tip)
+  if l._tip == tip then return end
+  l._tip = tip
+  if tip then
+    if GaldamUI and GaldamUI.attachTip then pcall(GaldamUI.attachTip, l, tip) end
+  else
+    pcall(function() l:setOnEnter(function() end) end)
+    pcall(function() l:setOnLeave(function() end) end)
+  end
+end
+
 -- z순서 재구축: 라벨이 새로 생기면 레이어 순서대로 raise
 -- (원뿔은 틴트/날씨 '위' = 시간대 어둠/비에 안 씻기고 또렷하게)
 local LAYERS = {"ground","decal","shade","obj","item","fx","actor","susdot","facedot","tint","wx","cone","glow","fogp"}
@@ -2439,8 +2467,11 @@ function GTV.render(d)
   if GTV._wingeo ~= wg then
     GTV._wingeo = wg
     pcall(function()
-      GTV.win:resize(w * CS + PX * 2, h * CS + PY + 8)
-      GTV.win:move(math.max(8, math.floor((mw - (w * CS + PX * 2)) / 2)), math.max(8, math.floor(mh * 0.06)))
+      local pxw = w * CS + PX * 2
+      GTV.win:resize(pxw, h * CS + PY + 8)
+      -- 좌측 본문 텍스트 안 가리게 오른쪽으로: 화면 34% 지점 이후에서 중앙
+      local wx = math.min(math.max(8, mw - pxw - 16), math.max(math.floor(mw * 0.34), math.floor((mw - pxw) * 0.62)))
+      GTV.win:move(wx, math.max(8, math.floor(mh * 0.06)))
     end)
   end
   local nm = (gmcp.Galdam and gmcp.Galdam.Room and gmcp.Galdam.Room.name) or "전술 격자"
@@ -2496,6 +2527,7 @@ function GTV.render(d)
       else f = groundFile(biome, d.floor, x, y, tmap[key]) end
       -- 바닥은 이미지 실패시 검정 대신 흙색 폴백 (다운로드 중 검은 칸 방지)
       sty(l, "border-image: url(" .. tp(f) .. "); background-color: #4a4238;")
+      setTip(l, (st and tipOf(st)) or tipOf(tmap[key]))
       geo(l, PX + x * CS, PY + y * CS, CS, CS)
       if watery and not st and w * h <= 400 then GTV.A.water[#GTV.A.water + 1] = l end
     end
@@ -2534,18 +2566,18 @@ function GTV.render(d)
 
   -- ④ 오브젝트(가구/차량/투명 struct)
   local oi = 0
-  local function objAt(x, y, f, id, name)
+  local function objAt(x, y, f, id, name, kindTip)
     oi = oi + 1
     local l = lbl("obj", oi)
     sty(l, imgcss(f)); geo(l, PX + x * CS, PY + y * CS, CS, CS)
-    -- 콜백/툴팁은 대상이 바뀐 라벨만 재설정 (매 렌더 클로저 재생성 = 프레임 출렁임 원인)
+    setTip(l, name or kindTip)   -- 이름 없으면 종류 한글명 (담장/대문 등)
+    -- 콜백은 대상이 바뀐 라벨만 재설정 (매 렌더 클로저 재생성 = 프레임 출렁임 원인)
     local ck = tostring(id or 0) .. ":" .. (name or "")
     if l._cid ~= ck then
       l._cid = ck
       pcall(function()
         if id and tonumber(id) and tonumber(id) > 0 then
           l:setClickCallback(function() GaldamUI.tacClick(tostring(id), name or "?") end)
-          if GaldamUI and GaldamUI.attachTip then GaldamUI.attachTip(l, name or "?") end
         else l:setClickCallback(function() end) end
       end)
     end
@@ -2553,7 +2585,7 @@ function GTV.render(d)
   for k, t in pairs(stmap) do
     if SOVER[t] then
       local x, y = k:match("(%-?%d+),(%-?%d+)")
-      objAt(tonumber(x), tonumber(y), SOVER[t])
+      objAt(tonumber(x), tonumber(y), SOVER[t], nil, nil, tipOf(t))
     elseif t == "fence" then
       local x, y = k:match("(%-?%d+),(%-?%d+)"); x, y = tonumber(x), tonumber(y)
       local mk = 0
@@ -2561,12 +2593,12 @@ function GTV.render(d)
       if stmap[(x + 1) .. "," .. y] == "fence" or stmap[(x + 1) .. "," .. y] == "gate" then mk = mk + 2 end
       if stmap[x .. "," .. (y + 1)] == "fence" or stmap[x .. "," .. (y + 1)] == "gate" then mk = mk + 4 end
       if stmap[(x - 1) .. "," .. y] == "fence" or stmap[(x - 1) .. "," .. y] == "gate" then mk = mk + 8 end
-      objAt(x, y, "fence_" .. mk)
+      objAt(x, y, "fence_" .. mk, nil, nil, tipOf("fence"))
     end
   end
   for _, c in ipairs(d.cover or {}) do
     local f = OBJF[c.k] or "prop"
-    objAt(tonumber(c.x), tonumber(c.y), f, c.id, c.n)
+    objAt(tonumber(c.x), tonumber(c.y), f, c.id, c.n, tipOf(c.k))
   end
   hideRest("obj", oi)
 
@@ -2802,10 +2834,19 @@ function GTV.onTac()
   if not d then return end
   GTV.lastData = d
   GTV.fogKey = nil
-  if GTV.on then GTV.render(d); GTV.win:show() end
+  if GTV.on then
+    local ok, err = pcall(GTV.render, d)
+    if ok then
+      GTV.win:show()
+    else
+      dlog("render 오류: " .. tostring(err))
+    end
+  end
+  dlog("Tac 수신 (on=" .. tostring(GTV.on) .. ")")
 end
 
 function GTV.onRoom()
+  dlog("Room 수신 → 뷰 숨김")
   if GTV.win then GTV.win:hide() end
   if GTV.timer then pcall(killTimer, GTV.timer); GTV.timer = nil end
   GTV.lastData = nil
@@ -2855,6 +2896,8 @@ end
 
 if GTV.alias then pcall(killAlias, GTV.alias) end
 GTV.alias = tempAlias("^타일뷰$", [[GaldamTileView.toggle()]])
+if GTV.alias2 then pcall(killAlias, GTV.alias2) end
+GTV.alias2 = tempAlias("^타일로그$", [[echo("[타일뷰 진단로그]\n") for _, ln in ipairs(GaldamTileView.log or {}) do echo(ln .. "\n") end]])
 if GTV.h1 then pcall(killAnonymousEventHandler, GTV.h1) end
 if GTV.h2 then pcall(killAnonymousEventHandler, GTV.h2) end
 if GTV.h3 then pcall(killAnonymousEventHandler, GTV.h3) end
@@ -2863,7 +2906,7 @@ GTV.h2 = registerAnonymousEventHandler("gmcp.Galdam.Room", "GaldamTileView.onRoo
 GTV.h3 = registerAnonymousEventHandler("sysDownloadDone", "GaldamTileView.onDl")
 GTV.makeWin()
 GTV.ensureTiles()
-echo("[Galdam] 타일뷰 v3 로드됨 (기본 ON) — 가구 22종 + NPC 시선 화살표. '타일뷰' 입력=글리프 전환\n")
+echo("[Galdam] 타일뷰 v3.1 로드됨 — 창 우측배치/전체 셀 툴팁/진단('타일로그'). '타일뷰'=글리프 전환\n")
 ]]></script>
       <eventHandlerList></eventHandlerList>
     </Script>
