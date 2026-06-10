@@ -2390,9 +2390,9 @@ local function groundFile(biome, floor, x, y, t)
     return TERRF[t] or "dirt_0"
   end
   local v = (x * 7 + y * 11 + x * y) % 4
-  if biome == "village" then return "dirt_" .. v
+  -- 시골 고증: road biome도 기본은 흙길 (아스팔트는 terrain에 asphalt/lane/crosswalk 명시된 칸만)
+  if biome == "village" or biome == "road" then return "dirt_" .. v
   elseif biome == "forest" then return "grass_" .. v
-  elseif biome == "road" then return "asphalt_" .. v
   elseif biome == "sea" or biome == "ocean" then return "water_" .. (GTV.frame % 2)
   else
     local ff = "floor_" .. (floor or "ondol")
