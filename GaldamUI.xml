@@ -2994,13 +2994,25 @@ for _, id in ipairs(GK.ids or {}) do pcall(killKey, id) end
 GK.ids = {}
 if GK.tid then pcall(killKey, GK.tid); GK.tid = nil end
 local KP = 0x20000000
-local N=[[send("\235\182\129")]]; local S=[[send("\235\130\168")]]
-local W=[[send("\236\132\156")]]; local E=[[send("\235\143\153")]]
-local NW=[[send("\235\182\129\236\132\156")]]; local NE=[[send("\235\182\129\235\143\153")]]
-local SW=[[send("\235\130\168\236\132\156")]]; local SE=[[send("\235\130\168\235\143\153")]]
-local SR=[[send("\236\136\152\236\131\137")]]; local LK=[[send("\235\179\180\234\184\176")]]
-local WASD = {{0x57,N},{0x53,S},{0x41,W},{0x44,E},{0x51,NW},{0x45,NE},{0x5A,SW},{0x43,SE},{0x46,SR},{0x52,LK}}
-local NUM = {{0x38,N},{0x35,S},{0x34,W},{0x36,E},{0x37,NW},{0x39,NE},{0x31,SW},{0x33,SE},{0x32,LK},{0x30,SR}}
+-- 이동 디스패처: 퀵메뉴 열림 = W/S 탐색, D/Space 실행, A 닫기. 평시 = 한글 이동명령 send
+GK.MOV = {N="\235\182\129", S="\235\130\168", W="\236\132\156", E="\235\143\153",
+  NW="\235\182\129\236\132\156", NE="\235\182\129\235\143\153", SW="\235\130\168\236\132\156", SE="\235\130\168\235\143\153",
+  SR="\236\136\152\236\131\137", LK="\235\179\180\234\184\176"}
+function GK.go(tag)
+  if GaldamQuick and GaldamQuick.open then
+    if tag == "N" then GaldamQuick.nav(-1)
+    elseif tag == "S" then GaldamQuick.nav(1)
+    elseif tag == "E" then GaldamQuick.exec()
+    elseif tag == "W" then GaldamQuick.close()
+    end
+    return
+  end
+  send(GK.MOV[tag])
+end
+local function gk(tag) return "GaldamKeys.go(\"" .. tag .. "\")" end
+local SPC = [[if GaldamQuick then GaldamQuick.toggle() end]]
+local WASD = {{0x57,gk("N")},{0x53,gk("S")},{0x41,gk("W")},{0x44,gk("E")},{0x51,gk("NW")},{0x45,gk("NE")},{0x5A,gk("SW")},{0x43,gk("SE")},{0x46,gk("SR")},{0x52,gk("LK")},{0x20,SPC}}
+local NUM = {{0x38,gk("N")},{0x35,gk("S")},{0x34,gk("W")},{0x36,gk("E")},{0x37,gk("NW")},{0x39,gk("NE")},{0x31,gk("SW")},{0x33,gk("SE")},{0x32,gk("LK")},{0x30,gk("SR")}}
 function GK.unbind()
   for _, id in ipairs(GK.ids) do pcall(killKey, id) end
   GK.ids = {}
@@ -3043,6 +3055,138 @@ GK.h_conn = registerAnonymousEventHandler("sysConnectionEvent", function()
   pcall(function() tempTimer(2.5, function() GaldamKeys.reinit() end) end)
 end)
 echo("[Galdam] 이동/채팅 모드 격리 로드 (독립블록/tempKey) — 백틱(`) 토글\n")
+]]></script>
+      <eventHandlerList></eventHandlerList>
+    </Script>
+    <Script isActive="yes" isFolder="no">
+      <name>GaldamQuickMenu</name>
+      <packageName></packageName>
+      <script><![CDATA[
+-- ===== 스페이스바 퀵 메뉴 (Arma식 상호작용 리스트) =====
+-- 이동모드에서 Space → 서버 _galdamquick → 인접 객체 명령 GMCP → 리스트 메뉴.
+-- W/S·↑↓ 탐색, D/Space/Enter 실행, A/Esc/취소 닫기, 마우스 클릭도 가능.
+GaldamQuick = GaldamQuick or {}
+local GQ = GaldamQuick
+GQ.open = GQ.open or false
+GQ.items = GQ.items or {}
+GQ.sel = 1
+GQ.kids = GQ.kids or {}
+local MN = "GaldamQuickWin"
+
+function GQ.win()
+  if GQ.w then return GQ.w end
+  GQ.w = Geyser.MiniConsole:new({name=MN, x="36%", y="26%", width=300, height=200})
+  GQ.w:setColor(13,19,27)
+  pcall(function() GQ.w:setFontSize(11) end)
+  GQ.w:setWrap(70)
+  return GQ.w
+end
+
+function GQ.render()
+  local w = GQ.win()
+  local h = (#GQ.items + 2) * 19 + 14
+  pcall(function() w:resize(306, h) end)
+  pcall(function() clearWindow(MN) end)
+  pcall(function()
+    cecho(MN, " <yellow><b>\226\154\161 \236\131\129\237\152\184\236\158\145\236\154\169</b>")
+    cecho(MN, "  <#8890a4>W/S \237\131\144\236\131\137 \194\183 Space \236\139\164\237\150\137 \194\183 A \235\139\171\234\184\176</#8890a4>\n")
+  end)
+  for i, it in ipairs(GQ.items) do
+    local sel = (i == GQ.sel)
+    local mark = sel and "\226\150\182 " or "  "
+    local label
+    if it.cancel then label = it.l or "\226\156\150 \236\183\168\236\134\140"
+    else label = (it.o or "?") .. " \194\183 " .. (it.l or "?") .. ((it.k == "arg") and " (\236\158\133\235\160\165)" or "") end
+    local lua = "GaldamQuick.pick(" .. i .. ")"
+    pcall(function()
+      if sel then setFgColor(MN, 255, 224, 120)
+      elseif it.cancel then setFgColor(MN, 220, 130, 120)
+      else setFgColor(MN, 150, 216, 160) end
+      echoLink(MN, mark .. label, lua, label, true)
+      echo(MN, "\n")
+    end)
+  end
+  pcall(function() w:show(); raiseWindow(MN) end)
+end
+
+function GQ.bindNavKeys()
+  GQ.unbindNavKeys()
+  local keys = {
+    {0x01000013, [[GaldamQuick.nav(-1)]]},
+    {0x01000015, [[GaldamQuick.nav(1)]]},
+    {0x01000004, [[GaldamQuick.exec()]]},
+    {0x01000005, [[GaldamQuick.exec()]]},
+    {0x01000000, [[GaldamQuick.close()]]},
+  }
+  for _, kv in ipairs(keys) do
+    local ok, id = pcall(tempKey, kv[1], kv[2])
+    if ok and id then GQ.kids[#GQ.kids+1] = id end
+  end
+end
+function GQ.unbindNavKeys()
+  for _, id in ipairs(GQ.kids or {}) do pcall(killKey, id) end
+  GQ.kids = {}
+end
+
+function GQ.show(items)
+  GQ.items = items or {}
+  GQ.items[#GQ.items+1] = {cancel=true}
+  GQ.sel = 1
+  GQ.open = true
+  GQ.bindNavKeys()
+  GQ.render()
+end
+
+function GQ.close()
+  GQ.open = false
+  GQ.unbindNavKeys()
+  pcall(function() if GQ.w then GQ.w:hide() end end)
+end
+
+function GQ.nav(d)
+  if not GQ.open then return end
+  GQ.sel = GQ.sel + d
+  if GQ.sel < 1 then GQ.sel = #GQ.items end
+  if GQ.sel > #GQ.items then GQ.sel = 1 end
+  GQ.render()
+end
+
+function GQ.pick(i)
+  GQ.sel = i
+  GQ.exec()
+end
+
+function GQ.exec()
+  if not GQ.open then return end
+  local it = GQ.items[GQ.sel]
+  GQ.close()
+  if (not it) or it.cancel then return end
+  if GaldamUI and GaldamUI.menuPick then
+    GaldamUI.menuPick(it.c or "", it.k == "arg")
+  elseif it.c and it.c ~= "" then send(it.c) end
+end
+
+function GQ.toggle()
+  if GQ.open then GQ.exec() else send("_galdamquick", false) end
+end
+
+function GQ.onQuick()
+  local d = gmcp.Galdam and gmcp.Galdam.Quick
+  if not d then return end
+  local items = {}
+  for _, it in ipairs(d.items or {}) do items[#items+1] = it end
+  if #items == 0 then
+    items[#items+1] = {o="", l="\236\163\188\235\179\128\236\151\144 \236\131\129\237\152\184\236\158\145\236\154\169\237\149\160 \234\178\131\236\157\180 \236\151\134\235\139\164", cancel=true}
+  end
+  GQ.show(items)
+end
+if GQ.h then pcall(killAnonymousEventHandler, GQ.h) end
+GQ.h = registerAnonymousEventHandler("gmcp.Galdam.Quick", function() pcall(function() GaldamQuick.onQuick() end) end)
+
+-- 채팅모드용 alias
+if GQ.al then pcall(killAlias, GQ.al) end
+pcall(function() GQ.al = tempAlias("^\237\128\181\235\169\148\235\137\180$", [[send("_galdamquick", false)]]) end)
+echo("[Galdam] \237\128\181 \235\169\148\235\137\180 \235\161\156\235\147\156 \226\128\148 \236\157\180\235\143\153\235\170\168\235\147\156 Space\n")
 ]]></script>
       <eventHandlerList></eventHandlerList>
     </Script>
