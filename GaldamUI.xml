@@ -2339,12 +2339,15 @@ function GTV.makeWin()
   GTV.win:hide()
 end
 
+-- 오버레이 레이어는 마우스 통과(clickthrough) — 안 하면 틴트/원뿔/안개가 호버·클릭을 전부 삼킴!
+local THRU = {decal=1, shade=1, fx=1, susdot=1, facedot=1, cone=1, tint=1, wx=1, glow=1, fogp=1}
 local function lbl(layer, i)
   GTV.P[layer] = GTV.P[layer] or {}
   local t = GTV.P[layer]
   if not t[i] then
     t[i] = Geyser.Label:new({name = "GTV_" .. layer .. "_" .. i, x = 0, y = 0, width = 8, height = 8}, GTV.win)
     t[i]._css = nil; t[i]._geo = nil
+    if THRU[layer] then pcall(function() t[i]:enableClickthrough() end) end
     GTV.zdirty = true
   end
   return t[i]
@@ -2949,7 +2952,13 @@ GTV.h2 = registerAnonymousEventHandler("gmcp.Galdam.Room", "GaldamTileView.onRoo
 GTV.h3 = registerAnonymousEventHandler("sysDownloadDone", "GaldamTileView.onDl")
 GTV.makeWin()
 GTV.ensureTiles()
-echo("[Galdam] 타일뷰 v3.2 로드됨 — 룸ID 동기화(잔상/사라짐 수정)+룸전환 캐시 플러시. '타일뷰'=글리프\n")
+-- 재로드 시 기존 풀 라벨에도 클릭스루 소급 적용
+for ly, pool in pairs(GTV.P) do
+  if THRU[ly] then
+    for _, l in ipairs(pool) do pcall(function() l:enableClickthrough() end) end
+  end
+end
+echo("[Galdam] 타일뷰 v3.3 로드됨 — 오버레이 클릭스루(호버/클릭 수정)+주민 생활대사/경계반응. '타일뷰'=글리프\n")
 ]]></script>
       <eventHandlerList></eventHandlerList>
     </Script>
