@@ -2272,7 +2272,10 @@ local GTV = GaldamTileView
 GTV.on = GTV.on or false
 GTV.P = GTV.P or {}
 GTV.frame = GTV.frame or 0
-GTV.TILEVER = 1
+GTV.TILEVER = 2
+GTV.zdirty = true          -- 로드 직후 z순서 1회 재구축 (레이어 순서 변경 반영)
+GTV.size = GTV.size or 32  -- 현재 셀 크기 (s16/s20/s24/s28/s32 사전생성 타일 = 무스케일링, 블러 방지)
+GTV.haveSize = GTV.haveSize or {}
 local TDIR = getMudletHomeDir() .. "/galdamtiles"
 pcall(function() lfs.mkdir(TDIR) end)
 local TBASE = "https://cdn.jsdelivr.net/gh/Binkaze/galdamoosound@main/tiles/"
@@ -2293,13 +2296,18 @@ for _, f in ipairs({"wood","hardwood","tile","marble","stone","concrete","carpet
   TFILES[#TFILES+1] = "floor_"..f
 end
 
-local function tp(f) return TDIR .. "/" .. f .. ".png" end
-function GTV.ensureTiles()
-  local mark = TDIR .. "/ver" .. GTV.TILEVER .. ".txt"
+local function tp(f) return TDIR .. "/s" .. GTV.size .. "/" .. f .. ".png" end
+function GTV.ensureTiles(size)
+  size = size or GTV.size
+  if GTV.haveSize[size] then return end
+  GTV.haveSize[size] = true
+  local sdir = TDIR .. "/s" .. size
+  pcall(function() lfs.mkdir(sdir) end)
+  local mark = sdir .. "/ver" .. GTV.TILEVER .. ".txt"
   local force = not (io.exists and io.exists(mark))
   for _, f in ipairs(TFILES) do
-    local lp = tp(f)
-    if force or not (io.exists and io.exists(lp)) then pcall(downloadFile, lp, TBASE .. f .. ".png") end
+    local lp = sdir .. "/" .. f .. ".png"
+    if force or not (io.exists and io.exists(lp)) then pcall(downloadFile, lp, TBASE .. "s" .. size .. "/" .. f .. ".png") end
   end
   pcall(function() local h = io.open(mark, "w"); if h then h:write("ok"); h:close() end end)
 end
@@ -2334,9 +2342,14 @@ local function hideRest(layer, n)
   for i = n + 1, #t do t[i]:hide() end
 end
 local function imgcss(f, extra) return "border-image: url(" .. tp(f) .. "); background: transparent;" .. (extra or "") end
+function GTV.gcss(rgbA, rgbB)
+  return "background: qradialgradient(cx:0.5, cy:0.5, radius:0.5, fx:0.5, fy:0.5, stop:0 rgba(" .. rgbA .. "), stop:0.55 rgba(" .. rgbB .. "), stop:1 rgba(0,0,0,0)); border:0;"
+end
+GTV.imgcss = imgcss
 
 -- z순서 재구축: 라벨이 새로 생기면 레이어 순서대로 raise
-local LAYERS = {"ground","decal","shade","obj","item","fx","actor","susdot","cone","tint","wx","glow","fogp"}
+-- (원뿔은 틴트/날씨 '위' = 시간대 어둠/비에 안 씻기고 또렷하게)
+local LAYERS = {"ground","decal","shade","obj","item","fx","actor","susdot","tint","wx","cone","glow","fogp"}
 local function zfix()
   if not GTV.zdirty then return end
   GTV.zdirty = false
@@ -2358,7 +2371,8 @@ local OBJF = {tree="tree", rock="rock", lamp="lamp", well="well", jangdok="jangd
   carL="car_l", carR="car_r", truckL="truck_l", truckR="truck_r", tracL="trac_l", tracR="trac_r", policeL="police_l", policeR="police_r"}
 local TERRF = {dirt2="dirt2", rockground="rockg", woodfloor="woodfloor", lane="lane", crosswalk="crosswalk",
   field="field", paddy="paddy", weed="weed", weed2="weed", water="water_0", clearing="clearing_0", asphalt="asphalt_0", tilefloor="floor_tile", deck="woodfloor"}
-local TONETINT = {[1]="rgba(30,34,90,80)", [2]="rgba(255,225,170,20)", [4]="rgba(255,150,50,45)", [5]="rgba(255,95,35,75)", [6]="rgba(10,14,46,125)"}
+-- 시간대 틴트: 밝은 우윳빛 금지(뽀샤시 원인) — 어둡고 채도있는 막만
+local TONETINT = {[1]="rgba(18,22,62,85)", [4]="rgba(120,55,15,55)", [5]="rgba(110,40,15,90)", [6]="rgba(5,8,28,140)"}
 
 local function groundFile(biome, floor, x, y, t)
   if t then
@@ -2386,6 +2400,7 @@ function GTV.render(d)
   local h = tonumber(d.h) or 9
   local biome = d.biome or "indoor"
   local outdoor = (biome == "forest" or biome == "road" or biome == "sea" or biome == "ocean" or biome == "village")
+  local watery = (biome == "sea" or biome == "ocean")
   local tone = tonumber(d.tone) or 3
   local dark = tonumber(d.dark) or 0
   local litrad = tonumber(d.litrad) or 0
@@ -2393,13 +2408,22 @@ function GTV.render(d)
   local watch = (tonumber(d.watch) or 0) == 1
   local sx = d.self and tonumber(d.self[1])
   local sy = d.self and tonumber(d.self[2])
-  local CS = math.max(12, math.min(28, math.floor(560 / math.max(w, h))))
+  -- 셀 크기: 사전생성 타일 크기로 양자화 → Qt 리스케일 0 = 또렷한 픽셀 (뽀샤시 방지)
+  local rawCS = math.floor(560 / math.max(w, h))
+  local CS = 16
+  for _, s in ipairs({32, 28, 24, 20}) do if rawCS >= s then CS = s; break end end
+  GTV.size = CS
+  GTV.ensureTiles(CS)
   local PX, PY = 8, 28
-  pcall(function()
-    GTV.win:resize(w * CS + PX * 2, h * CS + PY + 8)
-    local mw, mh = getMainWindowSize()
-    GTV.win:move(math.max(8, math.floor((mw - (w * CS + PX * 2)) / 2)), math.max(8, math.floor(mh * 0.08)))
-  end)
+  local wg = w .. "x" .. h .. "@" .. CS
+  if GTV._wingeo ~= wg then
+    GTV._wingeo = wg
+    pcall(function()
+      GTV.win:resize(w * CS + PX * 2, h * CS + PY + 8)
+      local mw, mh = getMainWindowSize()
+      GTV.win:move(math.max(8, math.floor((mw - (w * CS + PX * 2)) / 2)), math.max(8, math.floor(mh * 0.08)))
+    end)
+  end
   local nm = (gmcp.Galdam and gmcp.Galdam.Room and gmcp.Galdam.Room.name) or "전술 격자"
   local tnames = {"새벽", "아침", "낮", "저녁", "노을", "밤"}
   local sub = outdoor and (" <span style='color:#8890a4'>(" .. (tnames[tone] or "") .. (weather ~= "clear" and (" · " .. weather) or "") .. ")</span>") or ""
@@ -2408,6 +2432,8 @@ function GTV.render(d)
   local stmap, tmap = {}, {}
   for _, s in ipairs(d.struct or {}) do stmap[tonumber(s.x) .. "," .. tonumber(s.y)] = s.t end
   for _, t in ipairs(d.terrain or {}) do tmap[tonumber(t.x) .. "," .. tonumber(t.y)] = t.t end
+  -- 애니 레지스트리: 경량 틱이 이 라벨들'만' 갱신 (전체 재렌더 = 프레임 출렁임 원인이라 폐지)
+  GTV.A = {pol = {}, fire = {}, water = {}}
 
   -- 시야음영(fog) 캐시 (글리프판 v8과 동일 DDA)
   local fog
@@ -2451,6 +2477,7 @@ function GTV.render(d)
       else f = groundFile(biome, d.floor, x, y, tmap[key]) end
       sty(l, imgcss(f))
       geo(l, PX + x * CS, PY + y * CS, CS, CS)
+      if watery and not st and w * h <= 400 then GTV.A.water[#GTV.A.water + 1] = l end
     end
   end
   hideRest("ground", gi)
@@ -2491,12 +2518,17 @@ function GTV.render(d)
     oi = oi + 1
     local l = lbl("obj", oi)
     sty(l, imgcss(f)); geo(l, PX + x * CS, PY + y * CS, CS, CS)
-    pcall(function()
-      if id and tonumber(id) and tonumber(id) > 0 then
-        l:setClickCallback(function() GaldamUI.tacClick(tostring(id), name or "?") end)
-        if GaldamUI and GaldamUI.attachTip then GaldamUI.attachTip(l, name or "?") end
-      else l:setClickCallback(function() end) end
-    end)
+    -- 콜백/툴팁은 대상이 바뀐 라벨만 재설정 (매 렌더 클로저 재생성 = 프레임 출렁임 원인)
+    local ck = tostring(id or 0) .. ":" .. (name or "")
+    if l._cid ~= ck then
+      l._cid = ck
+      pcall(function()
+        if id and tonumber(id) and tonumber(id) > 0 then
+          l:setClickCallback(function() GaldamUI.tacClick(tostring(id), name or "?") end)
+          if GaldamUI and GaldamUI.attachTip then GaldamUI.attachTip(l, name or "?") end
+        else l:setClickCallback(function() end) end
+      end)
+    end
   end
   for k, t in pairs(stmap) do
     if SOVER[t] then
@@ -2525,10 +2557,14 @@ function GTV.render(d)
     local l = lbl("item", ii)
     sty(l, imgcss("loot"))
     geo(l, PX + tonumber(it.x) * CS + math.floor(CS * 0.15), PY + tonumber(it.y) * CS + math.floor(CS * 0.15), math.floor(CS * 0.7), math.floor(CS * 0.7))
-    pcall(function()
-      if it.id then l:setClickCallback(function() GaldamUI.tacClick(tostring(it.id), it.n or "아이템") end) end
-      if GaldamUI and GaldamUI.attachTip then GaldamUI.attachTip(l, it.n or "아이템") end
-    end)
+    local ck = tostring(it.id or 0) .. ":" .. (it.n or "")
+    if l._cid ~= ck then
+      l._cid = ck
+      pcall(function()
+        if it.id then l:setClickCallback(function() GaldamUI.tacClick(tostring(it.id), it.n or "아이템") end) end
+        if GaldamUI and GaldamUI.attachTip then GaldamUI.attachTip(l, it.n or "아이템") end
+      end)
+    end
   end
   hideRest("item", ii)
 
@@ -2540,6 +2576,7 @@ function GTV.render(d)
       local l = lbl("fx", fi)
       sty(l, imgcss("fire_" .. (GTV.frame % 2)))
       geo(l, PX + tonumber(f.x) * CS, PY + tonumber(f.y) * CS, CS, CS)
+      GTV.A.fire[#GTV.A.fire + 1] = l
     end
   end
   for k, c in pairs((GaldamTac and GaldamTac.smoke) or {}) do
@@ -2561,10 +2598,14 @@ function GTV.render(d)
     ai = ai + 1
     local l = lbl("actor", ai)
     sty(l, imgcss(f)); geo(l, PX + x * CS, PY + y * CS, CS, CS)
-    pcall(function()
-      if id and tonumber(id) and tonumber(id) > 0 then l:setClickCallback(function() GaldamUI.tacClick(tostring(id), name or "?") end) end
-      if GaldamUI and GaldamUI.attachTip then GaldamUI.attachTip(l, name or "?") end
-    end)
+    local ck = tostring(id or 0) .. ":" .. (name or "")
+    if l._cid ~= ck then
+      l._cid = ck
+      pcall(function()
+        if id and tonumber(id) and tonumber(id) > 0 then l:setClickCallback(function() GaldamUI.tacClick(tostring(id), name or "?") end) end
+        if GaldamUI and GaldamUI.attachTip then GaldamUI.attachTip(l, name or "?") end
+      end)
+    end
   end
   for _, a in ipairs(d.actors or {}) do
     local x, y = tonumber(a.x), tonumber(a.y)
@@ -2611,8 +2652,9 @@ function GTV.render(d)
               if fdot > 0 and math.abs(fcr) <= fdot * ct then
                 ci = ci + 1
                 local l = lbl("cone", ci)
-                local aint = math.floor((1 - dist / (sr + 1.5)) * 80)
-                sty(l, "background-color: rgba(" .. cr .. "," .. cg .. "," .. cb .. "," .. aint .. "); border:0;")
+                -- 또렷하게: 바닥 알파 40 + 거리감쇠, 같은 색 얇은 테두리 (틴트 위 레이어라 안 씻김)
+                local aint = 40 + math.floor((1 - dist / (sr + 1.5)) * 85)
+                sty(l, "background-color: rgba(" .. cr .. "," .. cg .. "," .. cb .. "," .. aint .. "); border:1px solid rgba(" .. cr .. "," .. cg .. "," .. cb .. ",110);")
                 geo(l, PX + cx * CS, PY + cy * CS, CS, CS)
               end
             end
@@ -2634,8 +2676,9 @@ function GTV.render(d)
   else tl:hide() end
   local wl = lbl("wx", 1)
   if outdoor and (weather == "rain" or weather == "snow" or weather == "storm") then
-    local wf = (weather == "snow") and ("snow_" .. (GTV.frame % 3)) or ("rain_" .. (GTV.frame % 3))
-    sty(wl, imgcss(wf)); geo(wl, PX, PY, w * CS, h * CS)
+    local wt = (weather == "snow") and "snow" or "rain"
+    sty(wl, imgcss(wt .. "_" .. (GTV.frame % 3))); geo(wl, PX, PY, w * CS, h * CS)
+    GTV.A.wxl = wl; GTV.A.wxt = wt
   else wl:hide() end
 
   -- ⑩ 빛무리(radial): 가로등(야간) + 경광등(점멸) + 불
@@ -2643,10 +2686,11 @@ function GTV.render(d)
   local function glowAt(x, y, R, rgbA, rgbB)
     gli = gli + 1
     local l = lbl("glow", gli)
-    sty(l, "background: qradialgradient(cx:0.5, cy:0.5, radius:0.5, fx:0.5, fy:0.5, stop:0 rgba(" .. rgbA .. "), stop:0.55 rgba(" .. rgbB .. "), stop:1 rgba(0,0,0,0)); border:0;")
+    sty(l, GTV.gcss(rgbA, rgbB))
     local px0 = PX + x * CS - R * CS
     local py0 = PY + y * CS - R * CS
     geo(l, px0, py0, CS * (R * 2 + 1), CS * (R * 2 + 1))
+    return l
   end
   local lampOn = outdoor and (tone == 1 or tone >= 4)
   for _, c in ipairs(d.cover or {}) do
@@ -2656,7 +2700,7 @@ function GTV.render(d)
       local on = (GTV.frame % 2) == 0
       local cA = on and "245,60,60,150" or "60,100,245,150"
       local cB = on and "245,60,60,50" or "60,100,245,50"
-      glowAt(tonumber(c.x), tonumber(c.y), 3, cA, cB)
+      GTV.A.pol[#GTV.A.pol + 1] = glowAt(tonumber(c.x), tonumber(c.y), 3, cA, cB)
     end
   end
   for _, f in ipairs(d.fx or {}) do
@@ -2686,23 +2730,36 @@ function GTV.render(d)
   if GTV.on then GTV.win:show() end
 
   -- 애니 필요시 틱 (경광등/불/비눈/물/연기)
-  local anim = false
-  for _, c in ipairs(d.cover or {}) do if c.k == "policeL" then anim = true; break end end
-  if not anim then for _, f in ipairs(d.fx or {}) do if f.t == "fire" or f.t == "smoke" then anim = true; break end end end
-  if not anim and outdoor and (weather == "rain" or weather == "snow" or weather == "storm") then anim = true end
-  if not anim and (biome == "sea" or biome == "ocean") then anim = true end
+  local anim = (#GTV.A.pol > 0) or (#GTV.A.fire > 0) or (#GTV.A.water > 0) or (GTV.A.wxl ~= nil)
+  if not anim then for _, f in ipairs(d.fx or {}) do if f.t == "smoke" then anim = true; break end end end
   if not anim and GaldamTac and GaldamTac.smoke and next(GaldamTac.smoke) then anim = true end
+  GTV.needAnim = anim
   if anim and GTV.on and not GTV.timer then
-    GTV.timer = tempTimer(0.35, "GaldamTileView.tick()")
+    GTV.timer = tempTimer(0.4, "GaldamTileView.tick()")
   end
 end
 
+-- 경량 틱: 애니 라벨만 스타일 갱신 (전체 재렌더 금지 — 프레임 안정성). 연기 확산 중에만 풀 렌더
 function GTV.tick()
   GTV.timer = nil
   if not (GTV.on and GTV.lastData) then return end
   GTV.frame = GTV.frame + 1
-  if (GTV.frame % 2) == 0 and GaldamTac and GaldamTac.smokeStep then pcall(GaldamTac.smokeStep, GTV.lastData) end
-  GTV.render(GTV.lastData)
+  local smoky = GaldamTac and GaldamTac.smoke and next(GaldamTac.smoke)
+  local hasFx = false
+  for _, f in ipairs(GTV.lastData.fx or {}) do if f.t == "fire" or f.t == "smoke" then hasFx = true; break end end
+  if smoky or hasFx then
+    if (GTV.frame % 2) == 0 and GaldamTac and GaldamTac.smokeStep then pcall(GaldamTac.smokeStep, GTV.lastData) end
+    GTV.render(GTV.lastData)
+  else
+    local A = GTV.A or {}
+    local on = (GTV.frame % 2) == 0
+    local cA = on and "245,60,60,150" or "60,100,245,150"
+    local cB = on and "245,60,60,50" or "60,100,245,50"
+    for _, l in ipairs(A.pol or {}) do if l._css then l._css = nil end; l:setStyleSheet(GTV.gcss(cA, cB)) end
+    if A.wxl and A.wxt then local c = imgcss(A.wxt .. "_" .. (GTV.frame % 3)); A.wxl._css = c; A.wxl:setStyleSheet(c) end
+    for _, l in ipairs(A.water or {}) do local c = imgcss("water_" .. (GTV.frame % 2)); l._css = c; l:setStyleSheet(c) end
+    if GTV.needAnim then GTV.timer = tempTimer(0.4, "GaldamTileView.tick()") end
+  end
 end
 
 function GTV.onTac()
@@ -2747,7 +2804,7 @@ GTV.h1 = registerAnonymousEventHandler("gmcp.Galdam.Tac", "GaldamTileView.onTac"
 GTV.h2 = registerAnonymousEventHandler("gmcp.Galdam.Room", "GaldamTileView.onRoom")
 GTV.makeWin()
 GTV.ensureTiles()
-echo("[Galdam] 타일뷰 v1 로드됨 — '타일뷰' 입력으로 그래픽 타일 토글 (조명/원뿔/안개/경광등 오버레이)\n")
+echo("[Galdam] 타일뷰 v2 로드됨 — '타일뷰' 토글 (크기별 타일=또렷, 경량애니틱, 원뿔 강조)\n")
 ]]></script>
       <eventHandlerList></eventHandlerList>
     </Script>
