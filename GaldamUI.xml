@@ -50,7 +50,7 @@ GaldamUI.STSEV = {[1]={b="#f1c40f", bg="rgba(60,52,12,210)"}, [2]={b="#e67e22", 
 -- 스킬/능력치 한글 라벨
 GaldamUI.SKNAME = {
   brawn="완력", brains="지능", cool="침착", reflexes="반사", endurance="지구력", senses="감각",
-  pistols="권총", rifles="소총", quickdraw="속사", dodge="회피", craft="제작", repair="수리",
+  pistols="권총", rifles="소총", quickdraw="속사", dodge="회피", craft="제작", repair="수리", cook="요리",
   locksmith="자물쇠", climb="등반", appraise="감정", medic="의술", swim="수영", blades="도검",
   scavenge="수색", hack="해킹", clubs="둔기", fists="격투", pilot="조종", throw="투척",
   steal="소매치기", track="추적", chemistry="화학", linguist="언어", sneak="은신", fuck="정사",
