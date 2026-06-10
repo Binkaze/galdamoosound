@@ -2269,7 +2269,7 @@ echo("[Galdam] 전술 격자 뷰 v8 로드됨 (+오토타일 벽선/시야음영
 -- 조명/이펙트 원리: ①rgba 오버레이 라벨(틴트/원뿔/안개) ②qradialgradient(가로등/경광등/불빛무리) ③PNG 프레임 교체(비/눈/불)
 GaldamTileView = GaldamTileView or {}
 local GTV = GaldamTileView
-GTV.on = GTV.on or false
+if GTV.on == nil then GTV.on = true end   -- 기본 = 타일뷰 (글리프는 '타일뷰' 토글로)
 GTV.P = GTV.P or {}
 GTV.frame = GTV.frame or 0
 GTV.TILEVER = 2
@@ -2295,6 +2295,11 @@ for i = 0, 2 do TFILES[#TFILES+1] = "rain_"..i; TFILES[#TFILES+1] = "snow_"..i e
 for _, f in ipairs({"wood","hardwood","tile","marble","stone","concrete","carpet","carpet_blue","carpet_green","linoleum","dirt","ondol"}) do
   TFILES[#TFILES+1] = "floor_"..f
 end
+for _, f in ipairs({"bed","table","chair","fridge","sink","gasrange","cupboard","bar","toilet","bathtub","washbasin",
+  "wardrobe","desk","computer","dresser","drawers","safe","sofa","tv","bookshelf","washer","stove"}) do
+  TFILES[#TFILES+1] = f
+end
+for _, f in ipairs({"n","ne","e","se","s","sw","w","nw"}) do TFILES[#TFILES+1] = "arr_"..f end
 
 local function tp(f) return TDIR .. "/s" .. GTV.size .. "/" .. f .. ".png" end
 -- PNG 무결성: 0바이트/404 HTML/반쯤 받은 파일 = 검은 칸의 원인 → 매직바이트 검사로 걸러 재다운
@@ -2357,7 +2362,7 @@ GTV.imgcss = imgcss
 
 -- z순서 재구축: 라벨이 새로 생기면 레이어 순서대로 raise
 -- (원뿔은 틴트/날씨 '위' = 시간대 어둠/비에 안 씻기고 또렷하게)
-local LAYERS = {"ground","decal","shade","obj","item","fx","actor","susdot","tint","wx","cone","glow","fogp"}
+local LAYERS = {"ground","decal","shade","obj","item","fx","actor","susdot","facedot","tint","wx","cone","glow","fogp"}
 local function zfix()
   if not GTV.zdirty then return end
   GTV.zdirty = false
@@ -2376,7 +2381,12 @@ local SFULL = {wall="wall_stone", building="wall_brick", wall_h="wall_brick", wa
 local SOVER = {gate="gate", greenhouse="greenhouse", lighthouse="lighthouse", tetrapod="tetrapod", grave="grave"}
 local OBJF = {tree="tree", rock="rock", lamp="lamp", well="well", jangdok="jangdok", bench="bench", clothes="clothes",
   pole="pole", mailbox="mailbox", busstop="busstop", dog="dog", boat="boat", net="net", dryrack="dryrack", buoy="buoy", reef="reef",
-  carL="car_l", carR="car_r", truckL="truck_l", truckR="truck_r", tracL="trac_l", tracR="trac_r", policeL="police_l", policeR="police_r"}
+  carL="car_l", carR="car_r", truckL="truck_l", truckR="truck_r", tracL="trac_l", tracR="trac_r", policeL="police_l", policeR="police_r",
+  -- 실내 가구
+  bed="bed", table="table", dtable="table", chair="chair", fridge="fridge", sink="sink", gasrange="gasrange",
+  cupboard="cupboard", bar="bar", toilet="toilet", bathtub="bathtub", washbasin="washbasin", wardrobe="wardrobe",
+  desk="desk", computer="computer", dresser="dresser", drawers="drawers", safe="safe", sofa="sofa", tv="tv",
+  bookshelf="bookshelf", washer="washer", stove="stove"}
 local TERRF = {dirt2="dirt2", rockground="rockg", woodfloor="woodfloor", lane="lane", crosswalk="crosswalk",
   field="field", paddy="paddy", weed="weed", weed2="weed", water="water_0", clearing="clearing_0", asphalt="asphalt_0", tilefloor="floor_tile", deck="woodfloor"}
 -- 시간대 틴트: 밝은 우윳빛 금지(뽀샤시 원인) — 어둡고 채도있는 막만
@@ -2617,6 +2627,7 @@ function GTV.render(d)
       end)
     end
   end
+  local fdi = 0
   for _, a in ipairs(d.actors or {}) do
     local x, y = tonumber(a.x), tonumber(a.y)
     if not (sx == x and sy == y) then
@@ -2633,10 +2644,24 @@ function GTV.render(d)
         sty(dl, "background-color: " .. col .. "; border-radius: " .. math.floor(CS * 0.12) .. "px; border: 1px solid rgba(20,20,24,200);")
         geo(dl, PX + x * CS + CS - math.floor(CS * 0.3), PY + y * CS, math.floor(CS * 0.25), math.floor(CS * 0.25))
       end
+      -- 시선 방향 표식 (원뿔과 같은 노출 규칙: 경계중이거나 의심중일 때만)
+      if a.k == "npc" and a.f and (watch or sus > 0) then
+        local fx2, fy2 = tonumber(a.f[1]) or 0, tonumber(a.f[2]) or 0
+        if fx2 ~= 0 or fy2 ~= 0 then
+          local dn = ((fy2 < 0) and "n" or (fy2 > 0) and "s" or "") .. ((fx2 > 0) and "e" or (fx2 < 0) and "w" or "")
+          fdi = fdi + 1
+          local fl = lbl("facedot", fdi)
+          sty(fl, imgcss("arr_" .. dn))
+          local sz = math.max(8, math.floor(CS * 0.42))
+          local cxp = PX + x * CS + math.floor(CS / 2 - sz / 2 + fx2 * CS * 0.34)
+          local cyp = PY + y * CS + math.floor(CS / 2 - sz / 2 + fy2 * CS * 0.34)
+          geo(fl, cxp, cyp, sz, sz)
+        end
+      end
     end
   end
   if sx and sy then actorAt(sx, sy, "act_player", "나") end
-  hideRest("actor", ai); hideRest("susdot", ui)
+  hideRest("actor", ai); hideRest("susdot", ui); hideRest("facedot", fdi)
 
   -- ⑧ 시야원뿔(rgba 오버레이) — 글리프판과 동일 기하
   local ci = 0
@@ -2838,7 +2863,7 @@ GTV.h2 = registerAnonymousEventHandler("gmcp.Galdam.Room", "GaldamTileView.onRoo
 GTV.h3 = registerAnonymousEventHandler("sysDownloadDone", "GaldamTileView.onDl")
 GTV.makeWin()
 GTV.ensureTiles()
-echo("[Galdam] 타일뷰 v2.1 로드됨 — '타일뷰' 토글 (PNG무결성검사+다운완료 자동재도색, 화면비례 크기)\n")
+echo("[Galdam] 타일뷰 v3 로드됨 (기본 ON) — 가구 22종 + NPC 시선 화살표. '타일뷰' 입력=글리프 전환\n")
 ]]></script>
       <eventHandlerList></eventHandlerList>
     </Script>
