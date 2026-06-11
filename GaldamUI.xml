@@ -19,7 +19,7 @@ if GaldamUI._handlers then
   for _, id in ipairs(GaldamUI._handlers) do pcall(killAnonymousEventHandler, id) end
 end
 GaldamUI._handlers = {}
-GaldamUI.VERSION = "v48"   -- 업데이트 적용 확인용 (화면 우상단 표시)
+GaldamUI.VERSION = "v49"   -- 업데이트 적용 확인용 (화면 우상단 표시)
 
 local PANEL_W = 0.20      -- 우측 탭 패널 폭
 local BOTTOM_H = 120      -- 하단 HUD 바 높이
@@ -1116,10 +1116,12 @@ end
 -- ===== 신체 상태 탭 (man_stat/woman_stat 배경 + 실시간 부위HP/골절/절단/장비 오버레이) =====
 -- 좌표는 원본 이미지(1024x1536) 픽셀 기준 {바x0, 바y, 바x1} — 표시 크기로 스케일됨
 GaldamUI.BODYPOS = {
-  m = {head={432,152,550}, face={156,248,318}, eye={104,376,264}, neck={696,376,856}, chest={440,538,582}, arm={784,620,938}, abdomen={112,710,256}, hand={804,902,952}, groin={436,944,560}, ass={136,1008,284}, leg={726,1114,876}, foot={440,1436,584}},
-  f = {head={434,148,588}, face={158,250,312}, neck={696,374,848}, eye={114,380,260}, chest={440,540,580}, arm={780,616,922}, abdomen={108,708,250}, ass={786,918,920}, hand={100,922,236}, groin={430,946,554}, leg={714,1108,856}, foot={434,1436,570}},
+  m = {head={432,152,550}, face={156,248,318}, eye={104,376,264}, neck={696,376,856}, chest={440,538,582}, arm={784,620,938}, abdomen={112,710,256}, hand={804,902,952}, groin={436,944,560}, ass={136,1008,284}, leg={726,1114,876}, foot={440,1436,584}, back={716,210,900}},
+  f = {head={434,148,588}, face={158,250,312}, neck={696,374,848}, eye={114,380,260}, chest={440,540,580}, arm={780,616,922}, abdomen={108,708,250}, ass={786,918,920}, hand={100,922,236}, groin={430,946,554}, leg={714,1108,856}, foot={434,1436,570}, back={716,210,900}},
 }
-GaldamUI.BPNAME = {head="머리", face="얼굴", eye="눈", neck="목", chest="가슴", abdomen="복부", arm="팔", hand="손", groin="사타구니", ass="엉덩이", leg="다리", foot="발"}
+GaldamUI.BPNAME = {head="머리", face="얼굴", eye="눈", neck="목", chest="가슴", abdomen="복부", arm="팔", hand="손", groin="사타구니", ass="엉덩이", leg="다리", foot="발", back="등"}
+-- 배경 이미지에 박스가 없어 프레임/제목까지 합성으로 그리는 부위
+GaldamUI.BODYSYNTH = {back=true}
 
 function GaldamUI.renderBody()
   if not (GaldamUI.built and GaldamUI.bodyBox) then return end
@@ -1148,12 +1150,27 @@ function GaldamUI.renderBody()
     local x0, by, x1 = bp[1], bp[2], bp[3]
     local row = GaldamUI.bodyRows[k]
     if not row then
-      row = {
-        num = Geyser.Label:new({name = "gbNum_" .. k, x = 0, y = 0, width = 10, height = 10}, GaldamUI.bodyBox),
-        bar = Geyser.Label:new({name = "gbBar_" .. k, x = 0, y = 0, width = 10, height = 10}, GaldamUI.bodyBox),
-        eq  = Geyser.Label:new({name = "gbEq_" .. k, x = 0, y = 0, width = 10, height = 10}, GaldamUI.bodyBox),
-      }
+      row = {}
+      if GaldamUI.BODYSYNTH[k] then
+        -- 프레임/제목은 숫자·바보다 먼저 생성해야 뒤(z순서 아래)에 깔림
+        row.frame = Geyser.Label:new({name = "gbFrame_" .. k, x = 0, y = 0, width = 10, height = 10}, GaldamUI.bodyBox)
+        row.title = Geyser.Label:new({name = "gbTitle_" .. k, x = 0, y = 0, width = 10, height = 10}, GaldamUI.bodyBox)
+      end
+      row.num = Geyser.Label:new({name = "gbNum_" .. k, x = 0, y = 0, width = 10, height = 10}, GaldamUI.bodyBox)
+      row.bar = Geyser.Label:new({name = "gbBar_" .. k, x = 0, y = 0, width = 10, height = 10}, GaldamUI.bodyBox)
+      row.eq  = Geyser.Label:new({name = "gbEq_" .. k, x = 0, y = 0, width = 10, height = 10}, GaldamUI.bodyBox)
       GaldamUI.bodyRows[k] = row
+    end
+    if row.frame then
+      row.frame:move(math.floor(ox + (x0 - 26) * s), math.floor((by - 100) * s))
+      row.frame:resize(math.ceil((x1 - x0 + 52) * s), math.ceil(114 * s))
+      row.frame:setStyleSheet("background-color: rgba(22,22,22,235); border:1px solid #55554d; border-radius:3px;")
+      row.title:move(math.floor(ox + (x0 - 14) * s), math.floor((by - 96) * s))
+      row.title:resize(math.ceil((x1 - x0 + 28) * s), math.ceil(40 * s))
+      row.title:setStyleSheet("background-color: rgba(0,0,0,0); qproperty-alignment:'AlignCenter';")
+      local tpx = math.max(9, math.floor(30 * s))
+      row.title:echo("<center><span style='font-size:" .. tpx .. "px; color:#e8e8df;'><b>" .. (GaldamUI.BPNAME[k] or k) .. "</b></span></center>")
+      row.frame:show(); row.title:show()
     end
     local pct = (pd.mx > 0) and (pd.cur / pd.mx) or 0
     -- 숫자 라벨: 배경에 구워진 예시 숫자를 덮고 실시간 값 표시
