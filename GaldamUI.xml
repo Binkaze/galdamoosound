@@ -2372,9 +2372,9 @@ function GT.render(d)
         else
         local _objs = cellObj[key]
         local thint = nil
+        -- 일반 바닥(terr)은 툴팁 제외 — 가구(cover)/벽·문(struct)만 (사용자 요청 2026-06-11)
         if cover[key] then thint = GT.NAME[cover[key].k]
-        elseif struct[key] then thint = GT.NAME[struct[key].t]
-        elseif terr[key] then thint = GT.NAME[terr[key].t] end
+        elseif struct[key] then thint = GT.NAME[struct[key].t] end
         if _objs and #_objs > 0 and not (sx == x and sy == y) then
           local hint, lua
           if #_objs == 1 then
@@ -2495,7 +2495,7 @@ local GTV = GaldamTileView
 if GTV.on == nil then GTV.on = true end   -- 기본 = 타일뷰 (글리프는 '타일뷰' 토글로)
 GTV.P = GTV.P or {}
 GTV.frame = GTV.frame or 0
-GTV.TILEVER = 2
+GTV.TILEVER = 3
 GTV.zdirty = true          -- 로드 직후 z순서 1회 재구축 (레이어 순서 변경 반영)
 GTV.size = GTV.size or 32  -- 현재 셀 크기 (s16/s20/s24/s28/s32 사전생성 타일 = 무스케일링, 블러 방지)
 GTV.haveSize = {}          -- 세션마다 리셋 → 매 접속 1회 무결성 재검사 (깨진 파일 복구 기회)
@@ -2519,7 +2519,8 @@ for _, f in ipairs({"wood","hardwood","tile","marble","stone","concrete","carpet
   TFILES[#TFILES+1] = "floor_"..f
 end
 for _, f in ipairs({"bed","table","chair","fridge","sink","gasrange","cupboard","bar","toilet","bathtub","washbasin",
-  "wardrobe","desk","computer","dresser","drawers","safe","sofa","tv","bookshelf","washer","stove"}) do
+  "wardrobe","desk","computer","dresser","drawers","safe","sofa","tv","bookshelf","washer","stove",
+  "counter","shelf","medcab"}) do
   TFILES[#TFILES+1] = f
 end
 for _, f in ipairs({"n","ne","e","se","s","sw","w","nw"}) do TFILES[#TFILES+1] = "arr_"..f end
@@ -2640,7 +2641,8 @@ local OBJF = {tree="tree", rock="rock", lamp="lamp", well="well", jangdok="jangd
   bed="bed", table="table", dtable="table", chair="chair", fridge="fridge", sink="sink", gasrange="gasrange",
   cupboard="cupboard", bar="bar", toilet="toilet", bathtub="bathtub", washbasin="washbasin", wardrobe="wardrobe",
   desk="desk", computer="computer", dresser="dresser", drawers="drawers", safe="safe", sofa="sofa", tv="tv",
-  bookshelf="bookshelf", washer="washer", stove="stove"}
+  bookshelf="bookshelf", washer="washer", stove="stove",
+  counter="counter", shelf="shelf", medcab="medcab"}
 local TERRF = {dirt2="dirt2", rockground="rockg", woodfloor="woodfloor", lane="lane", crosswalk="crosswalk",
   field="field", paddy="paddy", weed="weed", weed2="weed", water="water_0", clearing="clearing_0", asphalt="asphalt_0", tilefloor="floor_tile", deck="woodfloor"}
 -- 시간대 틴트: 밝은 우윳빛 금지(뽀샤시 원인) — 어둡고 채도있는 막만
@@ -2757,7 +2759,8 @@ function GTV.render(d)
       else f = groundFile(biome, d.floor, x, y, tmap[key]) end
       -- 바닥은 이미지 실패시 검정 대신 흙색 폴백 (다운로드 중 검은 칸 방지)
       sty(l, "border-image: url(" .. tp(f) .. "); background-color: #4a4238;")
-      setTip(l, (st and tipOf(st)) or tipOf(tmap[key]))
+      -- 일반 바닥(지형)엔 툴팁 없음 — 벽/문/창문 등 struct만 (사용자 요청 2026-06-11)
+      setTip(l, st and tipOf(st) or nil)
       geo(l, PX + x * CS, PY + y * CS, CS, CS)
       if watery and not st and w * h <= 400 then GTV.A.water[#GTV.A.water + 1] = l end
     end
