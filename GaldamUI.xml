@@ -1840,7 +1840,7 @@ GT.TILE = {
   tree={u="\226\153\163",a="&",fg="90,180,84"}, rock={u="\226\151\143",a="o",fg="155,152,162"},
   tractor={u="T",a="T",fg="226,100,46"}, truck={u="u",a="u",fg="90,140,225"},
   car={u="c",a="c",fg="200,205,212"}, moto={u="m",a="m",fg="154,160,166"},
-  boat={u="b",a="b",fg="220,227,232"}, net={u="%",a="%",fg="184,144,90"},
+  boat={u="b",a="b",fg="220,227,232"}, net={u="%",a="%",fg="184,144,90"}, hull={u="#",a="#",fg="150,110,70"}, helm={u="T",a="T",fg="200,160,90"},
   dryrack={u="x",a="x",fg="156,107,53"}, bench={u="\226\150\164",a="\226\150\164",fg="190,150,96"},
   busstop={u="B",a="B",fg="217,164,65"}, mailbox={u="!",a="!",fg="226,75,74"},
   buoy={u="\226\151\145",a="o",fg="240,140,60"}, reef={u="\226\150\178",a="^",fg="120,150,120"},
@@ -2487,7 +2487,7 @@ local TBASE = "https://cdn.jsdelivr.net/gh/Binkaze/galdamoosound@main/tiles/"
 -- 타일 파일 목록 (tileset_gen.py 출력과 1:1)
 local TFILES = {"dirt2","rockg","woodfloor","lane","crosswalk","field","paddy","weed","water_0","water_1",
   "wall_stone","breakwater","wall_brick","window","window_open","window_broken","door","gate","greenhouse","lighthouse","tetrapod","grave",
-  "tree","rock","lamp","well","jangdok","bench","clothes","pole","mailbox","busstop","dog","boat","net","dryrack","buoy","reef","prop",
+  "tree","rock","lamp","well","jangdok","bench","clothes","pole","mailbox","busstop","dog","boat","net","dryrack","buoy","reef","prop","hull","helm",
   "act_player","act_npc","act_cop","act_wild","loot","fire_0","fire_1","smoke_gray","smoke_white","smoke_gas",
   "blood_1","blood_2","blood_3","glass","wetg","snowg","mess"}
 for i = 0, 3 do
@@ -2579,7 +2579,7 @@ end
 -- 셀 툴팁: 글리프뷰 GT.NAME 재사용 + 타일뷰 보강분
 local EXTRA_NAME = {asphalt="아스팔트", lane="차선", crosswalk="횡단보도", water="물", rockground="바위땅",
   woodfloor="나무바닥", grave="무덤", lighthouse="등대", tetrapod="테트라포드", breakwater="방파제",
-  net="그물", dryrack="건조대", boat="배", dog="개", pole="전봇대", mailbox="우체통", busstop="버스정류장", rock="바위", tree="나무"}
+  net="그물", dryrack="건조대", boat="배", hull="선체", helm="조타륜", dog="개", pole="전봇대", mailbox="우체통", busstop="버스정류장", rock="바위", tree="나무"}
 local function tipOf(kind)
   if not kind then return nil end
   local nmt = (GaldamTac and GaldamTac.NAME) or {}
@@ -2608,14 +2608,14 @@ local function zfix()
   pcall(function() GTV.hdr:raise() end)
 end
 
-local SOLID = {wall=1, building=1, breakwater=1, wall_h=1, wall_v=1, corner=1, door=1, gate=1, lighthouse=1, greenhouse=1}
-local SHADE = {wall=1, building=1, breakwater=1, wall_h=1, wall_v=1, corner=1, door=1, gate=1, lighthouse=1, greenhouse=1, window=1, window_open=1, window_broken=1}
+local SOLID = {hull=1, wall=1, building=1, breakwater=1, wall_h=1, wall_v=1, corner=1, door=1, gate=1, lighthouse=1, greenhouse=1}
+local SHADE = {hull=1, wall=1, building=1, breakwater=1, wall_h=1, wall_v=1, corner=1, door=1, gate=1, lighthouse=1, greenhouse=1, window=1, window_open=1, window_broken=1}
 -- struct kind → 풀셀(ground 교체) 파일
-local SFULL = {wall="wall_stone", building="wall_brick", wall_h="wall_brick", wall_v="wall_brick", corner="wall_brick",
+local SFULL = {hull="hull", wall="wall_stone", building="wall_brick", wall_h="wall_brick", wall_v="wall_brick", corner="wall_brick",
   breakwater="breakwater", window="window", window_open="window_open", window_broken="window_broken", door="door"}
 -- struct kind → 투명 오버레이 파일
 local SOVER = {gate="gate", greenhouse="greenhouse", lighthouse="lighthouse", tetrapod="tetrapod", grave="grave"}
-local OBJF = {tree="tree", rock="rock", lamp="lamp", well="well", jangdok="jangdok", bench="bench", clothes="clothes",
+local OBJF = {helm="helm", tree="tree", rock="rock", lamp="lamp", well="well", jangdok="jangdok", bench="bench", clothes="clothes",
   pole="pole", mailbox="mailbox", busstop="busstop", dog="dog", boat="boat", net="net", dryrack="dryrack", buoy="buoy", reef="reef",
   carL="car_l", carR="car_r", truckL="truck_l", truckR="truck_r", tracL="trac_l", tracR="trac_r", policeL="police_l", policeR="police_r",
   -- 실내 가구
@@ -2744,7 +2744,8 @@ function GTV.render(d)
       -- 일반 바닥(지형)엔 툴팁 없음 — 벽/문/창문 등 struct만 (사용자 요청 2026-06-11)
       setTip(l, st and tipOf(st) or nil)
       geo(l, PX + x * CS, PY + y * CS, CS, CS)
-      if watery and not st and w * h <= 400 then GTV.A.water[#GTV.A.water + 1] = l end
+      -- 물 애니 등록: struct뿐 아니라 terrain(나무바닥 등) 깔린 칸도 제외 — 안 그러면 경량틱이 물로 덧칠
+      if watery and not st and not tmap[key] and w * h <= 400 then GTV.A.water[#GTV.A.water + 1] = l end
     end
   end
   hideRest("ground", gi)
@@ -3078,6 +3079,20 @@ function GTV.onTac()
       dlog("render 오류: " .. tostring(err))
     end
   end
+  -- 배 조종패드: 조타륜(helm 셀)에 인접(1칸)했을 때만 표시
+  pcall(function()
+    if GaldamBoatPad then
+      local sx2 = d.self and tonumber(d.self[1])
+      local sy2 = d.self and tonumber(d.self[2])
+      local near = false
+      if sx2 then
+        for _, c in ipairs(d.cover or {}) do
+          if c.k == "helm" and math.abs(tonumber(c.x) - sx2) <= 1 and math.abs(tonumber(c.y) - sy2) <= 1 then near = true; break end
+        end
+      end
+      if near then GaldamBoatPad.show() else GaldamBoatPad.hide() end
+    end
+  end)
   dlog("Tac 수신 (rid=" .. tostring(rm) .. ")")
 end
 
@@ -3314,7 +3329,6 @@ function GS.onSea()
   GS.aboard = true
   local ok = pcall(GS.render, d)
   if ok then pcall(function() GS.win:show() end) end
-  if GaldamBoatPad and GaldamBoatPad.show then pcall(GaldamBoatPad.show) end
   if not GS.timer then GS.timer = tempTimer(0.5, "GaldamSeaChart.tick()") end
 end
 
