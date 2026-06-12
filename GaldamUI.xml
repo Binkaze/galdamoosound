@@ -2250,8 +2250,8 @@ function GT.render(d)
           local a = actors[key]
           if a.k == "npc" then
             local sus = tonumber(a.sus) or 0
-            -- 경계상황이거나 의심중인 NPC만 시선 화살표. 평시엔 평범한 글리프
-            if (watch or sus > 0) and a.f and GT.arrowOf then
+            -- 시선 화살표는 평시에도 상시 표시 (원뿔만 경계상황 전용)
+            if a.f and GT.arrowOf then
               glyph = GT.arrowOf(tonumber(a.f[1]), tonumber(a.f[2]))
             else
               glyph = "v"
@@ -2918,8 +2918,8 @@ function GTV.render(d)
         sty(dl, "background-color: " .. col .. "; border-radius: " .. math.floor(CS * 0.12) .. "px; border: 1px solid rgba(20,20,24,200);")
         geo(dl, PX + x * CS + CS - math.floor(CS * 0.3), PY + y * CS, math.floor(CS * 0.25), math.floor(CS * 0.25))
       end
-      -- 시선 방향 표식 (원뿔과 같은 노출 규칙: 경계중이거나 의심중일 때만)
-      if a.k == "npc" and a.f and (watch or sus > 0) then
+      -- 시선 방향 표식 — 평시에도 상시 표시 (원뿔만 경계상황 전용)
+      if a.k == "npc" and a.f then
         local fx2, fy2 = tonumber(a.f[1]) or 0, tonumber(a.f[2]) or 0
         if fx2 ~= 0 or fy2 ~= 0 then
           local dn = ((fy2 < 0) and "n" or (fy2 > 0) and "s" or "") .. ((fx2 > 0) and "e" or (fx2 < 0) and "w" or "")
