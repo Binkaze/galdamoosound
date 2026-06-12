@@ -179,32 +179,11 @@ function GaldamUI.build()
     GaldamUI.npcWin:hide()
   end)
 
-  -- ===== d-pad 미니창 (드래그) =====
+  -- ===== d-pad 미니창: 폐기 (키보드 이동모드로 대체, 2026-06-12) — 배 전용 조종패드는 GaldamBoatPad 블록 =====
   pcall(function()
     if GaldamUI.dpadWin then GaldamUI.dpadWin:hide() end
-    GaldamUI.dpadWin = Geyser.UserWindow:new({name="갯담이동", width=176, height=190, x=30, y=300})
   end)
-  GaldamUI.dirBtns = {}
-  local function dbtn(nm, name, img, cmd, aliases, x, y)
-    local b = Geyser.Label:new({name=nm, x=x, y=y, width=50, height=50}, GaldamUI.dpadWin)
-    b:setClickCallback(function() send(cmd) end)
-    b:setStyleSheet(CSS_BTN); b:echo(imgTag(img, 34))
-    GaldamUI.attachTip(b, name)
-    table.insert(GaldamUI.dirBtns, {btn=b, aliases=aliases, img=img, name=name})
-    return b
-  end
-  dbtn("dpUp",  "위(올라가기)", "up.png",          "올라가기", {"올라가기","up","u","위","상"},      4,   4)
-  dbtn("dpN",   "북",          "up-arrow.png",    "북",      {"북","north","n"},                 60,  4)
-  dbtn("dpIn",  "들어가기",     "in.png",          "들어가기", {"들어가기","in","enter","안","입구"}, 116, 4)
-  dbtn("dpW",   "서",          "left-arrow.png",  "서",      {"서","west","w"},                  4,   58)
-  dbtn("dpE",   "동",          "right-arrow.png", "동",      {"동","east","e"},                  116, 58)
-  dbtn("dpDn",  "아래(내려가기)","down.png",       "내려가기", {"내려가기","down","d","아래","하"},  4,   112)
-  dbtn("dpS",   "남",          "down arrow.png",  "남",      {"남","south","s"},                 60,  112)
-  dbtn("dpOut", "나가기",       "out.png",         "나가기",  {"나가기","out","밖","출구","exit"},  116, 112)
-  GaldamUI.lookBtn = Geyser.Label:new({name="dpLook", x=60, y=58, width=50, height=50}, GaldamUI.dpadWin)
-  GaldamUI.lookBtn:setStyleSheet(CSS_ACT); GaldamUI.lookBtn:echo(imgTag("look.png", 34))
-  GaldamUI.lookBtn:setClickCallback(function() send("look") end)
-  GaldamUI.attachTip(GaldamUI.lookBtn, "둘러보기")
+  GaldamUI.dirBtns = nil
 
   -- 수배 오버레이 (좌상단)
   if GaldamUI.wanted then GaldamUI.wanted:hide() end
@@ -2673,11 +2652,6 @@ end
 function GTV.render(d)
   if not d then return end
   GTV.makeWin()
-  -- 해도 모드에서 복귀: 보트 이모지 텍스트 잔존 정리
-  if GTV.seaWas then
-    pcall(function() if GTV.seaBoatLbl then GTV.seaBoatLbl:echo("") end end)
-    GTV.seaWas = false
-  end
   local w = tonumber(d.w) or 9
   local h = tonumber(d.h) or 9
   local biome = d.biome or "indoor"
@@ -3056,16 +3030,8 @@ end
 -- 경량 틱: 애니 라벨만 스타일 갱신 (전체 재렌더 금지 — 프레임 안정성). 연기 확산 중에만 풀 렌더
 function GTV.tick()
   GTV.timer = nil
-  if not (GTV.on and (GTV.lastData or (GTV.seaOn and GTV.lastSea))) then return end
+  if not (GTV.on and GTV.lastData) then return end
   GTV.frame = GTV.frame + 1
-  if GTV.seaOn then
-    -- 해도 모드: 물/비눈 프레임만 갱신
-    local A = GTV.A or {}
-    if A.wxl and A.wxt then local c = imgcss(A.wxt .. "_" .. (GTV.frame % 3)); A.wxl._css = c; A.wxl:setStyleSheet(c) end
-    for _, l in ipairs(A.water or {}) do local c = imgcss("water_" .. (GTV.frame % 2)); l._css = c; l:setStyleSheet(c) end
-    if GTV.needAnim then GTV.timer = tempTimer(0.4, "GaldamTileView.tick()") end
-    return
-  end
   local smoky = GaldamTac and GaldamTac.smoke and next(GaldamTac.smoke)
   local hasFx = false
   for _, f in ipairs(GTV.lastData.fx or {}) do if f.t == "fire" or f.t == "smoke" then hasFx = true; break end end
@@ -3126,7 +3092,6 @@ function GTV.onRoom()
     return
   end
   dlog("Room 수신 → 룸 전환 (" .. tostring(rids) .. ")")
-  GTV.seaOn = false
   GTV.flushCaches()
   if GTV.timer then pcall(killTimer, GTV.timer); GTV.timer = nil end
   -- 새 룸의 Tac를 이미 보유중이면(보류분/직전 수신) 즉시 렌더, 아니면 숨기고 Tac 대기
@@ -3188,41 +3153,90 @@ function GTV.toggle()
   end
 end
 
--- ===== 해도(海圖) 모드: 배 탑승 중 바다 차트 (Galdam.Sea, 룸=1타일) =====
+if GTV.alias then pcall(killAlias, GTV.alias) end
+GTV.alias = tempAlias("^타일뷰$", [[GaldamTileView.toggle()]])
+if GTV.alias2 then pcall(killAlias, GTV.alias2) end
+GTV.alias2 = tempAlias("^타일로그$", [[echo("[타일뷰 진단로그]\n") for _, ln in ipairs(GaldamTileView.log or {}) do echo(ln .. "\n") end]])
+if GTV.h1 then pcall(killAnonymousEventHandler, GTV.h1) end
+if GTV.h2 then pcall(killAnonymousEventHandler, GTV.h2) end
+if GTV.h3 then pcall(killAnonymousEventHandler, GTV.h3) end
+GTV.h1 = registerAnonymousEventHandler("gmcp.Galdam.Tac", "GaldamTileView.onTac")
+GTV.h2 = registerAnonymousEventHandler("gmcp.Galdam.Room", "GaldamTileView.onRoom")
+GTV.h3 = registerAnonymousEventHandler("sysDownloadDone", "GaldamTileView.onDl")
+GTV.makeWin()
+GTV.ensureTiles()
+-- 재로드 시 기존 풀 라벨에도 클릭스루 소급 적용
+for ly, pool in pairs(GTV.P) do
+  if THRU[ly] then
+    for _, l in ipairs(pool) do pcall(function() l:enableClickthrough() end) end
+  end
+end
+echo("[Galdam] 타일뷰 v3.4 로드됨 — 해도(海圖) 모드(승선 시 자동: 바다 차트+헤딩+정박 표시). '타일뷰'=글리프\n")
+]]></script>
+      <eventHandlerList></eventHandlerList>
+    </Script>
+   <Script isActive="yes" isFolder="no">
+      <name>GaldamSeaChart</name>
+      <packageName></packageName>
+      <script><![CDATA[
+-- ===== 갯담 해도(海圖) 미니창: 승선 시 자동 표시 (Galdam.Sea, 룸=1타일 13×13) =====
+GaldamSeaChart = GaldamSeaChart or {}
+local GS = GaldamSeaChart
+GS.frame = GS.frame or 0
+local CS = 20
+local N = 13
+local PX, PY = 8, 24
+local TONETINT = {[1]="rgba(18,22,62,85)", [4]="rgba(120,55,15,55)", [5]="rgba(110,40,15,90)", [6]="rgba(5,8,28,140)"}
 local SEATILE = {L = "weed", S = "dirt2", P = "breakwater", H = "lighthouse"}
-function GTV.renderSea(d)
+local function imgcss(f) return (GaldamTileView and GaldamTileView.imgcss) and GaldamTileView.imgcss(f) or "background-color: rgba(30,60,110,255);" end
+
+function GS.makeWin()
+  if GS.win then return end
+  GS.win = Geyser.UserWindow:new({name = "갯담해도", width = N * CS + PX * 2, height = N * CS + PY + 10, x = 16, y = 70})
+  GS.bg = Geyser.Label:new({name = "GSbg", x = 0, y = 0, width = "100%", height = "100%"}, GS.win)
+  GS.bg:setStyleSheet("background-color: rgba(8,10,16,255);")
+  GS.hdr = Geyser.Label:new({name = "GShdr", x = 6, y = 2, width = N * CS + 4, height = 20}, GS.win)
+  GS.hdr:setStyleSheet("background: transparent;")
+  GS.P = GS.P or {}
+  pcall(function() GS.win:hide() end)
+end
+
+local function lbl(layer, i)
+  GS.P[layer] = GS.P[layer] or {}
+  local t = GS.P[layer]
+  if not t[i] then
+    t[i] = Geyser.Label:new({name = "GS_" .. layer .. "_" .. i, x = 0, y = 0, width = 8, height = 8}, GS.win)
+    t[i]._css = nil; t[i]._geo = nil
+    if layer ~= "ground" then pcall(function() t[i]:enableClickthrough() end) end
+  end
+  return t[i]
+end
+local function sty(l, css) if l._css ~= css then l._css = css; l:setStyleSheet(css) end end
+local function geo(l, x, y, w2, h2)
+  local g = x .. "," .. y .. "," .. w2 .. "," .. h2
+  if l._geo ~= g then l._geo = g; l:move(x, y); l:resize(w2, h2) end
+  l:show()
+end
+local function hideRest(layer, n)
+  local t = GS.P[layer] or {}
+  for i = n + 1, #t do t[i]:hide() end
+end
+
+function GS.render(d)
   if not d then return end
-  GTV.makeWin()
-  local w = tonumber(d.w) or 13
-  local h = tonumber(d.h) or 13
+  GS.makeWin()
+  if GaldamTileView and GaldamTileView.ensureTiles then pcall(GaldamTileView.ensureTiles, CS) end
+  local w = tonumber(d.w) or N
+  local h = tonumber(d.h) or N
   local tone = tonumber(d.tone) or 3
   local weather = d.weather or "clear"
-  local mw, mh = 1280, 800
-  pcall(function() mw, mh = getMainWindowSize() end)
-  local rawCS = math.floor(math.min((mw * 0.62 - 16) / w, (mh * 0.80 - 36) / h))
-  local CS = 16
-  for _, s in ipairs({32, 28, 24, 20}) do if rawCS >= s then CS = s; break end end
-  GTV.size = CS
-  GTV.ensureTiles(CS)
-  local PX, PY = 8, 28
-  local wg = "sea" .. w .. "x" .. h .. "@" .. CS
-  if GTV._wingeo ~= wg then
-    GTV._wingeo = wg
-    pcall(function()
-      local pxw = w * CS + PX * 2
-      GTV.win:resize(pxw, h * CS + PY + 8)
-      local wx = math.min(math.max(8, mw - pxw - 16), math.max(math.floor(mw * 0.34), math.floor((mw - pxw) * 0.62)))
-      GTV.win:move(wx, math.max(8, math.floor(mh * 0.06)))
-    end)
-  end
   local tnames = {"새벽", "아침", "낮", "저녁", "노을", "밤"}
   local spd = tonumber(d.spd) or 0
-  GTV.hdr:echo("<b style='color:#9fc6ef'>⚓ " .. (d.name or "바다") .. "</b> <span style='color:#8890a4'>(" ..
-    tostring(d.cx) .. "," .. tostring(d.cy) .. ") · " .. (tnames[tone] or "") ..
-    (weather ~= "clear" and (" · " .. weather) or "") .. "</span>  <span style='color:#cdaa55'>" ..
+  GS.hdr:echo("<b style='color:#9fc6ef'>⚓ " .. (d.name or "바다") .. "</b> <span style='color:#8890a4'>(" ..
+    tostring(d.cx) .. "," .. tostring(d.cy) .. ") " .. (tnames[tone] or "") .. "</span> <span style='color:#cdaa55'>" ..
     ((tonumber(d.docked) or 0) == 1 and "정박중" or (tostring(math.floor(spd * 0.6)) .. "kt")) ..
     " ⛽" .. tostring(d.fuel or 0) .. "</span>")
-  GTV.A = {pol = {}, fire = {}, water = {}, wxl = nil}
+  GS.A = {water = {}, wxl = nil, wxt = nil}
   local gi, di = 0, 0
   for y = 0, h - 1 do
     local row = (d.rows and d.rows[y + 1]) or ""
@@ -3235,12 +3249,11 @@ function GTV.renderSea(d)
       if t then
         sty(l, imgcss(t))
       else
-        sty(l, imgcss("water_" .. (GTV.frame % 2)))
-        table.insert(GTV.A.water, l)
+        sty(l, imgcss("water_" .. (GS.frame % 2)))
+        table.insert(GS.A.water, l)
       end
       geo(l, PX + x * CS, PY + y * CS, CS, CS)
       if code == "W" or code == "." then
-        -- 먼바다 = 어두운 물 (오버레이)
         di = di + 1
         local dl = lbl("decal", di)
         sty(dl, "background-color: rgba(6,14,44,95); border: 0;")
@@ -3251,13 +3264,10 @@ function GTV.renderSea(d)
   hideRest("ground", gi); hideRest("decal", di)
   -- 통통배 (중앙)
   local c0 = math.floor(w / 2)
-  local bl = lbl("actor", 1)
+  local bl = lbl("boat", 1)
   sty(bl, "background: transparent; border: 0;")
-  pcall(function() bl:setClickCallback(function() end) end)
-  pcall(function() bl:echo("<center><span style='font-size:" .. math.floor(CS * 0.78) .. "px'>⛵</span></center>") end)
+  pcall(function() bl:echo("<center><span style='font-size:" .. math.floor(CS * 0.85) .. "px'>⛵</span></center>") end)
   geo(bl, PX + c0 * CS, PY + c0 * CS, CS, CS)
-  GTV.seaBoatLbl = bl
-  hideRest("actor", 1)
   -- 헤딩 화살표 (정박 중엔 숨김)
   local fdi = 0
   if (tonumber(d.docked) or 0) ~= 1 then
@@ -3265,15 +3275,15 @@ function GTV.renderSea(d)
     local OFFS = {n = {0, -1}, ne = {1, -1}, e = {1, 0}, se = {1, 1}, s = {0, 1}, sw = {-1, 1}, w = {-1, 0}, nw = {-1, -1}}
     local dn = DIRN[math.floor(((tonumber(d.hd) or 0) + 22) % 360 / 45) + 1]
     local o = OFFS[dn]
-    local sz = math.max(10, math.floor(CS * 0.5))
+    local sz = math.max(10, math.floor(CS * 0.6))
     fdi = 1
-    local fl = lbl("facedot", 1)
+    local fl = lbl("arrow", 1)
     sty(fl, imgcss("arr_" .. dn))
-    geo(fl, PX + c0 * CS + math.floor(CS / 2 - sz / 2 + o[1] * CS * 0.62),
-            PY + c0 * CS + math.floor(CS / 2 - sz / 2 + o[2] * CS * 0.62), sz, sz)
+    geo(fl, PX + c0 * CS + math.floor(CS / 2 - sz / 2 + o[1] * CS * 0.7),
+            PY + c0 * CS + math.floor(CS / 2 - sz / 2 + o[2] * CS * 0.7), sz, sz)
   end
-  hideRest("facedot", fdi)
-  -- 시간대 틴트 + 날씨 (룸격자와 동일 규칙)
+  hideRest("arrow", fdi)
+  -- 시간대 틴트 + 날씨 입자
   local tl = lbl("tint", 1)
   local tcss = TONETINT[tone]
   if weather == "fog" then tcss = "rgba(165,168,174,120)"
@@ -3282,49 +3292,106 @@ function GTV.renderSea(d)
   local wl = lbl("wx", 1)
   if weather == "rain" or weather == "snow" or weather == "storm" then
     local wt = (weather == "snow") and "snow" or "rain"
-    sty(wl, imgcss(wt .. "_" .. (GTV.frame % 3))); geo(wl, PX, PY, w * CS, h * CS)
-    GTV.A.wxl = wl; GTV.A.wxt = wt
+    sty(wl, imgcss(wt .. "_" .. (GS.frame % 3))); geo(wl, PX, PY, w * CS, h * CS)
+    GS.A.wxl = wl; GS.A.wxt = wt
   else wl:hide() end
-  for _, ly in ipairs({"shade", "obj", "item", "fx", "susdot", "cone", "glow", "fogp"}) do hideRest(ly, 0) end
-  GTV.seaWas = true
-  GTV.needAnim = true
-  if GTV.on and not GTV.timer then GTV.timer = tempTimer(0.4, "GaldamTileView.tick()") end
 end
 
-function GTV.onSea()
+function GS.tick()
+  GS.timer = nil
+  if not (GS.win and GS.aboard) then return end
+  GS.frame = GS.frame + 1
+  local A = GS.A or {}
+  if A.wxl and A.wxt then local c = imgcss(A.wxt .. "_" .. (GS.frame % 3)); A.wxl._css = c; A.wxl:setStyleSheet(c) end
+  for _, l in ipairs(A.water or {}) do local c = imgcss("water_" .. (GS.frame % 2)); l._css = c; l:setStyleSheet(c) end
+  GS.timer = tempTimer(0.5, "GaldamSeaChart.tick()")
+end
+
+function GS.onSea()
   local d = gmcp.Galdam and gmcp.Galdam.Sea
   if not d then return end
-  GTV.seaOn = true
-  GTV.seaRid = tonumber(d.rid)
-  GTV.lastSea = d
-  if GTV.on then
-    local ok, err = pcall(GTV.renderSea, d)
-    if ok then GTV.win:show() else dlog("해도 render 오류: " .. tostring(err)) end
-  end
-  dlog("Sea 수신 (rid=" .. tostring(d.rid) .. ")")
+  GS.lastSea = d
+  GS.aboard = true
+  local ok = pcall(GS.render, d)
+  if ok then pcall(function() GS.win:show() end) end
+  if GaldamBoatPad and GaldamBoatPad.show then pcall(GaldamBoatPad.show) end
+  if not GS.timer then GS.timer = tempTimer(0.5, "GaldamSeaChart.tick()") end
 end
 
-if GTV.alias then pcall(killAlias, GTV.alias) end
-GTV.alias = tempAlias("^타일뷰$", [[GaldamTileView.toggle()]])
-if GTV.alias2 then pcall(killAlias, GTV.alias2) end
-GTV.alias2 = tempAlias("^타일로그$", [[echo("[타일뷰 진단로그]\n") for _, ln in ipairs(GaldamTileView.log or {}) do echo(ln .. "\n") end]])
-if GTV.h1 then pcall(killAnonymousEventHandler, GTV.h1) end
-if GTV.h2 then pcall(killAnonymousEventHandler, GTV.h2) end
-if GTV.h3 then pcall(killAnonymousEventHandler, GTV.h3) end
-GTV.h1 = registerAnonymousEventHandler("gmcp.Galdam.Tac", "GaldamTileView.onTac")
-GTV.h2 = registerAnonymousEventHandler("gmcp.Galdam.Room", "GaldamTileView.onRoom")
-GTV.h3 = registerAnonymousEventHandler("sysDownloadDone", "GaldamTileView.onDl")
-if GTV.h4 then pcall(killAnonymousEventHandler, GTV.h4) end
-GTV.h4 = registerAnonymousEventHandler("gmcp.Galdam.Sea", "GaldamTileView.onSea")
-GTV.makeWin()
-GTV.ensureTiles()
--- 재로드 시 기존 풀 라벨에도 클릭스루 소급 적용
-for ly, pool in pairs(GTV.P) do
-  if THRU[ly] then
-    for _, l in ipairs(pool) do pcall(function() l:enableClickthrough() end) end
+function GS.onRoom()
+  local rids = gmcp.Galdam and gmcp.Galdam.Room and gmcp.Galdam.Room.roomid
+  local rid = rids and tonumber((tostring(rids):gsub("#", ""))) or nil
+  if rid ~= GS.curRoom then
+    GS.curRoom = rid
+    GS.aboard = false
+    if GS.win then pcall(function() GS.win:hide() end) end
+    if GaldamBoatPad and GaldamBoatPad.hide then pcall(GaldamBoatPad.hide) end
   end
 end
-echo("[Galdam] 타일뷰 v3.4 로드됨 — 해도(海圖) 모드(승선 시 자동: 바다 차트+헤딩+정박 표시). '타일뷰'=글리프\n")
+
+if GS.h1 then pcall(killAnonymousEventHandler, GS.h1) end
+if GS.h2 then pcall(killAnonymousEventHandler, GS.h2) end
+GS.h1 = registerAnonymousEventHandler("gmcp.Galdam.Sea", "GaldamSeaChart.onSea")
+GS.h2 = registerAnonymousEventHandler("gmcp.Galdam.Room", "GaldamSeaChart.onRoom")
+GS.makeWin()
+echo("[Galdam] 해도 미니창 로드됨 (승선 시 자동)\n")
+]]></script>
+      <eventHandlerList></eventHandlerList>
+    </Script>
+   <Script isActive="yes" isFolder="no">
+      <name>GaldamBoatPad</name>
+      <packageName></packageName>
+      <script><![CDATA[
+-- ===== 갯담 배 조종패드: 승선 시 자동 표시 (해도 미니창이 show/hide 호출) =====
+GaldamBoatPad = GaldamBoatPad or {}
+local GB = GaldamBoatPad
+local BTN  = "background-color: rgba(24,34,52,235); border:1px solid #4a6a96; border-radius:7px; color:#cfe4ff; qproperty-alignment:'AlignCenter'; font-size:13px;"
+local BTN2 = "background-color: rgba(40,32,18,235); border:1px solid #96804a; border-radius:7px; color:#ffe9c0; qproperty-alignment:'AlignCenter'; font-size:13px;"
+local BTN3 = "background-color: rgba(18,40,28,235); border:1px solid #4a9668; border-radius:7px; color:#d2ffe4; qproperty-alignment:'AlignCenter'; font-size:13px;"
+
+function GB.make()
+  if GB.win then return end
+  GB.win = Geyser.UserWindow:new({name = "갯담조타", width = 196, height = 322, x = 16, y = 390})
+  GB.bg = Geyser.Label:new({name = "GBbg", x = 0, y = 0, width = "100%", height = "100%"}, GB.win)
+  GB.bg:setStyleSheet("background-color: rgba(10,12,18,255);")
+  local function btn(nm, txt, cmd, x, y, w, h, css)
+    local b = Geyser.Label:new({name = "GB_" .. nm, x = x, y = y, width = w, height = h}, GB.win)
+    b:setStyleSheet(css or BTN)
+    b:echo("<center>" .. txt .. "</center>")
+    b:setClickCallback(function() send(cmd) end)
+    return b
+  end
+  -- 3×3 조타 패드 (가운데 = 정지)
+  local D = {{"↖", 315}, {"↑", 0}, {"↗", 45}, {"←", 270}, nil, {"→", 90}, {"↙", 225}, {"↓", 180}, {"↘", 135}}
+  local KD = {"북서", "북", "북동", "서", nil, "동", "남서", "남", "남동"}
+  local i = 0
+  for ry = 0, 2 do
+    for rx = 0, 2 do
+      i = i + 1
+      if D[i] then
+        btn("st" .. i, D[i][1] .. "<br><span style='font-size:10px;color:#8aa6c8'>" .. KD[i] .. "</span>", "조타 " .. KD[i], 4 + rx * 62, 4 + ry * 62, 58, 58)
+      else
+        btn("stop", "■<br><span style='font-size:10px;color:#c8a86a'>정지</span>", "속도 0", 4 + 62, 4 + 62, 58, 58, BTN2)
+      end
+    end
+  end
+  -- 속도열
+  btn("sB", "후진", "속도 -30", 4, 192, 44, 34, BTN2)
+  btn("s1", "저속", "속도 25", 52, 192, 44, 34)
+  btn("s2", "반속", "속도 50", 100, 192, 44, 34)
+  btn("s3", "전속", "속도 100", 148, 192, 44, 34)
+  -- 항만/이동열
+  btn("dep", "⚓ 출항", "출항", 4, 232, 92, 38, BTN3)
+  btn("dok", "⚓ 정박", "정박", 100, 232, 92, 38, BTN3)
+  btn("off", "⬇ 하선", "밖", 4, 276, 92, 38, BTN2)
+  btn("hold", "선창行", "아래", 100, 276, 92, 38)
+  pcall(function() GB.win:hide() end)
+end
+
+function GB.show() GB.make(); pcall(function() GB.win:show() end) end
+function GB.hide() if GB.win then pcall(function() GB.win:hide() end) end end
+GB.make()
+echo("[Galdam] 배 조종패드 로드됨 (승선 시 자동 표시)\n")
 ]]></script>
       <eventHandlerList></eventHandlerList>
     </Script>
