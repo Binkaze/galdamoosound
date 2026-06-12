@@ -1258,8 +1258,11 @@ function GaldamUI.onBodyNPC(rerender)
   local d = rerender and GaldamUI.npcData or (gmcp.Galdam and gmcp.Galdam.BodyNPC)
   if not d then return end
   GaldamUI.npcData = d
-  pcall(function() GaldamUI.npcWin:show() end)
   local nm = tostring(d.name or "?")
+  -- 같은 대상의 실시간 재푸시는 강제 표시 없이 내용만 갱신 (닫은 창 다시 안 띄움)
+  local isNew = (GaldamUI.npcLast ~= nm)
+  GaldamUI.npcLast = nm
+  if isNew or rerender then pcall(function() GaldamUI.npcWin:show() end) end
   GaldamUI.npcHdr:echo("<center><span style='font-size:15px; color:#cfe3b8;'><b>" .. nm .. "</b> — 신체 상태</span></center>")
   GaldamUI.renderBodyInto(GaldamUI.npcCtx, d)
 end
@@ -2877,7 +2880,15 @@ function GTV.render(d)
         -- id 없는 액터(=나)는 콜백을 비워야 함: 풀 라벨에 남은 이전 NPC 콜백이 그대로 살면 "나 클릭=딴사람" 버그
         if id and tonumber(id) and tonumber(id) > 0 then l:setClickCallback(function() GaldamUI.tacClick(tostring(id), name or "?") end)
         else l:setClickCallback(function() end) end
-        if GaldamUI and GaldamUI.attachTip then GaldamUI.attachTip(l, name or "?") end
+        -- NPC/동물 호버 = 툴팁 + 실시간 신체창 요청 (1초 디바운스)
+        if id and tonumber(id) and tonumber(id) > 0 and f ~= "act_player" then
+          l:setOnEnter(function()
+            if GaldamUI and GaldamUI.showTip then GaldamUI.showTip(name or "?") end
+            local now = os.clock()
+            if not l._bodyT or now - l._bodyT > 1.0 then l._bodyT = now; send("_galdambody " .. tostring(id), false) end
+          end)
+          l:setOnLeave(function() if GaldamUI and GaldamUI.hideTip then GaldamUI.hideTip() end end)
+        elseif GaldamUI and GaldamUI.attachTip then GaldamUI.attachTip(l, name or "?") end
       end)
     end
   end
@@ -3173,6 +3184,8 @@ if GTV.alias then pcall(killAlias, GTV.alias) end
 GTV.alias = tempAlias("^타일뷰$", [[GaldamTileView.toggle()]])
 if GTV.alias2 then pcall(killAlias, GTV.alias2) end
 GTV.alias2 = tempAlias("^타일로그$", [[echo("[타일뷰 진단로그]\n") for _, ln in ipairs(GaldamTileView.log or {}) do echo(ln .. "\n") end]])
+if GTV.alias3 then pcall(killAlias, GTV.alias3) end
+GTV.alias3 = tempAlias("^갯담진단$", [[echo("[갯담진단] 퀵메뉴=" .. tostring(GaldamQuick ~= nil) .. " / 패드=" .. tostring(GaldamBoatPad ~= nil) .. " / 해도=" .. tostring(GaldamSeaChart ~= nil) .. " / 이동키=" .. tostring(GaldamKeys ~= nil) .. " / 타일뷰=" .. tostring(GaldamTileView ~= nil) .. "\n")]])
 if GTV.h1 then pcall(killAnonymousEventHandler, GTV.h1) end
 if GTV.h2 then pcall(killAnonymousEventHandler, GTV.h2) end
 if GTV.h3 then pcall(killAnonymousEventHandler, GTV.h3) end
@@ -3230,7 +3243,7 @@ function GK.go(tag)
 end
 local function gk(tag) return "GaldamKeys.go(\"" .. tag .. "\")" end
 local SPC = [[if GaldamQuick then GaldamQuick.toggle() end]]
-local WASD = {{0x57,gk("N")},{0x53,gk("S")},{0x41,gk("W")},{0x44,gk("E")},{0x51,gk("NW")},{0x45,gk("NE")},{0x5A,gk("SW")},{0x43,gk("SE")},{0x46,gk("SR")},{0x52,gk("LK")},{0x20,SPC}}
+local WASD = {{0x57,gk("N")},{0x53,gk("S")},{0x41,gk("W")},{0x44,gk("E")},{0x51,gk("NW")},{0x45,gk("NE")},{0x5A,gk("SW")},{0x43,gk("SE")},{0x46,gk("SR")},{0x52,gk("LK")},{0x20,SPC},{0x56,SPC}}
 local NUM = {{0x38,gk("N")},{0x35,gk("S")},{0x34,gk("W")},{0x36,gk("E")},{0x37,gk("NW")},{0x39,gk("NE")},{0x31,gk("SW")},{0x33,gk("SE")},{0x32,gk("LK")},{0x30,gk("SR")}}
 function GK.unbind()
   for _, id in ipairs(GK.ids) do pcall(killKey, id) end
