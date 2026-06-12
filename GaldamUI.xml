@@ -1885,6 +1885,7 @@ GT.TILE = {
   bookshelf={u="\226\150\167",a="L",fg="150,110,68"}, washer={u="\226\138\159",a="m",fg="190,196,204"}, stove={u="\226\150\169",a="o",fg="120,118,126"},
   -- 상점/약국 (2026-06-11): 카운터=밝은원목, 진열대=☰선반, 약장=✚초록십자
   counter={u="\226\150\172",a="C",fg="216,186,128"}, shelf={u="\226\152\176",a="E",fg="178,142,92"}, medcab={u="\226\156\154",a="+",fg="92,206,126"},
+  crop1={u="\226\151\166",a="o",fg="150,108,66"}, crop2={u="\206\189",a="v",fg="140,220,120"}, crop3={u="\206\168",a="Y",fg="70,190,90"},
   tilefloor={u=" ",a=" ",fg="120,124,132",bg="70,74,82"}, deck={u="\226\148\128",a="=",fg="130,98,62",bg="66,50,32"},
 }
 local function glyphOf(t)
@@ -1906,6 +1907,7 @@ GT.NAME = {
   computer="컴퓨터", dresser="화장대", drawers="서랍장", safe="금고", sofa="소파", tv="티비",
   bookshelf="책장", washer="세탁기", stove="난로", tilefloor="타일바닥", deck="데크",
   counter="카운터", shelf="진열대", medcab="약장",
+  crop1="심은 흙더미", crop2="새싹", crop3="다 자란 작물",
 }
 
 -- ===== 벽/담장 오토타일링: 이웃 연결에 따라 선문자 자동선택 (uni 모드 전용) =====
@@ -2495,7 +2497,7 @@ local GTV = GaldamTileView
 if GTV.on == nil then GTV.on = true end   -- 기본 = 타일뷰 (글리프는 '타일뷰' 토글로)
 GTV.P = GTV.P or {}
 GTV.frame = GTV.frame or 0
-GTV.TILEVER = 3
+GTV.TILEVER = 4
 GTV.zdirty = true          -- 로드 직후 z순서 1회 재구축 (레이어 순서 변경 반영)
 GTV.size = GTV.size or 32  -- 현재 셀 크기 (s16/s20/s24/s28/s32 사전생성 타일 = 무스케일링, 블러 방지)
 GTV.haveSize = {}          -- 세션마다 리셋 → 매 접속 1회 무결성 재검사 (깨진 파일 복구 기회)
@@ -2520,7 +2522,7 @@ for _, f in ipairs({"wood","hardwood","tile","marble","stone","concrete","carpet
 end
 for _, f in ipairs({"bed","table","chair","fridge","sink","gasrange","cupboard","bar","toilet","bathtub","washbasin",
   "wardrobe","desk","computer","dresser","drawers","safe","sofa","tv","bookshelf","washer","stove",
-  "counter","shelf","medcab"}) do
+  "counter","shelf","medcab","crop1","crop2","crop3"}) do
   TFILES[#TFILES+1] = f
 end
 for _, f in ipairs({"n","ne","e","se","s","sw","w","nw"}) do TFILES[#TFILES+1] = "arr_"..f end
@@ -2642,7 +2644,8 @@ local OBJF = {tree="tree", rock="rock", lamp="lamp", well="well", jangdok="jangd
   cupboard="cupboard", bar="bar", toilet="toilet", bathtub="bathtub", washbasin="washbasin", wardrobe="wardrobe",
   desk="desk", computer="computer", dresser="dresser", drawers="drawers", safe="safe", sofa="sofa", tv="tv",
   bookshelf="bookshelf", washer="washer", stove="stove",
-  counter="counter", shelf="shelf", medcab="medcab"}
+  counter="counter", shelf="shelf", medcab="medcab",
+  crop1="crop1", crop2="crop2", crop3="crop3"}
 local TERRF = {dirt2="dirt2", rockground="rockg", woodfloor="woodfloor", lane="lane", crosswalk="crosswalk",
   field="field", paddy="paddy", weed="weed", weed2="weed", water="water_0", clearing="clearing_0", asphalt="asphalt_0", tilefloor="floor_tile", deck="woodfloor"}
 -- 시간대 틴트: 밝은 우윳빛 금지(뽀샤시 원인) — 어둡고 채도있는 막만
