@@ -1840,7 +1840,7 @@ GT.TILE = {
   tree={u="\226\153\163",a="&",fg="90,180,84"}, rock={u="\226\151\143",a="o",fg="155,152,162"},
   tractor={u="T",a="T",fg="226,100,46"}, truck={u="u",a="u",fg="90,140,225"},
   car={u="c",a="c",fg="200,205,212"}, moto={u="m",a="m",fg="154,160,166"},
-  boat={u="b",a="b",fg="220,227,232"}, net={u="%",a="%",fg="184,144,90"}, hull={u="#",a="#",fg="150,110,70"}, helm={u="T",a="T",fg="200,160,90"},
+  boat={u="b",a="b",fg="220,227,232"}, net={u="%",a="%",fg="184,144,90"}, hull={u="#",a="#",fg="150,110,70"}, helm={u="T",a="T",fg="200,160,90"}, pot={u="o",a="o",fg="120,120,128"}, console={u="C",a="C",fg="150,200,160"}, engine={u="E",a="E",fg="140,160,140"}, trapdoor={u="v",a="v",fg="180,150,90"},
   dryrack={u="x",a="x",fg="156,107,53"}, bench={u="\226\150\164",a="\226\150\164",fg="190,150,96"},
   busstop={u="B",a="B",fg="217,164,65"}, mailbox={u="!",a="!",fg="226,75,74"},
   buoy={u="\226\151\145",a="o",fg="240,140,60"}, reef={u="\226\150\178",a="^",fg="120,150,120"},
@@ -2487,7 +2487,7 @@ local TBASE = "https://cdn.jsdelivr.net/gh/Binkaze/galdamoosound@main/tiles/"
 -- 타일 파일 목록 (tileset_gen.py 출력과 1:1)
 local TFILES = {"dirt2","rockg","woodfloor","lane","crosswalk","field","paddy","weed","water_0","water_1",
   "wall_stone","breakwater","wall_brick","window","window_open","window_broken","door","gate","greenhouse","lighthouse","tetrapod","grave",
-  "tree","rock","lamp","well","jangdok","bench","clothes","pole","mailbox","busstop","dog","boat","net","dryrack","buoy","reef","prop","hull","helm",
+  "tree","rock","lamp","well","jangdok","bench","clothes","pole","mailbox","busstop","dog","boat","net","dryrack","buoy","reef","prop","hull","helm","trapdoor","pot","console","engine",
   "act_player","act_npc","act_cop","act_wild","loot","fire_0","fire_1","smoke_gray","smoke_white","smoke_gas",
   "blood_1","blood_2","blood_3","glass","wetg","snowg","mess"}
 for i = 0, 3 do
@@ -2579,7 +2579,7 @@ end
 -- 셀 툴팁: 글리프뷰 GT.NAME 재사용 + 타일뷰 보강분
 local EXTRA_NAME = {asphalt="아스팔트", lane="차선", crosswalk="횡단보도", water="물", rockground="바위땅",
   woodfloor="나무바닥", grave="무덤", lighthouse="등대", tetrapod="테트라포드", breakwater="방파제",
-  net="그물", dryrack="건조대", boat="배", hull="선체", helm="조타륜", dog="개", pole="전봇대", mailbox="우체통", busstop="버스정류장", rock="바위", tree="나무"}
+  net="그물", dryrack="건조대", boat="배", hull="선체", helm="조타륜", pot="곰솥", console="조작 콘솔", engine="엔진", trapdoor="해치(아래)", dog="개", pole="전봇대", mailbox="우체통", busstop="버스정류장", rock="바위", tree="나무"}
 local function tipOf(kind)
   if not kind then return nil end
   local nmt = (GaldamTac and GaldamTac.NAME) or {}
@@ -2615,7 +2615,7 @@ local SFULL = {hull="hull", wall="wall_stone", building="wall_brick", wall_h="wa
   breakwater="breakwater", window="window", window_open="window_open", window_broken="window_broken", door="door"}
 -- struct kind → 투명 오버레이 파일
 local SOVER = {gate="gate", greenhouse="greenhouse", lighthouse="lighthouse", tetrapod="tetrapod", grave="grave"}
-local OBJF = {helm="helm", tree="tree", rock="rock", lamp="lamp", well="well", jangdok="jangdok", bench="bench", clothes="clothes",
+local OBJF = {helm="helm", pot="pot", console="console", engine="engine", tree="tree", rock="rock", lamp="lamp", well="well", jangdok="jangdok", bench="bench", clothes="clothes",
   pole="pole", mailbox="mailbox", busstop="busstop", dog="dog", boat="boat", net="net", dryrack="dryrack", buoy="buoy", reef="reef",
   carL="car_l", carR="car_r", truckL="truck_l", truckR="truck_r", tracL="trac_l", tracR="trac_r", policeL="police_l", policeR="police_r",
   -- 실내 가구
@@ -2625,7 +2625,7 @@ local OBJF = {helm="helm", tree="tree", rock="rock", lamp="lamp", well="well", j
   bookshelf="bookshelf", washer="washer", stove="stove",
   counter="counter", shelf="shelf", medcab="medcab",
   crop1="crop1", crop2="crop2", crop3="crop3"}
-local TERRF = {dirt2="dirt2", rockground="rockg", woodfloor="woodfloor", lane="lane", crosswalk="crosswalk",
+local TERRF = {trapdoor="trapdoor", dirt2="dirt2", rockground="rockg", woodfloor="woodfloor", lane="lane", crosswalk="crosswalk",
   field="field", paddy="paddy", weed="weed", weed2="weed", water="water_0", clearing="clearing_0", asphalt="asphalt_0", tilefloor="floor_tile", deck="woodfloor"}
 -- 시간대 틴트: 밝은 우윳빛 금지(뽀샤시 원인) — 어둡고 채도있는 막만
 local TONETINT = {[1]="rgba(18,22,62,85)", [4]="rgba(120,55,15,55)", [5]="rgba(110,40,15,90)", [6]="rgba(5,8,28,140)"}
@@ -3356,7 +3356,7 @@ echo("[Galdam] 해도 미니창 로드됨 (승선 시 자동)\n")
       <name>GaldamBoatPad</name>
       <packageName></packageName>
       <script><![CDATA[
--- ===== 갯담 배 조종패드: 승선 시 자동 표시 (해도 미니창이 show/hide 호출) =====
+-- ===== 갯담 배 조종패드: 조타륜 인접 시 격자창 바로 아래 표시 (가로형) =====
 GaldamBoatPad = GaldamBoatPad or {}
 local GB = GaldamBoatPad
 local BTN  = "background-color: rgba(24,34,52,235); border:1px solid #4a6a96; border-radius:7px; color:#cfe4ff; qproperty-alignment:'AlignCenter'; font-size:13px;"
@@ -3365,9 +3365,8 @@ local BTN3 = "background-color: rgba(18,40,28,235); border:1px solid #4a9668; bo
 
 function GB.make()
   if GB.win then return end
-  GB.win = Geyser.UserWindow:new({name = "갯담조타", width = 196, height = 322, x = 16, y = 390})
-  GB.bg = Geyser.Label:new({name = "GBbg", x = 0, y = 0, width = "100%", height = "100%"}, GB.win)
-  GB.bg:setStyleSheet("background-color: rgba(10,12,18,255);")
+  GB.win = Geyser.Label:new({name = "갯담조타", x = 300, y = 500, width = 366, height = 176})
+  GB.win:setStyleSheet("background-color: rgba(10,12,18,242); border: 2px solid #5a8ac8; border-radius: 8px;")
   local function btn(nm, txt, cmd, x, y, w, h, css)
     local b = Geyser.Label:new({name = "GB_" .. nm, x = x, y = y, width = w, height = h}, GB.win)
     b:setStyleSheet(css or BTN)
@@ -3375,37 +3374,47 @@ function GB.make()
     b:setClickCallback(function() send(cmd) end)
     return b
   end
-  -- 3×3 조타 패드 (가운데 = 정지)
-  local D = {{"↖", 315}, {"↑", 0}, {"↗", 45}, {"←", 270}, nil, {"→", 90}, {"↙", 225}, {"↓", 180}, {"↘", 135}}
+  local D = {"↖", "↑", "↗", "←", nil, "→", "↙", "↓", "↘"}
   local KD = {"북서", "북", "북동", "서", nil, "동", "남서", "남", "남동"}
   local i = 0
   for ry = 0, 2 do
     for rx = 0, 2 do
       i = i + 1
       if D[i] then
-        btn("st" .. i, D[i][1] .. "<br><span style='font-size:10px;color:#8aa6c8'>" .. KD[i] .. "</span>", "조타 " .. KD[i], 4 + rx * 62, 4 + ry * 62, 58, 58)
+        btn("st" .. i, D[i] .. "<br><span style='font-size:10px;color:#8aa6c8'>" .. KD[i] .. "</span>", "조타 " .. KD[i], 6 + rx * 56, 6 + ry * 56, 52, 52)
       else
-        btn("stop", "■<br><span style='font-size:10px;color:#c8a86a'>정지</span>", "속도 0", 4 + 62, 4 + 62, 58, 58, BTN2)
+        btn("stop", "■<br><span style='font-size:10px;color:#c8a86a'>정지</span>", "속도 0", 6 + 56, 6 + 56, 52, 52, BTN2)
       end
     end
   end
-  -- 속도열
-  btn("sB", "후진", "속도 -30", 4, 192, 44, 34, BTN2)
-  btn("s1", "저속", "속도 25", 52, 192, 44, 34)
-  btn("s2", "반속", "속도 50", 100, 192, 44, 34)
-  btn("s3", "전속", "속도 100", 148, 192, 44, 34)
-  -- 항만/이동열
-  btn("dep", "⚓ 출항", "출항", 4, 232, 92, 38, BTN3)
-  btn("dok", "⚓ 정박", "정박", 100, 232, 92, 38, BTN3)
-  btn("off", "⬇ 하선", "밖", 4, 276, 92, 38, BTN2)
-  btn("hold", "선창行", "아래", 100, 276, 92, 38)
+  btn("s3", "전속", "속도 100", 182, 6, 84, 38)
+  btn("s2", "반속", "속도 50", 182, 48, 84, 38)
+  btn("s1", "저속", "속도 25", 182, 90, 84, 38)
+  btn("sB", "후진", "속도 -30", 182, 132, 84, 38, BTN2)
+  btn("dep", "⚓ 출항", "출항", 272, 6, 88, 78, BTN3)
+  btn("dok", "⚓ 정박", "정박", 272, 92, 88, 78, BTN3)
   pcall(function() GB.win:hide() end)
 end
 
-function GB.show() GB.make(); pcall(function() GB.win:show() end) end
+function GB.reposition()
+  pcall(function()
+    local tv = GaldamTileView
+    if tv and tv.win and tv.win.get_x then
+      local gx, gy = tv.win:get_x(), tv.win:get_y()
+      local gw, gh = tv.win:get_width(), tv.win:get_height()
+      local mw, mh = getMainWindowSize()
+      local px = math.max(8, math.min(gx + math.floor((gw - 366) / 2), mw - 374))
+      local py = gy + gh + 6
+      if py + 176 > mh then py = math.max(8, mh - 184) end
+      GB.win:move(px, py)
+    end
+  end)
+end
+
+function GB.show() GB.make(); GB.reposition(); pcall(function() GB.win:show() end) end
 function GB.hide() if GB.win then pcall(function() GB.win:hide() end) end end
 GB.make()
-echo("[Galdam] 배 조종패드 로드됨 (승선 시 자동 표시)\n")
+echo("[Galdam] 배 조종패드 로드됨 (조타륜 인접 시 격자 아래 표시)\n")
 ]]></script>
       <eventHandlerList></eventHandlerList>
     </Script>
