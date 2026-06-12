@@ -168,7 +168,7 @@ function GaldamUI.build()
   -- ===== NPC 신체 관찰 팝업 (보기/감정/진찰 시 Galdam.BodyNPC 수신 → 표시) =====
   pcall(function()
     if not GaldamUI.npcWin then
-      GaldamUI.npcWin = Geyser.UserWindow:new({name="갯담관찰", width=340, height=560, x=460, y=120})
+      GaldamUI.npcWin = Geyser.UserWindow:new({name="갯담관찰", width=430, height=700, x=460, y=90})
     end
     GaldamUI.npcHdr = Geyser.Label:new({name="GnpcHdr", x=0, y=0, width="100%", height=30}, GaldamUI.npcWin)
     GaldamUI.npcHdr:setStyleSheet("background-color:#161b13; border-bottom:1px solid #55554d; qproperty-alignment:'AlignCenter';")
@@ -1113,6 +1113,8 @@ GaldamUI.BODYPOS = {
   m = {head={432,152,550}, face={156,248,318}, eye={104,376,264}, neck={696,376,856}, chest={440,538,582}, arm={784,620,938}, abdomen={112,710,256}, hand={804,902,952}, groin={436,944,560}, ass={136,1008,284}, leg={726,1114,876}, foot={440,1436,584}, back={716,210,900}},
   f = {head={434,148,588}, face={158,250,312}, neck={696,374,848}, eye={114,380,260}, chest={440,540,580}, arm={780,616,922}, abdomen={108,708,250}, ass={786,918,920}, hand={100,922,236}, groin={430,946,554}, leg={714,1108,856}, foot={434,1436,570}, back={716,210,900}},
 }
+-- 구운 배경 바와 오버레이 바의 좌표가 다른 부위 보정 (1024계, 픽셀 실측)
+GaldamUI.BODYBAR = {m = {head = {430, 602}}, f = {head = {409, 627}}}
 GaldamUI.BPNAME = {head="머리", face="얼굴", eye="눈", neck="목", chest="가슴", abdomen="복부", arm="팔", hand="손", groin="사타구니", ass="엉덩이", leg="다리", foot="발", back="등"}
 -- 배경 이미지에 박스가 없어 프레임/제목까지 합성으로 그리는 부위
 GaldamUI.BODYSYNTH = {back=true}
@@ -1184,8 +1186,10 @@ function GaldamUI.renderBodyInto(ctx, d)
     row.num:setStyleSheet("background-color:#191919; qproperty-alignment:'AlignCenter';")
     row.num:echo("<center><span style='font-size:" .. fpx .. "px; color:" .. col .. ";'><b>" .. txt .. extra .. "</b></span></center>")
     -- 체력바: 구워진 바를 덮고 실시간 비율 표시
-    row.bar:move(math.floor(ox + (x0 - 5) * s), math.floor((by - 5) * s))
-    row.bar:resize(math.ceil((x1 - x0 + 10) * s), math.max(4, math.floor(14 * s)))
+    local bb = GaldamUI.BODYBAR and GaldamUI.BODYBAR[g] and GaldamUI.BODYBAR[g][k]
+    local bx0, bx1 = bb and bb[1] or x0, bb and bb[2] or x1
+    row.bar:move(math.floor(ox + (bx0 - 5) * s), math.floor((by - 5) * s))
+    row.bar:resize(math.ceil((bx1 - bx0 + 10) * s), math.max(4, math.floor(14 * s)))
     local p1 = math.max(0, math.min(1, pct))
     local bcol = "#37a93c"
     if pd.sv == 1 then bcol = "#3a3a3a" elseif pd.cur <= 0 then bcol = "#7a1f1f" elseif pct < 0.3 then bcol = "#e74c3c" elseif pct < 0.55 then bcol = "#e6b820" end
