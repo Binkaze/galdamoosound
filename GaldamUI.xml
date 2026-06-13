@@ -2484,7 +2484,7 @@ local GTV = GaldamTileView
 if GTV.on == nil then GTV.on = true end   -- 기본 = 타일뷰 (글리프는 '타일뷰' 토글로)
 GTV.P = GTV.P or {}
 GTV.frame = GTV.frame or 0
-GTV.TILEVER = 4
+GTV.TILEVER = 5
 GTV.zdirty = true          -- 로드 직후 z순서 1회 재구축 (레이어 순서 변경 반영)
 GTV.size = GTV.size or 32  -- 현재 셀 크기 (s16/s20/s24/s28/s32 사전생성 타일 = 무스케일링, 블러 방지)
 GTV.haveSize = {}          -- 세션마다 리셋 → 매 접속 1회 무결성 재검사 (깨진 파일 복구 기회)
@@ -2509,7 +2509,7 @@ for _, f in ipairs({"wood","hardwood","tile","marble","stone","concrete","carpet
 end
 for _, f in ipairs({"bed","table","chair","fridge","sink","gasrange","cupboard","bar","toilet","bathtub","washbasin",
   "wardrobe","desk","computer","dresser","drawers","safe","sofa","tv","bookshelf","washer","stove",
-  "counter","shelf","medcab","crop1","crop2","crop3"}) do
+  "counter","shelf","medcab","fish_stall","crop1","crop2","crop3"}) do
   TFILES[#TFILES+1] = f
 end
 for _, f in ipairs({"n","ne","e","se","s","sw","w","nw"}) do TFILES[#TFILES+1] = "arr_"..f end
