@@ -2897,6 +2897,7 @@ function GTV.render(d)
   for k, c in pairs((GaldamTac and GaldamTac.smoke) or {}) do
     if c.d and c.d >= 1.2 then
       local x, y = k:match("(%-?%d+),(%-?%d+)"); x, y = tonumber(x), tonumber(y)
+      x, y = x and (x - (d._vx or 0)), y and (y - (d._vy or 0))
       if x and x >= 0 and x < w and y >= 0 and y < h then
         fi = fi + 1
         local l = lbl("fx", fi)
