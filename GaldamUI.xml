@@ -2657,8 +2657,42 @@ local function groundFile(biome, floor, x, y, t)
   end
 end
 
+-- 대형 격자 전체를 셀별 Geyser.Label로 만들면 40x40에서 1,800개 이상이 한꺼번에
+-- 생성되어 Mudlet이 CTD할 수 있다. 서버 데이터는 그대로 두고 타일뷰만 플레이어
+-- 중심 근거리 뷰포트로 잘라 렌더한다. 30x30 이하 격자는 기존 전체뷰 유지.
+function GTV.viewport(d)
+  if not d or d._viewported then return d end
+  local fw, fh = tonumber(d.w) or 9, tonumber(d.h) or 9
+  if fw * fh <= 900 or not d.self then return d end
+  local sx, sy = tonumber(d.self[1]), tonumber(d.self[2])
+  if not sx or not sy then return d end
+  local vw, vh = math.min(21, fw), math.min(21, fh)
+  local x0 = math.max(0, math.min(fw - vw, sx - math.floor(vw / 2)))
+  local y0 = math.max(0, math.min(fh - vh, sy - math.floor(vh / 2)))
+  local v = {}
+  for k, val in pairs(d) do v[k] = val end
+  v.w, v.h = vw, vh
+  v.self = {sx - x0, sy - y0}
+  v._viewported, v._vx, v._vy, v._fullw, v._fullh = true, x0, y0, fw, fh
+  for _, key in ipairs({"struct", "terrain", "cover", "actors", "items", "ground", "fx"}) do
+    local out = {}
+    for _, e in ipairs(d[key] or {}) do
+      local ex, ey = tonumber(e.x), tonumber(e.y)
+      if ex and ey and ex >= x0 and ex < x0 + vw and ey >= y0 and ey < y0 + vh then
+        local n = {}
+        for ek, ev in pairs(e) do n[ek] = ev end
+        n.x, n.y = ex - x0, ey - y0
+        out[#out + 1] = n
+      end
+    end
+    v[key] = out
+  end
+  return v
+end
+
 function GTV.render(d)
   if not d then return end
+  d = GTV.viewport(d)
   GTV.makeWin()
   local w = tonumber(d.w) or 9
   local h = tonumber(d.h) or 9
@@ -2695,6 +2729,7 @@ function GTV.render(d)
   local nm = (gmcp.Galdam and gmcp.Galdam.Room and gmcp.Galdam.Room.name) or "전술 격자"
   local tnames = {"새벽", "아침", "낮", "저녁", "노을", "밤"}
   local sub = outdoor and (" <span style='color:#8890a4'>(" .. (tnames[tone] or "") .. (weather ~= "clear" and (" · " .. weather) or "") .. ")</span>") or ""
+  if d._fullw then sub = sub .. " <span style='color:#778397'>[" .. w .. "×" .. h .. " 근거리 / 전체 " .. d._fullw .. "×" .. d._fullh .. "]</span>" end
   GTV.hdr:echo("<b style='color:#9fc6ef'>⌖ " .. nm .. "</b>" .. sub .. " <span style='color:#667'>[타일뷰]</span>")
 
   local stmap, tmap = {}, {}
@@ -2710,7 +2745,7 @@ function GTV.render(d)
   -- 시야음영(fog) 캐시 (글리프판 v8과 동일 DDA)
   local fog
   if sx and sy then
-    local fkey = sx .. "," .. sy .. "|" .. w .. "x" .. h
+    local fkey = tostring(d._vx or 0) .. "," .. tostring(d._vy or 0) .. "|" .. sx .. "," .. sy .. "|" .. w .. "x" .. h
     if GTV.fogKey == fkey and GTV.fog then fog = GTV.fog
     else
       fog = {}
