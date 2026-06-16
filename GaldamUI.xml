@@ -1872,6 +1872,7 @@ GT.TILE = {
   -- 상점/약국 (2026-06-11): 카운터=밝은원목, 진열대=☰선반, 약장=✚초록십자
   counter={u="\226\150\172",a="C",fg="216,186,128"}, shelf={u="\226\152\176",a="E",fg="178,142,92"}, medcab={u="\226\156\154",a="+",fg="92,206,126"},
   fish_stall={u="\226\150\164",a="F",fg="200,224,232"},
+  crate={u="\226\150\166",a="c",fg="96,170,180"}, barrel={u="\226\151\143",a="b",fg="70,96,140"}, bollard={u="\226\151\137",a="i",fg="96,100,110"}, cooler={u="\226\150\172",a="x",fg="228,232,238"}, crabpot={u="\226\151\141",a="O",fg="90,100,90"},
   crop1={u="\226\151\166",a="o",fg="150,108,66"}, crop2={u="\206\189",a="v",fg="140,220,120"}, crop3={u="\206\168",a="Y",fg="70,190,90"},
   tilefloor={u=" ",a=" ",fg="120,124,132",bg="70,74,82"}, deck={u="\226\148\128",a="=",fg="130,98,62",bg="66,50,32"},
 }
@@ -1894,6 +1895,7 @@ GT.NAME = {
   computer="컴퓨터", dresser="화장대", drawers="서랍장", safe="금고", sofa="소파", tv="티비",
   bookshelf="책장", washer="세탁기", stove="난로", tilefloor="타일바닥", deck="데크",
   counter="카운터", shelf="진열대", medcab="약장", fish_stall="생선 좌판",
+  crate="어상자", barrel="드럼통", bollard="계선주", cooler="아이스박스", crabpot="통발",
   crop1="심은 흙더미", crop2="새싹", crop3="다 자란 작물",
 }
 
@@ -2484,7 +2486,7 @@ local GTV = GaldamTileView
 if GTV.on == nil then GTV.on = true end   -- 기본 = 타일뷰 (글리프는 '타일뷰' 토글로)
 GTV.P = GTV.P or {}
 GTV.frame = GTV.frame or 0
-GTV.TILEVER = 5
+GTV.TILEVER = 6
 GTV.zdirty = true          -- 로드 직후 z순서 1회 재구축 (레이어 순서 변경 반영)
 GTV.size = GTV.size or 32  -- 현재 셀 크기 (s16/s20/s24/s28/s32 사전생성 타일 = 무스케일링, 블러 방지)
 GTV.haveSize = {}          -- 세션마다 리셋 → 매 접속 1회 무결성 재검사 (깨진 파일 복구 기회)
@@ -2509,7 +2511,7 @@ for _, f in ipairs({"wood","hardwood","tile","marble","stone","concrete","carpet
 end
 for _, f in ipairs({"bed","table","chair","fridge","sink","gasrange","cupboard","bar","toilet","bathtub","washbasin",
   "wardrobe","desk","computer","dresser","drawers","safe","sofa","tv","bookshelf","washer","stove",
-  "counter","shelf","medcab","fish_stall","crop1","crop2","crop3"}) do
+  "counter","shelf","medcab","fish_stall","crate","barrel","bollard","cooler","crabpot","crop1","crop2","crop3"}) do
   TFILES[#TFILES+1] = f
 end
 for _, f in ipairs({"n","ne","e","se","s","sw","w","nw"}) do TFILES[#TFILES+1] = "arr_"..f end
@@ -2632,6 +2634,7 @@ local OBJF = {helm="helm", pot="pot", console="console", engine="engine", tree="
   desk="desk", computer="computer", dresser="dresser", drawers="drawers", safe="safe", sofa="sofa", tv="tv",
   bookshelf="bookshelf", washer="washer", stove="stove",
   counter="counter", shelf="shelf", medcab="medcab", fish_stall="fish_stall",
+  crate="crate", barrel="barrel", bollard="bollard", cooler="cooler", crabpot="crabpot",
   crop1="crop1", crop2="crop2", crop3="crop3"}
 local TERRF = {trapdoor="trapdoor", dirt2="dirt2", rockground="rockg", woodfloor="woodfloor", lane="lane", crosswalk="crosswalk",
   field="field", paddy="paddy", weed="weed", weed2="weed", water="water_0", clearing="clearing_0", asphalt="asphalt_0", tilefloor="floor_tile", deck="woodfloor"}
