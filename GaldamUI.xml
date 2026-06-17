@@ -2810,6 +2810,22 @@ function GTV.render(d)
       end
     end
   end
+  -- 손전등 삼지창 빔: 진행방향(faceDir) 직선 + 좌우 대각 3줄 × 8칸 (앞을 비추는 느낌)
+  local beammap = {}
+  if outdoor and litrad > 0 and sx then
+    local fd = GTV.faceDir or {0, -1}
+    local D8 = {{0,-1},{1,-1},{1,0},{1,1},{0,1},{-1,1},{-1,0},{-1,-1}}
+    local fi = 1
+    for i = 1, 8 do if D8[i][1] == fd[1] and D8[i][2] == fd[2] then fi = i end end
+    local beams = {D8[fi], D8[(fi + 6) % 8 + 1], D8[fi % 8 + 1]}
+    for _, b in ipairs(beams) do
+      for step = 1, 8 do
+        local bk = (sx + b[1] * step) .. "," .. (sy + b[2] * step)
+        local bv = 1.0 - step * 0.04
+        if (beammap[bk] or 0) < bv then beammap[bk] = bv end
+      end
+    end
+  end
   local OUTAMB = {[1]=0.40, [2]=0.85, [3]=1.0, [4]=0.50, [5]=0.28, [6]=0.16}
   local function lm(x, y)
     if not outdoor then
@@ -2819,26 +2835,28 @@ function GTV.render(d)
       if dist > litrad + 1 then return 0.0 end
       return math.max(0.14, 1.0 - dist / (litrad + 1.7))
     end
-    -- 실외: 밤엔 광원 밖이 거의 암흑(FOW). 광원/플레이어 시야만 또렷
+    -- 실외: 밤엔 광원 밖이 거의 암흑(FOW). 광원/시야만 또렷
     local amb = OUTAMB[tone] or 1.0
     if weather == "fog" then amb = math.min(amb, 0.42)
     elseif weather == "storm" then amb = amb * 0.40
     elseif weather == "rain" then amb = amb * 0.72 end
     local v = amb
-    -- 플레이어 기본 시야(광원 없어도 주변 2칸 어렴풋)
+    -- 어둠 기본 시야: 캐릭터 반경 5칸
     if sx then
       local pd = math.max(math.abs(x - sx), math.abs(y - sy))
-      if pd <= 2 then v = math.max(v, 0.46 - pd * 0.08) end
+      if pd <= 5 then v = math.max(v, 0.8 - pd * 0.09) end
     end
-    -- 가로등(litmap) + 손전등(litrad)
+    -- 가로등(litmap)
     v = math.max(v, litmap[x .. "," .. y] or 0)
+    -- 손전등: 주변 원형 8칸 + 진행방향 삼지창 빔
     if litrad > 0 and sx then
       local d2 = math.max(math.abs(x - sx), math.abs(y - sy))
-      if d2 <= litrad + 1 then v = math.max(v, 1.0 - d2 / (litrad + 1.7)) end
+      if d2 <= 8 then v = math.max(v, 0.74 - d2 * 0.05) end
+      v = math.max(v, beammap[x .. "," .. y] or 0)
     end
     if sx and (weather == "fog" or weather == "storm") then
       local d3 = math.max(math.abs(x - sx), math.abs(y - sy))
-      local vis = (weather == "fog") and 2 or 3
+      local vis = (weather == "fog") and 3 or 4
       if d3 > vis then v = v * math.max(0.15, 1 - (d3 - vis) * 0.16) end
     end
     return math.min(1.0, v)
@@ -3360,6 +3378,9 @@ function GK.go(tag)
     end
     return
   end
+  -- 손전등 빔 방향 추적 (이동 방향 기억 → 타일뷰 삼지창 빔)
+  local DV = {N={0,-1}, S={0,1}, W={-1,0}, E={1,0}, NW={-1,-1}, NE={1,-1}, SW={-1,1}, SE={1,1}}
+  if DV[tag] then GaldamTileView.faceDir = DV[tag] end
   send(GK.MOV[tag])
 end
 local function gk(tag) return "GaldamKeys.go(\"" .. tag .. "\")" end
