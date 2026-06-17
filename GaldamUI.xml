@@ -2045,7 +2045,7 @@ function GT.render(d)
     end
   end
 
-  local OUTAMB = {[1]=0.52, [2]=0.92, [3]=1.0, [4]=0.72, [5]=0.50, [6]=0.28}
+  local OUTAMB = {[1]=0.40, [2]=0.85, [3]=1.0, [4]=0.50, [5]=0.28, [6]=0.16}
   local function lightMul(x, y)
     if not outdoor then
       if dark < 1 then return 1.0 end
@@ -2055,21 +2055,28 @@ function GT.render(d)
       if dist > R then return 0.0 end
       return math.max(0.14, 1.0 - dist / (R + 0.7))
     end
-    -- 실외: 시간대 ambient + 날씨 시야 + 광원(가로등 glow/손전등 litrad)
+    -- 실외: 밤엔 광원 밖이 거의 암흑(FOW). 광원/플레이어 시야만 또렷
     local amb = OUTAMB[tone] or 1.0
-    if weather == "fog" then amb = math.min(amb, 0.62)
-    elseif weather == "storm" then amb = amb * 0.52
-    elseif weather == "rain" then amb = amb * 0.80 end
+    if weather == "fog" then amb = math.min(amb, 0.42)
+    elseif weather == "storm" then amb = amb * 0.40
+    elseif weather == "rain" then amb = amb * 0.72 end
+    local v = amb
+    -- 플레이어 기본 시야(광원 없어도 주변 2칸 어렴풋 — 완전암흑 이동불가 방지)
+    if sx then
+      local pd = math.max(math.abs(x - sx), math.abs(y - sy))
+      if pd <= 2 then v = math.max(v, 0.46 - pd * 0.08) end
+    end
+    -- 손전등(litrad): 넓은 시야
     if litrad > 0 and sx then
       local d2 = math.max(math.abs(x - sx), math.abs(y - sy))
-      if d2 <= litrad + 1 then amb = math.max(amb, 1.0 - d2 / (litrad + 1.7)) end
+      if d2 <= litrad + 1 then v = math.max(v, 1.0 - d2 / (litrad + 1.7)) end
     end
     if sx and (weather == "fog" or weather == "storm") then
       local d3 = math.max(math.abs(x - sx), math.abs(y - sy))
       local vis = (weather == "fog") and 2 or 3
-      if d3 > vis then amb = amb * math.max(0.25, 1 - (d3 - vis) * 0.16) end
+      if d3 > vis then v = v * math.max(0.15, 1 - (d3 - vis) * 0.16) end
     end
-    return math.min(1.0, amb)
+    return math.min(1.0, v)
   end
   local TONE = { [1]={0.70,8,6,26},[2]={0.90,14,11,5},[3]={1.00,0,0,0},[4]={0.84,28,9,0},[5]={0.66,52,14,2},[6]={0.40,2,6,32} }
   local function tint(rgb)
@@ -2237,7 +2244,7 @@ function GT.render(d)
     for x = 0, w - 1 do
       local key = x .. "," .. y
       local lm = lightMul(x, y)
-      if lm <= 0.02 then
+      if lm <= 0.04 then
         GT.win:decho("<8,8,11:5,5,8>  ")
       else
         local bg = cellBg(x, y)
@@ -2803,7 +2810,7 @@ function GTV.render(d)
       end
     end
   end
-  local OUTAMB = {[1]=0.50, [2]=0.92, [3]=1.0, [4]=0.70, [5]=0.48, [6]=0.24}
+  local OUTAMB = {[1]=0.40, [2]=0.85, [3]=1.0, [4]=0.50, [5]=0.28, [6]=0.16}
   local function lm(x, y)
     if not outdoor then
       if dark < 1 then return 1.0 end
@@ -2812,21 +2819,27 @@ function GTV.render(d)
       if dist > litrad + 1 then return 0.0 end
       return math.max(0.14, 1.0 - dist / (litrad + 1.7))
     end
-    -- 실외: 시간대 ambient + 날씨 + 광원(가로등 litmap/손전등 litrad)
+    -- 실외: 밤엔 광원 밖이 거의 암흑(FOW). 광원/플레이어 시야만 또렷
     local amb = OUTAMB[tone] or 1.0
-    if weather == "fog" then amb = math.min(amb, 0.60)
-    elseif weather == "storm" then amb = amb * 0.50
-    elseif weather == "rain" then amb = amb * 0.78 end
-    local lit = litmap[x .. "," .. y] or 0
+    if weather == "fog" then amb = math.min(amb, 0.42)
+    elseif weather == "storm" then amb = amb * 0.40
+    elseif weather == "rain" then amb = amb * 0.72 end
+    local v = amb
+    -- 플레이어 기본 시야(광원 없어도 주변 2칸 어렴풋)
+    if sx then
+      local pd = math.max(math.abs(x - sx), math.abs(y - sy))
+      if pd <= 2 then v = math.max(v, 0.46 - pd * 0.08) end
+    end
+    -- 가로등(litmap) + 손전등(litrad)
+    v = math.max(v, litmap[x .. "," .. y] or 0)
     if litrad > 0 and sx then
       local d2 = math.max(math.abs(x - sx), math.abs(y - sy))
-      if d2 <= litrad + 1 then lit = math.max(lit, 1.0 - d2 / (litrad + 1.7)) end
+      if d2 <= litrad + 1 then v = math.max(v, 1.0 - d2 / (litrad + 1.7)) end
     end
-    local v = math.max(amb, lit)
     if sx and (weather == "fog" or weather == "storm") then
       local d3 = math.max(math.abs(x - sx), math.abs(y - sy))
       local vis = (weather == "fog") and 2 or 3
-      if d3 > vis then v = v * math.max(0.20, 1 - (d3 - vis) * 0.16) end
+      if d3 > vis then v = v * math.max(0.15, 1 - (d3 - vis) * 0.16) end
     end
     return math.min(1.0, v)
   end
@@ -3116,7 +3129,7 @@ function GTV.render(d)
       local a = 0
       if fog and fog[x .. "," .. y] and not (sx == x and sy == y) then a = 150 end
       local m = lm(x, y)
-      if m < 1.0 then a = math.max(a, math.floor((1 - m) * 235)) end
+      if m < 1.0 then a = math.max(a, math.floor((1 - m) * 250)) end
       if a > 8 then
         fpi = fpi + 1
         local l = lbl("fogp", fpi)
