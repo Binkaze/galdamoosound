@@ -2810,17 +2810,14 @@ function GTV.render(d)
       end
     end
   end
-  -- 손전등 삼지창 빔: 진행방향(faceDir) 직선 + 좌우 대각 3줄 × 8칸 (앞을 비추는 느낌)
+  -- 손전등 빔: 진행방향(faceDir) 직선 + 양옆 1칸 평행 = 붙은 폭3 빔 × 8칸
   local beammap = {}
   if outdoor and litrad > 0 and sx then
     local fd = GTV.faceDir or {0, -1}
-    local D8 = {{0,-1},{1,-1},{1,0},{1,1},{0,1},{-1,1},{-1,0},{-1,-1}}
-    local fi = 1
-    for i = 1, 8 do if D8[i][1] == fd[1] and D8[i][2] == fd[2] then fi = i end end
-    local beams = {D8[fi], D8[(fi + 6) % 8 + 1], D8[fi % 8 + 1]}
-    for _, b in ipairs(beams) do
+    local perp = {-fd[2], fd[1]}
+    for off = -1, 1 do
       for step = 1, 8 do
-        local bk = (sx + b[1] * step) .. "," .. (sy + b[2] * step)
+        local bk = (sx + fd[1] * step + perp[1] * off) .. "," .. (sy + fd[2] * step + perp[2] * off)
         local bv = 1.0 - step * 0.04
         if (beammap[bk] or 0) < bv then beammap[bk] = bv end
       end
@@ -2841,17 +2838,17 @@ function GTV.render(d)
     elseif weather == "storm" then amb = amb * 0.40
     elseif weather == "rain" then amb = amb * 0.72 end
     local v = amb
-    -- 어둠 기본 시야: 캐릭터 반경 5칸
+    -- 어둠 기본 시야: 캐릭터 반경 2칸
     if sx then
       local pd = math.max(math.abs(x - sx), math.abs(y - sy))
-      if pd <= 5 then v = math.max(v, 0.8 - pd * 0.09) end
+      if pd <= 2 then v = math.max(v, 0.62 - pd * 0.05) end
     end
     -- 가로등(litmap)
     v = math.max(v, litmap[x .. "," .. y] or 0)
-    -- 손전등: 주변 원형 8칸 + 진행방향 삼지창 빔
+    -- 손전등: 주변 원형 3칸 + 진행방향 평행 빔
     if litrad > 0 and sx then
       local d2 = math.max(math.abs(x - sx), math.abs(y - sy))
-      if d2 <= 8 then v = math.max(v, 0.74 - d2 * 0.05) end
+      if d2 <= 3 then v = math.max(v, 0.68 - d2 * 0.04) end
       v = math.max(v, beammap[x .. "," .. y] or 0)
     end
     if sx and (weather == "fog" or weather == "storm") then
