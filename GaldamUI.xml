@@ -3009,7 +3009,8 @@ function GTV.render(d)
   local fdi = 0
   for _, a in ipairs(d.actors or {}) do
     local x, y = tonumber(a.x), tonumber(a.y)
-    if not (sx == x and sy == y) then
+    -- 실외 야간 FOW: 광원/시야 밖(lm 낮음)의 액터는 미파악 → 숨김 (플레이어 본인은 아래서 별도 렌더)
+    if not (sx == x and sy == y) and not (outdoor and lm(x, y) < 0.28) then
       local f = (a.k == "npc") and "act_npc" or ((a.k == "player") and "act_player" or "act_wild")
       local sus = tonumber(a.sus) or 0
       -- 경찰류는 이름 휴리스틱으로만 구분 (표시용)
