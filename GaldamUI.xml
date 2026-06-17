@@ -2864,13 +2864,17 @@ function GTV.render(d)
 
   -- 시야 내(lm 충분) 객체 id 집합 → 우측 패널 필터용 (시야 밖 사람/물건은 패널서도 숨김)
   GaldamTac.visibleIds = {}
+  GaldamTac.nearIds = {}
   if sx then
     for _, lst in ipairs({d.actors or {}, d.items or {}, d.cover or {}}) do
       for _, o in ipairs(lst) do
         local oid = o.id and tonumber(o.id)
         if oid and oid > 0 then
           local ox, oy = tonumber(o.x), tonumber(o.y)
-          if ox and oy and lm(ox, oy) >= 0.28 then GaldamTac.visibleIds[tostring(oid)] = true end
+          if ox and oy and lm(ox, oy) >= 0.28 then
+            GaldamTac.visibleIds[tostring(oid)] = true
+            if math.max(math.abs(ox - sx), math.abs(oy - sy)) <= 1 then GaldamTac.nearIds[tostring(oid)] = true end
+          end
         end
       end
     end
@@ -3181,6 +3185,8 @@ function GTV.render(d)
 
   zfix()
   if GTV.on then GTV.win:show() end
+  -- 타일뷰 갱신마다 우측 패널 재렌더 (시야 필터/근접 하이라이트/반짝 반영 — push_tac 시점)
+  pcall(function() if GaldamUI and GaldamUI.renderRoom then GaldamUI.renderRoom() end end)
 
   -- 애니 필요시 틱 (경광등/불/비눈/물/연기)
   local anim = (#GTV.A.pol > 0) or (#GTV.A.fire > 0) or (#GTV.A.water > 0) or (GTV.A.wxl ~= nil)
