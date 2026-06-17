@@ -2045,13 +2045,31 @@ function GT.render(d)
     end
   end
 
+  local OUTAMB = {[1]=0.52, [2]=0.92, [3]=1.0, [4]=0.72, [5]=0.50, [6]=0.28}
   local function lightMul(x, y)
-    if outdoor or dark < 1 then return 1.0 end
-    if litrad <= 0 or not sx then return 0.0 end
-    local R = litrad + 1
-    local dist = math.max(math.abs(x - sx), math.abs(y - sy))
-    if dist > R then return 0.0 end
-    return math.max(0.14, 1.0 - dist / (R + 0.7))
+    if not outdoor then
+      if dark < 1 then return 1.0 end
+      if litrad <= 0 or not sx then return 0.0 end
+      local R = litrad + 1
+      local dist = math.max(math.abs(x - sx), math.abs(y - sy))
+      if dist > R then return 0.0 end
+      return math.max(0.14, 1.0 - dist / (R + 0.7))
+    end
+    -- 실외: 시간대 ambient + 날씨 시야 + 광원(가로등 glow/손전등 litrad)
+    local amb = OUTAMB[tone] or 1.0
+    if weather == "fog" then amb = math.min(amb, 0.62)
+    elseif weather == "storm" then amb = amb * 0.52
+    elseif weather == "rain" then amb = amb * 0.80 end
+    if litrad > 0 and sx then
+      local d2 = math.max(math.abs(x - sx), math.abs(y - sy))
+      if d2 <= litrad + 1 then amb = math.max(amb, 1.0 - d2 / (litrad + 1.7)) end
+    end
+    if sx and (weather == "fog" or weather == "storm") then
+      local d3 = math.max(math.abs(x - sx), math.abs(y - sy))
+      local vis = (weather == "fog") and 2 or 3
+      if d3 > vis then amb = amb * math.max(0.25, 1 - (d3 - vis) * 0.16) end
+    end
+    return math.min(1.0, amb)
   end
   local TONE = { [1]={0.70,8,6,26},[2]={0.90,14,11,5},[3]={1.00,0,0,0},[4]={0.84,28,9,0},[5]={0.66,52,14,2},[6]={0.40,2,6,32} }
   local function tint(rgb)
@@ -2766,12 +2784,51 @@ function GTV.render(d)
       GTV.fog = fog; GTV.fogKey = fkey
     end
   end
+  -- 실외 광원맵: 가로등(cover lamp) 주변 밝기 (밤/악천후 어둠막 fogp를 뚫음)
+  local litmap = {}
+  if outdoor then
+    for _, c in ipairs(d.cover or {}) do
+      if c.k == "lamp" then
+        local lx, ly = tonumber(c.x), tonumber(c.y)
+        for ddy = -2, 2 do
+          for ddx = -2, 2 do
+            local dd = math.max(math.abs(ddx), math.abs(ddy))
+            local v = 1.0 - dd / 3.2
+            if v > 0 then
+              local k = (lx + ddx) .. "," .. (ly + ddy)
+              if (litmap[k] or 0) < v then litmap[k] = v end
+            end
+          end
+        end
+      end
+    end
+  end
+  local OUTAMB = {[1]=0.50, [2]=0.92, [3]=1.0, [4]=0.70, [5]=0.48, [6]=0.24}
   local function lm(x, y)
-    if outdoor or dark < 1 then return 1.0 end
-    if litrad <= 0 or not sx then return 0.0 end
-    local dist = math.max(math.abs(x - sx), math.abs(y - sy))
-    if dist > litrad + 1 then return 0.0 end
-    return math.max(0.14, 1.0 - dist / (litrad + 1.7))
+    if not outdoor then
+      if dark < 1 then return 1.0 end
+      if litrad <= 0 or not sx then return 0.0 end
+      local dist = math.max(math.abs(x - sx), math.abs(y - sy))
+      if dist > litrad + 1 then return 0.0 end
+      return math.max(0.14, 1.0 - dist / (litrad + 1.7))
+    end
+    -- 실외: 시간대 ambient + 날씨 + 광원(가로등 litmap/손전등 litrad)
+    local amb = OUTAMB[tone] or 1.0
+    if weather == "fog" then amb = math.min(amb, 0.60)
+    elseif weather == "storm" then amb = amb * 0.50
+    elseif weather == "rain" then amb = amb * 0.78 end
+    local lit = litmap[x .. "," .. y] or 0
+    if litrad > 0 and sx then
+      local d2 = math.max(math.abs(x - sx), math.abs(y - sy))
+      if d2 <= litrad + 1 then lit = math.max(lit, 1.0 - d2 / (litrad + 1.7)) end
+    end
+    local v = math.max(amb, lit)
+    if sx and (weather == "fog" or weather == "storm") then
+      local d3 = math.max(math.abs(x - sx), math.abs(y - sy))
+      local vis = (weather == "fog") and 2 or 3
+      if d3 > vis then v = v * math.max(0.20, 1 - (d3 - vis) * 0.16) end
+    end
+    return math.min(1.0, v)
   end
 
   -- ① ground (+풀셀 struct)
@@ -3063,7 +3120,13 @@ function GTV.render(d)
       if a > 8 then
         fpi = fpi + 1
         local l = lbl("fogp", fpi)
-        sty(l, "background-color: rgba(7,9,15," .. a .. "); border:0;")
+        local fr, fgc, fb = 7, 9, 15
+        if outdoor then
+          if weather == "fog" then fr, fgc, fb = 120, 123, 130
+          elseif weather == "storm" then fr, fgc, fb = 16, 22, 40
+          elseif weather == "rain" then fr, fgc, fb = 22, 30, 46 end
+        end
+        sty(l, "background-color: rgba(" .. fr .. "," .. fgc .. "," .. fb .. "," .. a .. "); border:0;")
         geo(l, PX + x * CS, PY + y * CS, CS, CS)
       end
     end
