@@ -748,11 +748,12 @@ function GaldamUI.renderRoom()
   else
     add("<span style='color:#e8d24a;font-size:10pt;'><b>● 사람</b></span>")
     local hasP = false
-    for e in tostring(r.people or ""):gmatch("[^;]+") do local nm, cm, id = GaldamUI.parseEntity(e); add(nm, "#a8d8ff", cm, id); hasP = true end
+    local _vis = (GaldamTileView and GaldamTileView.on and GaldamTac and GaldamTac.visibleIds) or nil
+    for e in tostring(r.people or ""):gmatch("[^;]+") do local nm, cm, id = GaldamUI.parseEntity(e); if (not _vis) or (id and _vis[GaldamUI.normId(id)]) then add(nm, "#a8d8ff", cm, id); hasP = true end end
     if not hasP then add("<span style='color:#6a7078;font-size:9pt;'>   (없음)</span>") end
     add("<span style='color:#e8d24a;font-size:10pt;'><b>● 물건</b></span>")
     local hasO = false
-    for e in tostring(r.objects or ""):gmatch("[^;]+") do local nm, cm, id = GaldamUI.parseEntity(e); add(nm, "#cfe0a0", cm, id); hasO = true end
+    for e in tostring(r.objects or ""):gmatch("[^;]+") do local nm, cm, id = GaldamUI.parseEntity(e); if (not _vis) or (id and _vis[GaldamUI.normId(id)]) then add(nm, "#cfe0a0", cm, id); hasO = true end end
     if not hasO then add("<span style='color:#6a7078;font-size:9pt;'>   (없음)</span>") end
     if r.here and tostring(r.here) ~= "" then
       local hc = GaldamUI.parseCmds(r.here)
@@ -2825,6 +2826,8 @@ function GTV.render(d)
   end
   local OUTAMB = {[1]=0.40, [2]=0.85, [3]=1.0, [4]=0.50, [5]=0.28, [6]=0.16}
   local function lm(x, y)
+    -- 시야 차단(벽 너머): 시야에 포착될 때만 보임 = 낮밤 무관 거의 미파악
+    if fog and fog[x .. "," .. y] and not (sx == x and sy == y) then return 0.06 end
     if not outdoor then
       if dark < 1 then return 1.0 end
       if litrad <= 0 or not sx then return 0.0 end
@@ -2857,6 +2860,20 @@ function GTV.render(d)
       if d3 > vis then v = v * math.max(0.15, 1 - (d3 - vis) * 0.16) end
     end
     return math.min(1.0, v)
+  end
+
+  -- 시야 내(lm 충분) 객체 id 집합 → 우측 패널 필터용 (시야 밖 사람/물건은 패널서도 숨김)
+  GaldamTac.visibleIds = {}
+  if sx then
+    for _, lst in ipairs({d.actors or {}, d.items or {}, d.cover or {}}) do
+      for _, o in ipairs(lst) do
+        local oid = o.id and tonumber(o.id)
+        if oid and oid > 0 then
+          local ox, oy = tonumber(o.x), tonumber(o.y)
+          if ox and oy and lm(ox, oy) >= 0.28 then GaldamTac.visibleIds[tostring(oid)] = true end
+        end
+      end
+    end
   end
 
   -- ① ground (+풀셀 struct)
