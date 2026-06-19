@@ -2860,15 +2860,13 @@ function GTV.render(d)
     -- 손전등: 진행방향으로 둥근 빛 웅덩이 여러 개(부드러운 원형 빔). 네모 평행빔 폐기.
     if litrad > 0 and sx then
       local fd = GTV.faceDir or {0, -1}
-      -- 손전등 켜면 플레이어 근처도 조금 더 밝게(반경3)
+      -- 손전등 켜면 플레이어 근처(반경3)
       local pdf = math.sqrt((x - sx) * (x - sx) + (y - sy) * (y - sy))
       if pdf <= 3 then v = math.max(v, 0.62 - pdf * 0.05) end
-      -- 진행방향 빔(더 길게 8칸)
-      for k = 0, 8 do
-        local bx = sx + fd[1] * k; local by = sy + fd[2] * k
-        local dd = math.sqrt((x - bx) * (x - bx) + (y - by) * (y - by))
-        if dd <= 2.3 then v = math.max(v, 0.70 - dd * 0.10) end
-      end
+      -- 진행방향 앞 둥근 웅덩이(중심 4칸 앞, 반경4)
+      local bx = sx + fd[1] * 4; local by = sy + fd[2] * 4
+      local dd = math.sqrt((x - bx) * (x - bx) + (y - by) * (y - by))
+      if dd <= 4 then v = math.max(v, 0.70 - dd * 0.06) end
     end
     if sx and (weather == "fog" or weather == "storm") then
       local d3 = math.max(math.abs(x - sx), math.abs(y - sy))
@@ -3192,12 +3190,8 @@ function GTV.render(d)
   -- 손전등: 진행방향으로 부드러운 원형 글로우 오브 여러 개(겹쳐서 둥근 빔) — 차가운 흰빛
   if litrad > 0 and sx then
     local fd = GTV.faceDir or {0, -1}
-    for k = 0, 8 do
-      local bx = sx + fd[1] * k; local by = sy + fd[2] * k
-      if bx >= 0 and bx < w and by >= 0 and by < h then
-        glowAt(bx, by, 2, "225,233,255,38", "205,220,255,12")
-      end
-    end
+    -- 진행방향 앞쪽에 둥근 빛 웅덩이 1개(자연스러운 원형 — 검빔 폐기)
+    glowAt(sx + fd[1] * 4, sy + fd[2] * 4, 4, "225,233,255,60", "205,220,255,20")
   end
   hideRest("glow", gli)
 
