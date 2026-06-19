@@ -2850,10 +2850,10 @@ function GTV.render(d)
     elseif weather == "storm" then amb = amb * 0.40
     elseif weather == "rain" then amb = amb * 0.72 end
     local v = amb
-    -- 어둠 기본 시야: 캐릭터 반경 ~4칸 원형(유클리드).
+    -- 어둠 기본 시야: 캐릭터 반경 ~3칸 원형(유클리드).
     if sx then
       local pd = math.sqrt((x - sx) * (x - sx) + (y - sy) * (y - sy))
-      if pd <= 4.2 then v = math.max(v, 0.62 - pd * 0.055) end
+      if pd <= 3.2 then v = math.max(v, 0.62 - pd * 0.06) end
     end
     -- 가로등 바닥 reveal 제거: 칸단위(네모) reveal이 둥근 빛무리(glow)와 겹쳐 보임 → 부드러운 오브만
     -- v = math.max(v, litmap[x .. "," .. y] or 0)
