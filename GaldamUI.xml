@@ -2809,7 +2809,7 @@ function GTV.render(d)
         local lx, ly = tonumber(c.x), tonumber(c.y)
         for ddy = -4, 4 do
           for ddx = -4, 4 do
-            local dd = math.max(math.abs(ddx), math.abs(ddy))
+            local dd = math.sqrt(ddx * ddx + ddy * ddy)   -- 유클리드 = 원형 빛범위
             local v = 1.0 - dd / 5.5
             if v > 0 then
               local k = (lx + ddx) .. "," .. (ly + ddy)
@@ -2850,10 +2850,10 @@ function GTV.render(d)
     elseif weather == "storm" then amb = amb * 0.40
     elseif weather == "rain" then amb = amb * 0.72 end
     local v = amb
-    -- 어둠 기본 시야: 캐릭터 반경 2칸 (가로등만 4칸, 플레이어 식별범위는 좁게 유지)
+    -- 어둠 기본 시야: 캐릭터 반경 2칸 원형(유클리드). 가로등만 4칸.
     if sx then
-      local pd = math.max(math.abs(x - sx), math.abs(y - sy))
-      if pd <= 2 then v = math.max(v, 0.66 - pd * 0.06) end
+      local pd = math.sqrt((x - sx) * (x - sx) + (y - sy) * (y - sy))
+      if pd <= 2.2 then v = math.max(v, 0.66 - pd * 0.06) end
     end
     -- 가로등(litmap)
     v = math.max(v, litmap[x .. "," .. y] or 0)
