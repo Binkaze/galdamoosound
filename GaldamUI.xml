@@ -2857,11 +2857,14 @@ function GTV.render(d)
     end
     -- 가로등 바닥 reveal 제거: 칸단위(네모) reveal이 둥근 빛무리(glow)와 겹쳐 보임 → 부드러운 오브만
     -- v = math.max(v, litmap[x .. "," .. y] or 0)
-    -- 손전등: 주변 원형 3칸 + 진행방향 평행 빔
+    -- 손전등: 진행방향으로 둥근 빛 웅덩이 여러 개(부드러운 원형 빔). 네모 평행빔 폐기.
     if litrad > 0 and sx then
-      local d2 = math.max(math.abs(x - sx), math.abs(y - sy))
-      if d2 <= 3 then v = math.max(v, 0.68 - d2 * 0.04) end
-      v = math.max(v, beammap[x .. "," .. y] or 0)
+      local fd = GTV.faceDir or {0, -1}
+      for k = 0, 5 do
+        local bx = sx + fd[1] * k; local by = sy + fd[2] * k
+        local dd = math.sqrt((x - bx) * (x - bx) + (y - by) * (y - by))
+        if dd <= 2.3 then v = math.max(v, 0.72 - dd * 0.10) end
+      end
     end
     if sx and (weather == "fog" or weather == "storm") then
       local d3 = math.max(math.abs(x - sx), math.abs(y - sy))
@@ -3181,6 +3184,16 @@ function GTV.render(d)
   end
   for _, f in ipairs(d.fx or {}) do
     if f.t == "fire" then glowAt(tonumber(f.x), tonumber(f.y), 2, "255,150,40,150", "255,120,30,55") end
+  end
+  -- 손전등: 진행방향으로 부드러운 원형 글로우 오브 여러 개(겹쳐서 둥근 빔) — 차가운 흰빛
+  if litrad > 0 and sx then
+    local fd = GTV.faceDir or {0, -1}
+    for k = 0, 5 do
+      local bx = sx + fd[1] * k; local by = sy + fd[2] * k
+      if bx >= 0 and bx < w and by >= 0 and by < h then
+        glowAt(bx, by, 2, "225,233,255,66", "205,220,255,20")
+      end
+    end
   end
   hideRest("glow", gli)
 
