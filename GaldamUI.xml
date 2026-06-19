@@ -2603,6 +2603,14 @@ function GTV.gcss(rgbA, rgbB, cx, cy, rad)
   cx = cx or 0.5; cy = cy or 0.5; rad = rad or 0.5
   return "background: qradialgradient(cx:" .. cx .. ", cy:" .. cy .. ", radius:" .. rad .. ", fx:" .. cx .. ", fy:" .. cy .. ", stop:0 rgba(" .. rgbA .. "), stop:0.55 rgba(" .. rgbB .. "), stop:1 rgba(0,0,0,0)); border:0;"
 end
+-- 가로등 깜빡임 css = 현재 GTV.frame(0.4초 틱으로만 증가) 기반. render·tick 둘 다 이걸 써서
+-- 이동(render 빈발)해도 같은 프레임이면 같은 밝기 → 이동=깜빡임 동기화 버그 방지.
+function GTV.lampStyle(l, ph)
+  local fk = 0.70 + 0.30 * math.sin(GTV.frame * 0.55 + ph)
+  local ia = math.max(0, math.min(255, math.floor(130 * fk)))
+  local oa = math.max(0, math.min(255, math.floor(45 * fk)))
+  return GTV.gcss("255,222,130," .. ia, "255,210,110," .. oa, l._gcx, l._gcy, l._grad)
+end
 GTV.imgcss = imgcss
 
 -- 진단 로그: '타일로그' 입력으로 최근 이벤트 확인 (룸전환/렌더 오류 추적용)
@@ -3160,8 +3168,10 @@ function GTV.render(d)
   for _, c in ipairs(d.cover or {}) do
     if c.k == "lamp" and lampOn then
       local lx, ly = tonumber(c.x), tonumber(c.y)
+      local ph = lx * 1.7 + ly * 2.3
       local l = glowAt(lx, ly, 4, "255,222,130,130", "255,210,110,45")
-      GTV.A.lamp[#GTV.A.lamp + 1] = {l = l, ph = lx * 1.7 + ly * 2.3}
+      sty(l, GTV.lampStyle(l, ph))   -- 현재 깜빡임 값(이동해도 풀밝기로 안 튐)
+      GTV.A.lamp[#GTV.A.lamp + 1] = {l = l, ph = ph}
     elseif c.k == "policeL" then
       local on = (GTV.frame % 2) == 0
       local cA = on and "245,60,60,150" or "60,100,245,150"
@@ -3232,10 +3242,7 @@ function GTV.tick()
     for _, l in ipairs(A.pol or {}) do if l._css then l._css = nil end; l:setStyleSheet(GTV.gcss(cA, cB, l._gcx, l._gcy, l._grad)) end
     -- 가로등: 은은하게 밝았다 흐려지는 깜빡임(램프별 위상차 → 살아있는 느낌)
     for _, e in ipairs(A.lamp or {}) do
-      local fk = 0.70 + 0.30 * math.sin(GTV.frame * 0.55 + e.ph)
-      local ia = math.max(0, math.min(255, math.floor(130 * fk)))
-      local oa = math.max(0, math.min(255, math.floor(45 * fk)))
-      local c = GTV.gcss("255,222,130," .. ia, "255,210,110," .. oa, e.l._gcx, e.l._gcy, e.l._grad)
+      local c = GTV.lampStyle(e.l, e.ph)
       e.l._css = c; e.l:setStyleSheet(c)
     end
     if A.wxl and A.wxt then local c = imgcss(A.wxt .. "_" .. (GTV.frame % 3)); A.wxl._css = c; A.wxl:setStyleSheet(c) end
