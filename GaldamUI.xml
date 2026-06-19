@@ -2643,7 +2643,7 @@ end
 
 -- z순서 재구축: 라벨이 새로 생기면 레이어 순서대로 raise
 -- (원뿔은 틴트/날씨 '위' = 시간대 어둠/비에 안 씻기고 또렷하게)
-local LAYERS = {"ground","decal","shade","obj","item","fx","actor","susdot","facedot","tint","wx","cone","glow","fogp"}
+local LAYERS = {"ground","decal","shade","obj","item","fx","actor","susdot","facedot","tint","wx","cone","fogp","glow"}
 local function zfix()
   if not GTV.zdirty then return end
   GTV.zdirty = false
