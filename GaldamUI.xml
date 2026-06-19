@@ -2599,8 +2599,9 @@ local function hideRest(layer, n)
   for i = n + 1, #t do t[i]:hide() end
 end
 local function imgcss(f, extra) return "border-image: url(" .. tp(f) .. "); background: transparent;" .. (extra or "") end
-function GTV.gcss(rgbA, rgbB)
-  return "background: qradialgradient(cx:0.5, cy:0.5, radius:0.5, fx:0.5, fy:0.5, stop:0 rgba(" .. rgbA .. "), stop:0.55 rgba(" .. rgbB .. "), stop:1 rgba(0,0,0,0)); border:0;"
+function GTV.gcss(rgbA, rgbB, cx, cy, rad)
+  cx = cx or 0.5; cy = cy or 0.5; rad = rad or 0.5
+  return "background: qradialgradient(cx:" .. cx .. ", cy:" .. cy .. ", radius:" .. rad .. ", fx:" .. cx .. ", fy:" .. cy .. ", stop:0 rgba(" .. rgbA .. "), stop:0.55 rgba(" .. rgbB .. "), stop:1 rgba(0,0,0,0)); border:0;"
 end
 GTV.imgcss = imgcss
 
@@ -3137,10 +3138,22 @@ function GTV.render(d)
   local function glowAt(x, y, R, rgbA, rgbB)
     gli = gli + 1
     local l = lbl("glow", gli)
-    sty(l, GTV.gcss(rgbA, rgbB))
-    local px0 = PX + x * CS - R * CS
-    local py0 = PY + y * CS - R * CS
-    geo(l, px0, py0, CS * (R * 2 + 1), CS * (R * 2 + 1))
+    -- 빛무리 사각형을 격자 콘텐츠 영역으로 클램프(창 밖으로 안 번지게) + 중심은 램프에 고정
+    local fx0 = PX + x * CS - R * CS
+    local fy0 = PY + y * CS - R * CS
+    local fsz = CS * (R * 2 + 1)
+    local gx0 = math.max(PX, fx0)
+    local gy0 = math.max(PY, fy0)
+    local gx1 = math.min(PX + w * CS, fx0 + fsz)
+    local gy1 = math.min(PY + h * CS, fy0 + fsz)
+    local gw, gh = gx1 - gx0, gy1 - gy0
+    if gw <= 1 or gh <= 1 then l:hide(); return l end
+    local cx = (PX + x * CS + CS * 0.5 - gx0) / gw
+    local cy = (PY + y * CS + CS * 0.5 - gy0) / gh
+    local rad = (R + 0.5) * CS / math.max(gw, gh)
+    l._gcx = cx; l._gcy = cy; l._grad = rad
+    sty(l, GTV.gcss(rgbA, rgbB, cx, cy, rad))
+    geo(l, gx0, gy0, gw, gh)
     return l
   end
   local lampOn = outdoor and (tone == 1 or tone >= 4)
@@ -3216,13 +3229,13 @@ function GTV.tick()
     local on = (GTV.frame % 2) == 0
     local cA = on and "245,60,60,150" or "60,100,245,150"
     local cB = on and "245,60,60,50" or "60,100,245,50"
-    for _, l in ipairs(A.pol or {}) do if l._css then l._css = nil end; l:setStyleSheet(GTV.gcss(cA, cB)) end
+    for _, l in ipairs(A.pol or {}) do if l._css then l._css = nil end; l:setStyleSheet(GTV.gcss(cA, cB, l._gcx, l._gcy, l._grad)) end
     -- 가로등: 은은하게 밝았다 흐려지는 깜빡임(램프별 위상차 → 살아있는 느낌)
     for _, e in ipairs(A.lamp or {}) do
       local fk = 0.70 + 0.30 * math.sin(GTV.frame * 0.55 + e.ph)
       local ia = math.max(0, math.min(255, math.floor(130 * fk)))
       local oa = math.max(0, math.min(255, math.floor(45 * fk)))
-      local c = GTV.gcss("255,222,130," .. ia, "255,210,110," .. oa)
+      local c = GTV.gcss("255,222,130," .. ia, "255,210,110," .. oa, e.l._gcx, e.l._gcy, e.l._grad)
       e.l._css = c; e.l:setStyleSheet(c)
     end
     if A.wxl and A.wxt then local c = imgcss(A.wxt .. "_" .. (GTV.frame % 3)); A.wxl._css = c; A.wxl:setStyleSheet(c) end
