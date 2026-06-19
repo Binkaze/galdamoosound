@@ -2769,7 +2769,7 @@ function GTV.render(d)
   end
   for _, t in ipairs(d.terrain or {}) do tmap[tonumber(t.x) .. "," .. tonumber(t.y)] = t.t end
   -- 애니 레지스트리: 경량 틱이 이 라벨들'만' 갱신 (전체 재렌더 = 프레임 출렁임 원인이라 폐지)
-  GTV.A = {pol = {}, fire = {}, water = {}}
+  GTV.A = {pol = {}, fire = {}, water = {}, lamp = {}}
 
   -- 시야음영(fog) 캐시 (글리프판 v8과 동일 DDA)
   local fog
@@ -2798,10 +2798,10 @@ function GTV.render(d)
     for _, c in ipairs(d.cover or {}) do
       if c.k == "lamp" then
         local lx, ly = tonumber(c.x), tonumber(c.y)
-        for ddy = -2, 2 do
-          for ddx = -2, 2 do
+        for ddy = -4, 4 do
+          for ddx = -4, 4 do
             local dd = math.max(math.abs(ddx), math.abs(ddy))
-            local v = 1.0 - dd / 3.2
+            local v = 1.0 - dd / 5.5
             if v > 0 then
               local k = (lx + ddx) .. "," .. (ly + ddy)
               if (litmap[k] or 0) < v then litmap[k] = v end
@@ -3146,7 +3146,9 @@ function GTV.render(d)
   local lampOn = outdoor and (tone == 1 or tone >= 4)
   for _, c in ipairs(d.cover or {}) do
     if c.k == "lamp" and lampOn then
-      glowAt(tonumber(c.x), tonumber(c.y), 2, "255,222,130,130", "255,210,110,45")
+      local lx, ly = tonumber(c.x), tonumber(c.y)
+      local l = glowAt(lx, ly, 4, "255,222,130,130", "255,210,110,45")
+      GTV.A.lamp[#GTV.A.lamp + 1] = {l = l, ph = lx * 1.7 + ly * 2.3}
     elseif c.k == "policeL" then
       local on = (GTV.frame % 2) == 0
       local cA = on and "245,60,60,150" or "60,100,245,150"
@@ -3189,7 +3191,7 @@ function GTV.render(d)
   pcall(function() if GaldamUI and GaldamUI.renderRoom then GaldamUI.renderRoom() end end)
 
   -- 애니 필요시 틱 (경광등/불/비눈/물/연기)
-  local anim = (#GTV.A.pol > 0) or (#GTV.A.fire > 0) or (#GTV.A.water > 0) or (GTV.A.wxl ~= nil)
+  local anim = (#GTV.A.pol > 0) or (#GTV.A.fire > 0) or (#GTV.A.water > 0) or (GTV.A.wxl ~= nil) or (#GTV.A.lamp > 0)
   if not anim then for _, f in ipairs(d.fx or {}) do if f.t == "smoke" then anim = true; break end end end
   if not anim and GaldamTac and GaldamTac.smoke and next(GaldamTac.smoke) then anim = true end
   GTV.needAnim = anim
@@ -3215,6 +3217,14 @@ function GTV.tick()
     local cA = on and "245,60,60,150" or "60,100,245,150"
     local cB = on and "245,60,60,50" or "60,100,245,50"
     for _, l in ipairs(A.pol or {}) do if l._css then l._css = nil end; l:setStyleSheet(GTV.gcss(cA, cB)) end
+    -- 가로등: 은은하게 밝았다 흐려지는 깜빡임(램프별 위상차 → 살아있는 느낌)
+    for _, e in ipairs(A.lamp or {}) do
+      local fk = 0.70 + 0.30 * math.sin(GTV.frame * 0.55 + e.ph)
+      local ia = math.max(0, math.min(255, math.floor(130 * fk)))
+      local oa = math.max(0, math.min(255, math.floor(45 * fk)))
+      local c = GTV.gcss("255,222,130," .. ia, "255,210,110," .. oa)
+      e.l._css = c; e.l:setStyleSheet(c)
+    end
     if A.wxl and A.wxt then local c = imgcss(A.wxt .. "_" .. (GTV.frame % 3)); A.wxl._css = c; A.wxl:setStyleSheet(c) end
     for _, l in ipairs(A.water or {}) do local c = imgcss("water_" .. (GTV.frame % 2)); l._css = c; l:setStyleSheet(c) end
     if GTV.needAnim then GTV.timer = tempTimer(0.4, "GaldamTileView.tick()") end
