@@ -2842,10 +2842,10 @@ function GTV.render(d)
     elseif weather == "storm" then amb = amb * 0.40
     elseif weather == "rain" then amb = amb * 0.72 end
     local v = amb
-    -- 어둠 기본 시야: 캐릭터 반경 2칸
+    -- 어둠 기본 시야: 캐릭터 반경 2칸 (가로등만 4칸, 플레이어 식별범위는 좁게 유지)
     if sx then
       local pd = math.max(math.abs(x - sx), math.abs(y - sy))
-      if pd <= 4 then v = math.max(v, 0.66 - pd * 0.04) end
+      if pd <= 2 then v = math.max(v, 0.66 - pd * 0.06) end
     end
     -- 가로등(litmap)
     v = math.max(v, litmap[x .. "," .. y] or 0)
