@@ -2855,8 +2855,8 @@ function GTV.render(d)
       local pd = math.sqrt((x - sx) * (x - sx) + (y - sy) * (y - sy))
       if pd <= 2.2 then v = math.max(v, 0.66 - pd * 0.06) end
     end
-    -- 가로등(litmap)
-    v = math.max(v, litmap[x .. "," .. y] or 0)
+    -- 가로등 바닥 reveal 제거: 칸단위(네모) reveal이 둥근 빛무리(glow)와 겹쳐 보임 → 부드러운 오브만
+    -- v = math.max(v, litmap[x .. "," .. y] or 0)
     -- 손전등: 주변 원형 3칸 + 진행방향 평행 빔
     if litrad > 0 and sx then
       local d2 = math.max(math.abs(x - sx), math.abs(y - sy))
