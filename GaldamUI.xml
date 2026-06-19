@@ -2607,8 +2607,8 @@ end
 -- 이동(render 빈발)해도 같은 프레임이면 같은 밝기 → 이동=깜빡임 동기화 버그 방지.
 function GTV.lampStyle(l, ph)
   local fk = 0.70 + 0.30 * math.sin(GTV.frame * 0.55 + ph)
-  local ia = math.max(0, math.min(255, math.floor(105 * fk)))
-  local oa = math.max(0, math.min(255, math.floor(38 * fk)))
+  local ia = math.max(0, math.min(255, math.floor(85 * fk)))
+  local oa = math.max(0, math.min(255, math.floor(30 * fk)))
   return GTV.gcss("255,222,130," .. ia, "255,210,110," .. oa, l._gcx, l._gcy, l._grad)
 end
 GTV.imgcss = imgcss
@@ -2850,10 +2850,10 @@ function GTV.render(d)
     elseif weather == "storm" then amb = amb * 0.40
     elseif weather == "rain" then amb = amb * 0.72 end
     local v = amb
-    -- 어둠 기본 시야: 캐릭터 반경 2칸 원형(유클리드). 가로등만 4칸.
+    -- 어둠 기본 시야: 캐릭터 반경 ~4칸 원형(유클리드).
     if sx then
       local pd = math.sqrt((x - sx) * (x - sx) + (y - sy) * (y - sy))
-      if pd <= 2.2 then v = math.max(v, 0.66 - pd * 0.06) end
+      if pd <= 4.2 then v = math.max(v, 0.62 - pd * 0.055) end
     end
     -- 가로등 바닥 reveal 제거: 칸단위(네모) reveal이 둥근 빛무리(glow)와 겹쳐 보임 → 부드러운 오브만
     -- v = math.max(v, litmap[x .. "," .. y] or 0)
@@ -3154,22 +3154,14 @@ function GTV.render(d)
   local function glowAt(x, y, R, rgbA, rgbB)
     gli = gli + 1
     local l = lbl("glow", gli)
-    -- 빛무리 사각형을 격자 콘텐츠 영역으로 클램프(창 밖으로 안 번지게) + 중심은 램프에 고정
-    local fx0 = PX + x * CS - R * CS
-    local fy0 = PY + y * CS - R * CS
-    local fsz = CS * (R * 2 + 1)
-    local gx0 = math.max(PX, fx0)
-    local gy0 = math.max(PY, fy0)
-    local gx1 = math.min(PX + w * CS, fx0 + fsz)
-    local gy1 = math.min(PY + h * CS, fy0 + fsz)
-    local gw, gh = gx1 - gx0, gy1 - gy0
-    if gw <= 1 or gh <= 1 then l:hide(); return l end
-    local cx = (PX + x * CS + CS * 0.5 - gx0) / gw
-    local cy = (PY + y * CS + CS * 0.5 - gy0) / gh
-    local rad = (R + 0.5) * CS / math.max(gw, gh)
-    l._gcx = cx; l._gcy = cy; l._grad = rad
-    sty(l, GTV.gcss(rgbA, rgbB, cx, cy, rad))
-    geo(l, gx0, gy0, gw, gh)
+    -- 항상 정사각(완전 원형 O) + 격자 안: 가장자리 가까우면 반경만 축소(타원 0 / 창밖번짐 방지)
+    local eR = math.min(R, x, w - 1 - x, y, h - 1 - y)
+    if eR < 0.5 then l:hide(); return l end
+    local hw = (eR + 0.5) * CS
+    l._gcx = 0.5; l._gcy = 0.5; l._grad = 0.5
+    sty(l, GTV.gcss(rgbA, rgbB))
+    geo(l, math.floor(PX + x * CS + CS * 0.5 - hw), math.floor(PY + y * CS + CS * 0.5 - hw),
+        math.floor(hw * 2), math.floor(hw * 2))
     return l
   end
   local lampOn = outdoor and (tone == 1 or tone >= 4)
