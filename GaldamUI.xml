@@ -2607,8 +2607,8 @@ end
 -- 이동(render 빈발)해도 같은 프레임이면 같은 밝기 → 이동=깜빡임 동기화 버그 방지.
 function GTV.lampStyle(l, ph)
   local fk = 0.70 + 0.30 * math.sin(GTV.frame * 0.55 + ph)
-  local ia = math.max(0, math.min(255, math.floor(130 * fk)))
-  local oa = math.max(0, math.min(255, math.floor(45 * fk)))
+  local ia = math.max(0, math.min(255, math.floor(105 * fk)))
+  local oa = math.max(0, math.min(255, math.floor(38 * fk)))
   return GTV.gcss("255,222,130," .. ia, "255,210,110," .. oa, l._gcx, l._gcy, l._grad)
 end
 GTV.imgcss = imgcss
@@ -2860,10 +2860,14 @@ function GTV.render(d)
     -- 손전등: 진행방향으로 둥근 빛 웅덩이 여러 개(부드러운 원형 빔). 네모 평행빔 폐기.
     if litrad > 0 and sx then
       local fd = GTV.faceDir or {0, -1}
-      for k = 0, 5 do
+      -- 손전등 켜면 플레이어 근처도 조금 더 밝게(반경3)
+      local pdf = math.sqrt((x - sx) * (x - sx) + (y - sy) * (y - sy))
+      if pdf <= 3 then v = math.max(v, 0.62 - pdf * 0.05) end
+      -- 진행방향 빔(더 길게 8칸)
+      for k = 0, 8 do
         local bx = sx + fd[1] * k; local by = sy + fd[2] * k
         local dd = math.sqrt((x - bx) * (x - bx) + (y - by) * (y - by))
-        if dd <= 2.3 then v = math.max(v, 0.72 - dd * 0.10) end
+        if dd <= 2.3 then v = math.max(v, 0.70 - dd * 0.10) end
       end
     end
     if sx and (weather == "fog" or weather == "storm") then
@@ -3172,7 +3176,7 @@ function GTV.render(d)
     if c.k == "lamp" and lampOn then
       local lx, ly = tonumber(c.x), tonumber(c.y)
       local ph = lx * 1.7 + ly * 2.3
-      local l = glowAt(lx, ly, 4, "255,222,130,130", "255,210,110,45")
+      local l = glowAt(lx, ly, 5, "255,222,130,130", "255,210,110,45")
       sty(l, GTV.lampStyle(l, ph))   -- 현재 깜빡임 값(이동해도 풀밝기로 안 튐)
       GTV.A.lamp[#GTV.A.lamp + 1] = {l = l, ph = ph}
     elseif c.k == "policeL" then
@@ -3188,10 +3192,10 @@ function GTV.render(d)
   -- 손전등: 진행방향으로 부드러운 원형 글로우 오브 여러 개(겹쳐서 둥근 빔) — 차가운 흰빛
   if litrad > 0 and sx then
     local fd = GTV.faceDir or {0, -1}
-    for k = 0, 5 do
+    for k = 0, 8 do
       local bx = sx + fd[1] * k; local by = sy + fd[2] * k
       if bx >= 0 and bx < w and by >= 0 and by < h then
-        glowAt(bx, by, 2, "225,233,255,66", "205,220,255,20")
+        glowAt(bx, by, 2, "225,233,255,38", "205,220,255,12")
       end
     end
   end
