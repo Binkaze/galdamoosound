@@ -2780,6 +2780,39 @@ function GTV.render(d)
   -- 애니 레지스트리: 경량 틱이 이 라벨들'만' 갱신 (전체 재렌더 = 프레임 출렁임 원인이라 폐지)
   GTV.A = {pol = {}, fire = {}, water = {}, lamp = {}}
 
+  -- 야간 민가 실내등: 도로/마을 룸 안의 woodfloor/tilefloor를 실내로 간주하고,
+  -- 창문과 맞닿은 외부 칸에는 따뜻한 빛 번짐을 만든다.
+  local indoorFloor = {woodfloor=1, tilefloor=1}
+  local litWindow = {window=1, window_open=1}
+  local houseLit, windowSpill = {}, {}
+  local houseLightOn = outdoor and (tone == 1 or tone >= 4)
+  if houseLightOn then
+    local houseLevel = (tone == 6) and 0.92 or ((tone == 5) and 0.78 or 0.68)
+    for k, t in pairs(tmap) do
+      if indoorFloor[t] then houseLit[k] = houseLevel end
+    end
+    local function addSpill(x, y, v)
+      if x >= 0 and x < w and y >= 0 and y < h then
+        local k = x .. "," .. y
+        if not tmap[k] and not SOLID[stmap[k] or ""] then
+          windowSpill[k] = math.max(windowSpill[k] or 0, v)
+        end
+      end
+    end
+    for k, st in pairs(stmap) do
+      if litWindow[st] then
+        local x, y = k:match("(%-?%d+),(%-?%d+)")
+        x, y = tonumber(x), tonumber(y)
+        for _, dxy in ipairs({{1,0},{-1,0},{0,1},{0,-1}}) do
+          local ax, ay = x + dxy[1], y + dxy[2]
+          local bx, by = x - dxy[1], y - dxy[2]
+          if houseLit[ax .. "," .. ay] then addSpill(bx, by, 0.62) end
+          if houseLit[bx .. "," .. by] then addSpill(ax, ay, 0.62) end
+        end
+      end
+    end
+  end
+
   -- 시야음영(fog) 캐시 (글리프판 v8과 동일 DDA)
   local fog
   if sx and sy then
@@ -2850,6 +2883,8 @@ function GTV.render(d)
     elseif weather == "storm" then amb = amb * 0.40
     elseif weather == "rain" then amb = amb * 0.72 end
     local v = amb
+    v = math.max(v, houseLit[x .. "," .. y] or 0)
+    v = math.max(v, windowSpill[x .. "," .. y] or 0)
     -- 어둠 기본 시야: 캐릭터 반경 ~3칸 원형(유클리드).
     if sx then
       local pd = math.sqrt((x - sx) * (x - sx) + (y - sy) * (y - sy))
@@ -3181,6 +3216,16 @@ function GTV.render(d)
   end
   for _, f in ipairs(d.fx or {}) do
     if f.t == "fire" then glowAt(tonumber(f.x), tonumber(f.y), 2, "255,150,40,150", "255,120,30,55") end
+  end
+  if houseLightOn then
+    for k, v in pairs(windowSpill) do
+      local x, y = k:match("(%-?%d+),(%-?%d+)")
+      x, y = tonumber(x), tonumber(y)
+      if x and y then
+        local a = math.floor(70 * v)
+        glowAt(x, y, 2, "255,214,128," .. a, "255,178,86,18")
+      end
+    end
   end
   -- 손전등: 진행방향으로 부드러운 원형 글로우 오브 여러 개(겹쳐서 둥근 빔) — 차가운 흰빛
   if litrad > 0 and sx then
