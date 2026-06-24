@@ -19,7 +19,7 @@ if GaldamUI._handlers then
   for _, id in ipairs(GaldamUI._handlers) do pcall(killAnonymousEventHandler, id) end
 end
 GaldamUI._handlers = {}
-GaldamUI.VERSION = "v50"   -- 업데이트 적용 확인용 (화면 우상단 표시)
+GaldamUI.VERSION = "v51"   -- 업데이트 적용 확인용 (화면 우상단 표시)
 
 local PANEL_W = 0.20      -- 우측 탭 패널 폭
 local BOTTOM_H = 120      -- 하단 HUD 바 높이
@@ -224,6 +224,7 @@ function GaldamUI.relayout()
   setBorderRight(rw); setBorderBottom(BOTTOM_H)
   pcall(function()
     GaldamUI.bottom:move(0, h - BOTTOM_H); GaldamUI.bottom:resize(w, BOTTOM_H)
+    if GaldamKeys and GaldamKeys.placeIndicator then GaldamKeys.placeIndicator() end
     local ph = h - BOTTOM_H
     GaldamUI.rpanel:move(w - rw, 0); GaldamUI.rpanel:resize(rw, ph)
     -- 상하분할: [헤더] / [방 패널] / [탭 버튼] / [탭 콘텐츠]
@@ -3503,13 +3504,23 @@ function GK.bind()
     else local o2,i2 = pcall(tempKey, kv[1], KP, kv[2]); if o2 and i2 then GK.ids[#GK.ids+1]=i2 end end
   end
 end
+function GK.placeIndicator()
+  if not GK.ind then return end
+  local w, h = getMainWindowSize()
+  local iw = math.min(430, math.max(320, math.floor(w * 0.34)))
+  local x = math.floor(w * 0.27)
+  local y = math.max(8, h - BOTTOM_H - 32)
+  GK.ind:move(x, y)
+  GK.ind:resize(iw, 22)
+end
 function GK.setMode(on)
   GK.on = on
   if on then GK.bind() else GK.unbind() end
   pcall(function()
     GK.ind = GK.ind or GKInd
-    if not GK.ind then GK.ind = Geyser.Label:new({name="GKInd", x="30%", y="5.0%", width=370, height=22}) end
+    if not GK.ind then GK.ind = Geyser.Label:new({name="GKInd", x=0, y=0, width=370, height=22}) end
     GK.ind:setStyleSheet("background-color: rgba(16,28,40,236); border:1px solid #5a8ac8; border-radius:5px; qproperty-alignment:AlignCenter;")
+    GK.placeIndicator()
     GK.ind:echo(on and "<font color='#9fe8b0'>\226\151\143 \236\157\180\235\143\153\235\170\168\235\147\156: WASD/QEZC \236\157\180\235\143\153  (\234\184\176 \235\176\177\237\139\137=\236\177\132\237\140\133)</font>"
                     or "<font color='#c8a05a'>\226\151\139 \236\177\132\237\140\133\235\170\168\235\147\156  (\234\184\176 \235\176\177\237\139\137 \235\136\140\235\165\180\235\169\180 \236\157\180\235\143\153)</font>")
     GK.ind:show()
