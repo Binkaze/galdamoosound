@@ -19,7 +19,7 @@ if GaldamUI._handlers then
   for _, id in ipairs(GaldamUI._handlers) do pcall(killAnonymousEventHandler, id) end
 end
 GaldamUI._handlers = {}
-GaldamUI.VERSION = "v51"   -- 업데이트 적용 확인용 (화면 우상단 표시)
+GaldamUI.VERSION = "v52"   -- 업데이트 적용 확인용 (화면 우상단 표시)
 
 local PANEL_W = 0.20      -- 우측 탭 패널 폭
 local BOTTOM_H = 120      -- 하단 HUD 바 높이
@@ -3506,7 +3506,14 @@ function GK.bind()
 end
 function GK.placeIndicator()
   if not GK.ind then return end
-  local w, h = getMainWindowSize()
+  local ok, w, h = pcall(getMainWindowSize)
+  if not ok or not tonumber(w) or not tonumber(h) then
+    pcall(function()
+      GK.ind:move("27%", "-154")
+      GK.ind:resize("34%", 22)
+    end)
+    return
+  end
   local iw = math.min(430, math.max(320, math.floor(w * 0.34)))
   local x = math.floor(w * 0.27)
   local y = math.max(8, h - BOTTOM_H - 32)
@@ -3518,7 +3525,7 @@ function GK.setMode(on)
   if on then GK.bind() else GK.unbind() end
   pcall(function()
     GK.ind = GK.ind or GKInd
-    if not GK.ind then GK.ind = Geyser.Label:new({name="GKInd", x=0, y=0, width=370, height=22}) end
+    if not GK.ind then GK.ind = Geyser.Label:new({name="GKInd", x="27%", y="-154", width="34%", height=22}) end
     GK.ind:setStyleSheet("background-color: rgba(16,28,40,236); border:1px solid #5a8ac8; border-radius:5px; qproperty-alignment:AlignCenter;")
     GK.placeIndicator()
     GK.ind:echo(on and "<font color='#9fe8b0'>\226\151\143 \236\157\180\235\143\153\235\170\168\235\147\156: WASD/QEZC \236\157\180\235\143\153  (\234\184\176 \235\176\177\237\139\137=\236\177\132\237\140\133)</font>"
