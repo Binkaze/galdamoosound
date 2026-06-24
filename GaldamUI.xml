@@ -19,7 +19,7 @@ if GaldamUI._handlers then
   for _, id in ipairs(GaldamUI._handlers) do pcall(killAnonymousEventHandler, id) end
 end
 GaldamUI._handlers = {}
-GaldamUI.VERSION = "v53"   -- 업데이트 적용 확인용 (화면 우상단 표시)
+GaldamUI.VERSION = "v54"   -- 업데이트 적용 확인용 (화면 우상단 표시)
 
 local PANEL_W = 0.20      -- 우측 탭 패널 폭
 local BOTTOM_H = 120      -- 하단 HUD 바 높이
@@ -2629,6 +2629,32 @@ function GTV.requestRefresh(reason)
   dlog("Tac 재요청: " .. tostring(reason or "?"))
   pcall(function() send("_galdam_refresh_tac", false) end)
 end
+function GTV.bootstrap(reason)
+  if not GTV.on then return end
+  GTV.makeWin()
+  GTV.ensureTiles()
+  local d = (GaldamTac and GaldamTac.lastData) or (gmcp.Galdam and gmcp.Galdam.Tac)
+  if d then
+    GTV.lastData = d
+    GTV.fogKey = nil
+    local ok, err = pcall(GTV.render, d)
+    if ok then
+      GTV.win:show()
+      if GaldamTac and GaldamTac.win then GaldamTac.win:hide(); GaldamTac.shown = false end
+      dlog("부트스트랩 렌더: " .. tostring(reason or "?"))
+      return
+    else
+      dlog("부트스트랩 렌더 오류: " .. tostring(err))
+    end
+  end
+  GTV.requestRefresh(reason or "bootstrap")
+end
+function GTV.scheduleBootstrap(reason)
+  if not GTV.on then return end
+  for _, dt in ipairs({0.2, 1.0, 2.5, 5.0, 8.0}) do
+    pcall(function() tempTimer(dt, function() GaldamTileView.bootstrap(reason) end) end)
+  end
+end
 
 -- 셀 툴팁: 글리프뷰 GT.NAME 재사용 + 타일뷰 보강분
 local EXTRA_NAME = {asphalt="아스팔트", lane="차선", crosswalk="횡단보도", water="물", rockground="바위땅",
@@ -3422,7 +3448,7 @@ function GTV.toggle()
       GTV.lastData = d; GTV.fogKey = nil; GTV.render(d); GTV.win:show()
       if GaldamTac and GaldamTac.win then GaldamTac.win:hide(); GaldamTac.shown = false end
     else
-      GTV.requestRefresh("toggle-no-data")
+      GTV.scheduleBootstrap("toggle-no-data")
     end
   else
     echo("[Galdam] 타일뷰 OFF — 글리프 격자로 복귀\n")
@@ -3443,15 +3469,20 @@ GTV.alias3 = tempAlias("^갯담진단$", [[echo("[갯담진단] 퀵메뉴=" .. t
 if GTV.h1 then pcall(killAnonymousEventHandler, GTV.h1) end
 if GTV.h2 then pcall(killAnonymousEventHandler, GTV.h2) end
 if GTV.h3 then pcall(killAnonymousEventHandler, GTV.h3) end
+if GTV.h4 then pcall(killAnonymousEventHandler, GTV.h4) end
+if GTV.h5 then pcall(killAnonymousEventHandler, GTV.h5) end
+if GTV.h6 then pcall(killAnonymousEventHandler, GTV.h6) end
+if GTV.h7 then pcall(killAnonymousEventHandler, GTV.h7) end
 GTV.h1 = registerAnonymousEventHandler("gmcp.Galdam.Tac", "GaldamTileView.onTac")
 GTV.h2 = registerAnonymousEventHandler("gmcp.Galdam.Room", "GaldamTileView.onRoom")
 GTV.h3 = registerAnonymousEventHandler("sysDownloadDone", "GaldamTileView.onDl")
+GTV.h4 = registerAnonymousEventHandler("sysConnectionEvent", function() GaldamTileView.scheduleBootstrap("connect") end)
+GTV.h5 = registerAnonymousEventHandler("gmcp.Char.Vitals", function() if not GaldamTileView.lastData then GaldamTileView.scheduleBootstrap("vitals") end end)
+GTV.h6 = registerAnonymousEventHandler("gmcp.Galdam.Status", function() if not GaldamTileView.lastData then GaldamTileView.scheduleBootstrap("status") end end)
+GTV.h7 = registerAnonymousEventHandler("gmcp.Galdam.Players", function() if not GaldamTileView.lastData then GaldamTileView.scheduleBootstrap("players") end end)
 GTV.makeWin()
 GTV.ensureTiles()
-if GTV.on then
-  pcall(function() tempTimer(0.4, [[GaldamTileView.requestRefresh("load")]]) end)
-  pcall(function() tempTimer(1.6, [[GaldamTileView.requestRefresh("load-late")]]) end)
-end
+GTV.scheduleBootstrap("load")
 -- 재로드 시 기존 풀 라벨에도 클릭스루 소급 적용
 for ly, pool in pairs(GTV.P) do
   if THRU[ly] then
@@ -3545,8 +3576,8 @@ function GK.setMode(on)
     local fg = on and "#9fe8b0" or "#c8a05a"
     GK.ind:setStyleSheet("background-color: rgba(16,28,40,236); border:1px solid #5a8ac8; border-radius:5px; color:" .. fg .. "; font-size:12px; padding-top:4px; qproperty-alignment:'AlignCenter';")
     GK.placeIndicator()
-    GK.ind:echo(on and "● 이동모드: WASD/QEZC 이동 (백틱=채팅)"
-                    or "○ 채팅모드 (백틱=이동)")
+    GK.ind:echo(on and "● 이동모드: WASD/QEZC 이동 (콘솔키=채팅)"
+                    or "○ 채팅모드 (콘솔키=이동)")
     GK.ind:show()
   end)
 end
@@ -3566,7 +3597,7 @@ GK.h_conn = registerAnonymousEventHandler("sysConnectionEvent", function()
   pcall(function() GaldamKeys.reinit() end)
   pcall(function() tempTimer(2.5, function() GaldamKeys.reinit() end) end)
 end)
-echo("[Galdam] 이동/채팅 모드 격리 로드 (독립블록/tempKey) — 백틱(`) 토글\n")
+echo("[Galdam] 이동/채팅 모드 격리 로드 (독립블록/tempKey) — 콘솔키(`) 토글\n")
 ]]></script>
       <eventHandlerList></eventHandlerList>
     </Script>
