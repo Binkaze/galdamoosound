@@ -1994,6 +1994,15 @@ function GT.render(d)
   for _, it in ipairs(d.items or {}) do items[tonumber(it.x)..","..tonumber(it.y)] = it end
   for _, g in ipairs(d.ground or {}) do ground[tonumber(g.x)..","..tonumber(g.y)] = g end
   for _, f in ipairs(d.fx or {}) do if f.t == "fire" then fire[tonumber(f.x)..","..tonumber(f.y)] = true end end
+  -- 지붕(실내) rect: 비/눈 파티클 안 그림 (서버 tac_roof → "roof":[[x1,y1,x2,y2],..])
+  local roofR = d.roof or {}
+  local function roofed(cx, cy)
+    for _, r in ipairs(roofR) do
+      local x1, y1, x2, y2 = tonumber(r[1]), tonumber(r[2]), tonumber(r[3]), tonumber(r[4])
+      if x1 and cx >= x1 and cy >= y1 and cx <= x2 and cy <= y2 then return true end
+    end
+    return false
+  end
   -- 상호작용 객체 맵: 셀 -> {{id,name,kind},...} (가구/아이템/액터, id>0만 클릭가능)
   local cellObj = {}
   local function _addObj(cx, cy, id, nm, kind)
@@ -2137,7 +2146,8 @@ function GT.render(d)
       local col = (i*5+3) % w
       if weather == "snow" then col = (col + math.floor(GT.frame/4)) % w
       elseif storm then col = (col + GT.frame) % w end
-      part[col .. "," .. (((i*3)+GT.frame*sp) % h)] = weather
+      local prow = ((i*3)+GT.frame*sp) % h
+      if not roofed(col, prow) then part[col .. "," .. prow] = weather end
     end
   end
 
