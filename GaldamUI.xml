@@ -1854,6 +1854,8 @@ GT.TILE = {
   boat={u="b",a="b",fg="220,227,232"}, net={u="%",a="%",fg="184,144,90"}, hull={u="#",a="#",fg="150,110,70"}, helm={u="T",a="T",fg="200,160,90"}, pot={u="o",a="o",fg="120,120,128"}, console={u="C",a="C",fg="150,200,160"}, engine={u="E",a="E",fg="140,160,140"}, trapdoor={u="v",a="v",fg="180,150,90"},
   dryrack={u="x",a="x",fg="156,107,53"}, bench={u="\226\150\164",a="\226\150\164",fg="190,150,96"},
   busstop={u="B",a="B",fg="217,164,65"}, mailbox={u="!",a="!",fg="226,75,74"},
+  jangseung={u="\226\153\132",a="I",fg="196,140,80"}, cairn={u="\226\137\133",a="A",fg="158,156,164"}, signboard={u="\226\150\140",a="P",fg="230,220,200"},
+  woodpile={u="\226\137\136",a="w",fg="196,152,96"}, beehive={u="\226\150\166",a="b",fg="214,170,70"}, wondumak={u="\226\140\130",a="M",fg="206,172,96"}, water={u="\226\137\136",a="~",fg="74,144,217"},
   buoy={u="\226\151\145",a="o",fg="240,140,60"}, reef={u="\226\150\178",a="^",fg="120,150,120"},
   -- 멀티셀 차량(1×2): 좌/우 반쪽
   carL={u="\226\150\132",a="\226\150\132",fg="80,86,98",bg="170,178,192"}, carR={u="\226\150\132",a="\226\150\132",fg="80,86,98",bg="170,178,192"},
@@ -2525,7 +2527,7 @@ local GTV = GaldamTileView
 if GTV.on == nil then GTV.on = true end   -- 기본 = 타일뷰 (글리프는 '타일뷰' 토글로)
 GTV.P = GTV.P or {}
 GTV.frame = GTV.frame or 0
-GTV.TILEVER = 9
+GTV.TILEVER = 10
 GTV.zdirty = true          -- 로드 직후 z순서 1회 재구축 (레이어 순서 변경 반영)
 GTV.size = GTV.size or 32  -- 현재 셀 크기 (s16/s20/s24/s28/s32 사전생성 타일 = 무스케일링, 블러 방지)
 GTV.haveSize = {}          -- 세션마다 리셋 → 매 접속 1회 무결성 재검사 (깨진 파일 복구 기회)
@@ -2537,6 +2539,7 @@ local TBASE = "https://cdn.jsdelivr.net/gh/Binkaze/galdamoosound@main/tiles/"
 local TFILES = {"dirt2","rockg","woodfloor","lane","crosswalk","field","paddy","weed","water_0","water_1","stairs_up","stairs_down",
   "wall_stone","house_wall","shed_wall","shop_wall","breakwater","wall_brick","window","window_open","window_broken","door","gate","greenhouse","lighthouse","tetrapod","grave",
   "tree","rock","lamp","well","jangdok","bench","clothes","pole","mailbox","busstop","dog","boat","net","dryrack","buoy","reef","prop","hull","helm","trapdoor","pot","console","engine",
+  "jangseung","cairn","signboard","woodpile","beehive","wondumak",
   "act_player","act_npc","act_cop","act_wild","loot","fire_0","fire_1","smoke_gray","smoke_white","smoke_gas",
   "blood_1","blood_2","blood_3","glass","wetg","snowg","mess"}
 for i = 0, 3 do
@@ -2670,7 +2673,8 @@ end
 -- 셀 툴팁: 글리프뷰 GT.NAME 재사용 + 타일뷰 보강분
 local EXTRA_NAME = {asphalt="아스팔트", lane="차선", crosswalk="횡단보도", water="물", rockground="바위땅",
   woodfloor="나무바닥", grave="무덤", lighthouse="등대", tetrapod="테트라포드", breakwater="방파제", house_wall="주택 벽", shed_wall="창고 벽", shop_wall="점포 벽",
-  net="그물", dryrack="건조대", boat="배", hull="선체", helm="조타륜", pot="곰솥", console="조작 콘솔", engine="엔진", trapdoor="해치(아래)", stairs_up="계단(위)", stairs_down="계단(아래)", dog="개", pole="전봇대", mailbox="우체통", busstop="버스정류장", rock="바위", tree="나무"}
+  net="그물", dryrack="건조대", boat="배", hull="선체", helm="조타륜", pot="곰솥", console="조작 콘솔", engine="엔진", trapdoor="해치(아래)", stairs_up="계단(위)", stairs_down="계단(아래)", dog="개", pole="전봇대", mailbox="우체통", busstop="버스정류장", rock="바위", tree="나무",
+  jangseung="장승", cairn="돌탑", signboard="게시판", woodpile="장작더미", beehive="벌통", wondumak="원두막", water="개울"}
 local function tipOf(kind)
   if not kind then return nil end
   local nmt = (GaldamTac and GaldamTac.NAME) or {}
@@ -2708,6 +2712,7 @@ local SFULL = {hull="hull", wall="wall_stone", house_wall="house_wall", shed_wal
 local SOVER = {gate="gate", greenhouse="greenhouse", lighthouse="lighthouse", tetrapod="tetrapod", grave="grave"}
 local OBJF = {helm="helm", pot="pot", console="console", engine="engine", tree="tree", rock="rock", lamp="lamp", well="well", jangdok="jangdok", bench="bench", clothes="clothes",
   pole="pole", mailbox="mailbox", busstop="busstop", dog="dog", boat="boat", net="net", dryrack="dryrack", buoy="buoy", reef="reef",
+  jangseung="jangseung", cairn="cairn", signboard="signboard", woodpile="woodpile", beehive="beehive", wondumak="wondumak", water="water_0",
   carL="car_l", carR="car_r", truckL="truck_l", truckR="truck_r", tracL="trac_l", tracR="trac_r", policeL="police_l", policeR="police_r",
   -- 실내 가구
   bed="bed", table="table", dtable="table", chair="chair", fridge="fridge", sink="sink", gasrange="gasrange",
