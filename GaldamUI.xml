@@ -99,13 +99,13 @@ A.handlers[#A.handlers+1]=registerAnonymousEventHandler('sysWindowResizeEvent',f
   <Script isActive="yes" isFolder="no">
    <name>GaldamUI</name>
    <packageName>GaldamUI</packageName>
-   <script><![CDATA[
+   <script>
 GaldamUI = GaldamUI or {}
 if GaldamUI._handlers then
   for _, id in ipairs(GaldamUI._handlers) do pcall(killAnonymousEventHandler, id) end
 end
 GaldamUI._handlers = {}
-GaldamUI.VERSION = "v68"   -- 한국 해안 월드 · 전술 타일 개편
+GaldamUI.VERSION = "v69"   -- 한국 해안 월드 · 전술 타일 개편
 
 local PANEL_W = 0.20      -- 우측 탭 패널 폭
 local BOTTOM_H = 120      -- 하단 HUD 바 높이
@@ -125,7 +125,7 @@ local STANCE_DISABLED_IMGFILES = {"stance_walk_v2_disabled.png","stance_fastwalk
 for _, f in ipairs(STANCE_DISABLED_IMGFILES) do IMGFILES[#IMGFILES + 1] = f end
 for i = 0, 20 do IMGFILES[#IMGFILES + 1] = string.format("stance_cd_%02d.png", i) end
 local function imgPath(f) return GaldamUI.imgDir .. "/" .. f end
-local function imgTag(f, sz) return "<center><img src='"..imgPath(f).."' width='"..sz.."' height='"..sz.."'></center>" end
+local function imgTag(f, sz) return "&lt;center&gt;&lt;img src='"..imgPath(f).."' width='"..sz.."' height='"..sz.."'&gt;&lt;/center&gt;" end
 GaldamUI.imgTag = imgTag; GaldamUI.imgPath = imgPath
 local CSS_BTN = "background-color: rgba(34,84,116,205); border:2px solid #4fa3c7; border-radius:8px; qproperty-alignment:'AlignCenter';"
 local CSS_ACT = "background-color: rgba(38,70,48,215); border:2px solid #5fae6f; border-radius:8px; qproperty-alignment:'AlignCenter';"
@@ -153,7 +153,7 @@ function GaldamUI.showTip(txt)
   if not pcall(function() x, y = getMousePosition() end) then return end
   local wpx = math.max(60, math.min(240, #txt * 6 + 24))
   pcall(function() GaldamUI.tip:resize(wpx, 26); GaldamUI.tip:move(x + 14, y + 18) end)
-  GaldamUI.tip:echo("<center style='margin-top:3px;'><b>"..txt.."</b></center>")
+  GaldamUI.tip:echo("&lt;center style='margin-top:3px;'&gt;&lt;b&gt;"..txt.."&lt;/b&gt;&lt;/center&gt;")
   GaldamUI.tip:show()
   pcall(function() raiseWindow("GaldamTip") end)
 end
@@ -163,7 +163,7 @@ function GaldamUI.attachTip(w, txt)
     w:setOnEnter(function() GaldamUI.showTip(txt) end)
     w:setOnLeave(function() GaldamUI.hideTip() end)
   end)
-  if not ok then pcall(function() w:setToolTip("<b>"..txt.."</b>") end) end
+  if not ok then pcall(function() w:setToolTip("&lt;b&gt;"..txt.."&lt;/b&gt;") end) end
 end
 
 function GaldamUI.downloadImages()
@@ -207,7 +207,7 @@ function GaldamUI.build()
     g.front:setStyleSheet("background-color:"..color.."; border-radius:5px;")
     g.back:setStyleSheet("background-color: rgba(40,40,40,200); border-radius:5px;")
     g.text:setStyleSheet("color:#ffffff; font-size:13px; padding-left:5px;")
-    g:setValue(100,100,"<b>"..label.."</b>"); return g
+    g:setValue(100,100,"&lt;b&gt;"..label.."&lt;/b&gt;"); return g
   end
   GaldamUI.hp      = gauge("GaldamHP",  "혈액",     "#c0392b", "1%",   "12.5%")
   GaldamUI.cons    = gauge("GaldamCon", "의식",     "#27ae60", "14%",  "12.5%")
@@ -222,11 +222,11 @@ function GaldamUI.build()
   -- 위치 헤더
   GaldamUI.locHeader = Geyser.Label:new({name="GaldamLoc", x=0, y=0, width="100%", height=40}, GaldamUI.rpanel)
   GaldamUI.locHeader:setStyleSheet("background-color: rgba(15,25,35,235); border:1px solid #2a4a5a; border-radius:6px; color:#cfe8f0; qproperty-alignment:'AlignCenter';")
-  GaldamUI.locHeader:echo("<center><span style='font-size:15pt;'><b>갯담마을</b></span></center>")
+  GaldamUI.locHeader:echo("&lt;center&gt;&lt;span style='font-size:15pt;'&gt;&lt;b&gt;갯담마을&lt;/b&gt;&lt;/span&gt;&lt;/center&gt;")
   -- 버전 스탬프 (우상단, 업데이트 적용 확인용)
   GaldamUI.verTag = Geyser.Label:new({name="GaldamVer", x="74%", y=2, width="25%", height=14}, GaldamUI.rpanel)
   GaldamUI.verTag:setStyleSheet("background-color: rgba(0,0,0,0); color:#587584; qproperty-alignment:'AlignRight';")
-  GaldamUI.verTag:echo("<span style='font-size:8pt;'>"..(GaldamUI.VERSION or "?").."</span>")
+  GaldamUI.verTag:echo("&lt;span style='font-size:8pt;'&gt;"..(GaldamUI.VERSION or "?").."&lt;/span&gt;")
   -- 실시간 방 패널 (사람/물건 — hover=명령전체, 클릭=드롭다운 메뉴). 라벨 호스트. 위치는 relayout
   GaldamUI.roomBox = Geyser.Container:new({name="GaldamRoomBox", x=0, y=44, width="100%", height=200}, GaldamUI.rpanel)
   GaldamUI.roomRows = GaldamUI.roomRows or {}
@@ -311,7 +311,7 @@ function GaldamUI.relayout()
     -- 상하분할: [헤더] / [방 패널] / [탭 버튼] / [탭 콘텐츠]
     local headH, tabH, gap = 40, 32, 4
     local avail = ph - headH - tabH - gap * 4
-    if avail < 80 then avail = 80 end
+    if avail &lt; 80 then avail = 80 end
     local roomH = math.floor(avail * 0.52)   -- 상단: 실시간 방 패널
     local contentH = avail - roomH           -- 하단: 탭 콘텐츠
     GaldamUI.locHeader:move(0, 0); GaldamUI.locHeader:resize(rw, headH)
@@ -362,7 +362,7 @@ function GaldamUI.setExits(elist)
       GaldamUI.attachTip(d.btn, d.name)
     else
       d.btn:setStyleSheet(CSS_OFF)
-      d.btn:echo("<center><font color='#9a7478'><s>"..d.name.."</s></font></center>")
+      d.btn:echo("&lt;center&gt;&lt;font color='#9a7478'&gt;&lt;s&gt;"..d.name.."&lt;/s&gt;&lt;/font&gt;&lt;/center&gt;")
       GaldamUI.attachTip(d.btn, d.name.." · 막힌 길")
     end
   end
@@ -380,7 +380,7 @@ function GaldamUI.selectTab(key)
     if b then
       if t.key == key then b:setStyleSheet(CSS_ACT) else b:setStyleSheet(CSS_BTN) end
       if t.icon then b:echo(imgTag(t.icon, 28))
-      else b:echo("<center><span style='font-size:10pt;color:#dfeaf0;'><b>"..t.name.."</b></span></center>") end
+      else b:echo("&lt;center&gt;&lt;span style='font-size:10pt;color:#dfeaf0;'&gt;&lt;b&gt;"..t.name.."&lt;/b&gt;&lt;/span&gt;&lt;/center&gt;") end
     end
   end
   GaldamUI.renderTab()
@@ -391,7 +391,7 @@ function GaldamUI.renderTab()
   for _, t in ipairs(GaldamUI.TABS) do
     if t.key == GaldamUI.activeTab then
       local fn = GaldamUI[t.render]
-      if fn then pcall(fn) else GaldamUI.content:clear(); GaldamUI.content:cecho("\n  <grey>(미구현)") end
+      if fn then pcall(fn) else GaldamUI.content:clear(); GaldamUI.content:cecho("\n  &lt;grey&gt;(미구현)") end
       return
     end
   end
@@ -399,17 +399,17 @@ end
 
 function GaldamUI.renderPlayers()
   GaldamUI.content:clear()
-  GaldamUI.content:cecho("\n  <yellow>● 접속 중\n\n")
+  GaldamUI.content:cecho("\n  &lt;yellow&gt;● 접속 중\n\n")
   local d = gmcp.Galdam and gmcp.Galdam.Players
   local cnt = 0
   if d and d.list and d.list ~= "" then
     for entry in tostring(d.list):gmatch("[^;]+") do
       local nm, ar = entry:match("([^|]*)|(.*)")
-      GaldamUI.content:cecho("  <white>"..(nm or entry).."   <grey>"..(ar or "").."\n")
+      GaldamUI.content:cecho("  &lt;white&gt;"..(nm or entry).."   &lt;grey&gt;"..(ar or "").."\n")
       cnt = cnt + 1
     end
   end
-  if cnt == 0 then GaldamUI.content:cecho("  <grey>(목록 없음)\n") end
+  if cnt == 0 then GaldamUI.content:cecho("  &lt;grey&gt;(목록 없음)\n") end
 end
 
 function GaldamUI.renderSkills()
@@ -425,28 +425,28 @@ function GaldamUI.renderSkills()
       end
     end
   end
-  GaldamUI.content:cecho("\n  <yellow>● 능력치\n\n")
-  if #stats > 0 then
-    for _, e in ipairs(stats) do GaldamUI.content:cecho("  <white>"..e[1].."   <cyan>"..e[2].."\n") end
-  else GaldamUI.content:cecho("  <grey>(정보 없음)\n") end
-  GaldamUI.content:cecho("\n  <yellow>● 스킬\n\n")
-  if #skills > 0 then
-    for _, e in ipairs(skills) do GaldamUI.content:cecho("  <white>"..e[1].."   <green>"..e[2].."\n") end
-  else GaldamUI.content:cecho("  <grey>(배운 스킬 없음)\n") end
+  GaldamUI.content:cecho("\n  &lt;yellow&gt;● 능력치\n\n")
+  if #stats &gt; 0 then
+    for _, e in ipairs(stats) do GaldamUI.content:cecho("  &lt;white&gt;"..e[1].."   &lt;cyan&gt;"..e[2].."\n") end
+  else GaldamUI.content:cecho("  &lt;grey&gt;(정보 없음)\n") end
+  GaldamUI.content:cecho("\n  &lt;yellow&gt;● 스킬\n\n")
+  if #skills &gt; 0 then
+    for _, e in ipairs(skills) do GaldamUI.content:cecho("  &lt;white&gt;"..e[1].."   &lt;green&gt;"..e[2].."\n") end
+  else GaldamUI.content:cecho("  &lt;grey&gt;(배운 스킬 없음)\n") end
 end
 
--- 도움말 데이터 (카테고리 클릭 → 명령어/설명). 변수부는 [..]로 표기 (cecho가 <>를 색태그로 먹음)
+-- 도움말 데이터 (카테고리 클릭 → 명령어/설명). 변수부는 [..]로 표기 (cecho가 &lt;&gt;를 색태그로 먹음)
 GaldamUI.HELP = {
-  {"이동", {"<cyan>동 · 서 · 남 · 북", "<cyan>올라가기 · 내려가기", "<cyan>들어가기 · 나가기", "<grey>왼쪽 방향키 창으로도 됩니다."}},
-  {"살펴보기", {"<cyan>보기 [대상]", "<cyan>살펴보기 [대상]", "<grey>패널 항목 클릭으로도 됩니다."}},
-  {"먹기·마시기", {"<cyan>먹기 [음식]", "<cyan>마시기 [음료]"}},
-  {"줍기·버리기", {"<cyan>줍기 [물건]  <grey>(=집기)", "<cyan>버리기 [물건]  <grey>(=놓기)"}},
-  {"장착·사용", {"<cyan>장착 [무기/옷]", "<cyan>사용 [물건]", "<cyan>읽기 [글]"}},
-  {"용기·상자", {"<cyan>개봉 / 덮기 [용기]", "<cyan>엿보기 [용기]", "<cyan>[용기]에서 [물건] 꺼내기", "<cyan>[용기]에 [물건] 넣기"}},
-  {"복합 명령", {"<yellow>조사로 자연스럽게 (동사는 맨 뒤):", "<cyan>자판기에서 콜라 꺼내기", "<cyan>상자에 동전 넣기", "<cyan>영희에게 사과 주기", "<cyan>상인에게 5000 지불", "<grey>~에서=출처 ~에게=상대 ~에=위치"}},
-  {"장소 명령어", {"<grey>이 방에서만 쓰는 명령.", "패널 <yellow>● 장소 명령어<grey> 또는 <cyan>ex here", "<grey>예) 바다: 첨벙·담그기·들이켜기"}},
-  {"전투", {"<cyan>공격 [상대]", "<cyan>항복"}},
-  {"패널 사용법", {"<grey>오른쪽 패널:", "· 항목 <yellow>클릭<grey> → 상호작용 메뉴", "· <yellow>✨<grey> = 방금 나타난 것", "· 초록=바로실행 / 회색=추가입력"}},
+  {"이동", {"&lt;cyan&gt;동 · 서 · 남 · 북", "&lt;cyan&gt;올라가기 · 내려가기", "&lt;cyan&gt;들어가기 · 나가기", "&lt;grey&gt;왼쪽 방향키 창으로도 됩니다."}},
+  {"살펴보기", {"&lt;cyan&gt;보기 [대상]", "&lt;cyan&gt;살펴보기 [대상]", "&lt;grey&gt;패널 항목 클릭으로도 됩니다."}},
+  {"먹기·마시기", {"&lt;cyan&gt;먹기 [음식]", "&lt;cyan&gt;마시기 [음료]"}},
+  {"줍기·버리기", {"&lt;cyan&gt;줍기 [물건]  &lt;grey&gt;(=집기)", "&lt;cyan&gt;버리기 [물건]  &lt;grey&gt;(=놓기)"}},
+  {"장착·사용", {"&lt;cyan&gt;장착 [무기/옷]", "&lt;cyan&gt;사용 [물건]", "&lt;cyan&gt;읽기 [글]"}},
+  {"용기·상자", {"&lt;cyan&gt;개봉 / 덮기 [용기]", "&lt;cyan&gt;엿보기 [용기]", "&lt;cyan&gt;[용기]에서 [물건] 꺼내기", "&lt;cyan&gt;[용기]에 [물건] 넣기"}},
+  {"복합 명령", {"&lt;yellow&gt;조사로 자연스럽게 (동사는 맨 뒤):", "&lt;cyan&gt;자판기에서 콜라 꺼내기", "&lt;cyan&gt;상자에 동전 넣기", "&lt;cyan&gt;영희에게 사과 주기", "&lt;cyan&gt;상인에게 5000 지불", "&lt;grey&gt;~에서=출처 ~에게=상대 ~에=위치"}},
+  {"장소 명령어", {"&lt;grey&gt;이 방에서만 쓰는 명령.", "패널 &lt;yellow&gt;● 장소 명령어&lt;grey&gt; 또는 &lt;cyan&gt;ex here", "&lt;grey&gt;예) 바다: 첨벙·담그기·들이켜기"}},
+  {"전투", {"&lt;cyan&gt;공격 [상대]", "&lt;cyan&gt;항복"}},
+  {"패널 사용법", {"&lt;grey&gt;오른쪽 패널:", "· 항목 &lt;yellow&gt;클릭&lt;grey&gt; → 상호작용 메뉴", "· &lt;yellow&gt;✨&lt;grey&gt; = 방금 나타난 것", "· 초록=바로실행 / 회색=추가입력"}},
 }
 
 function GaldamUI.helpPick(cat)
@@ -458,14 +458,14 @@ function GaldamUI.renderHelp()
   local mn = "GaldamTabContent"
   GaldamUI.content:clear()
   if not GaldamUI.helpCat then
-    GaldamUI.content:cecho("\n  <yellow>● 도움말  <grey>(눌러 보기)\n\n")
+    GaldamUI.content:cecho("\n  &lt;yellow&gt;● 도움말  &lt;grey&gt;(눌러 보기)\n\n")
     for _, h in ipairs(GaldamUI.HELP) do
-      GaldamUI.content:cecho("   <grey>▸ ")
+      GaldamUI.content:cecho("   &lt;grey&gt;▸ ")
       pcall(function() echoLink(mn, h[1], "GaldamUI.helpPick([[" .. h[1] .. "]])", h[1], true) end)
       GaldamUI.content:echo("\n")
     end
   else
-    GaldamUI.content:cecho("\n  <yellow>● " .. GaldamUI.helpCat .. "\n\n")
+    GaldamUI.content:cecho("\n  &lt;yellow&gt;● " .. GaldamUI.helpCat .. "\n\n")
     for _, h in ipairs(GaldamUI.HELP) do
       if h[1] == GaldamUI.helpCat then
         for _, ln in ipairs(h[2]) do GaldamUI.content:cecho("  " .. ln .. "\n") end
@@ -480,7 +480,7 @@ end
 
 function GaldamUI.renderEvents()
   GaldamUI.content:clear()
-  GaldamUI.content:cecho("\n  <yellow>● 진행 중 이벤트\n\n  <grey>🚧 준비 중\n  이벤트 시스템이 구축되면\n  여기에 표시됩니다.\n")
+  GaldamUI.content:cecho("\n  &lt;yellow&gt;● 진행 중 이벤트\n\n  &lt;grey&gt;🚧 준비 중\n  이벤트 시스템이 구축되면\n  여기에 표시됩니다.\n")
 end
 
 -- 도전과제 탭 (접이식 트리): list = "id|이름|설명|달성0/1|최초자|달성수|카테고리;..."
@@ -496,9 +496,9 @@ function GaldamUI.renderAch()
   local mn = "GaldamTabContent"
   GaldamUI.content:clear()
   local d = gmcp.Galdam and gmcp.Galdam.Achievements
-  GaldamUI.content:cecho("\n  <yellow>● 도전과제\n\n")
+  GaldamUI.content:cecho("\n  &lt;yellow&gt;● 도전과제\n\n")
   if not (d and d.list and d.list ~= "") then
-    GaldamUI.content:cecho("  <grey>(아직 정보가 없습니다)\n"); return
+    GaldamUI.content:cecho("  &lt;grey&gt;(아직 정보가 없습니다)\n"); return
   end
   local done, todo = {}, {}
   for entry in tostring(d.list):gmatch("[^;]+") do
@@ -525,11 +525,11 @@ function GaldamUI.renderAch()
   end
   local function dwidth(s)
     local w, i = 0, 1
-    while i <= #s do
+    while i &lt;= #s do
       local b = s:byte(i)
-      if b < 0x80 then w = w + 1; i = i + 1
-      elseif b < 0xE0 then w = w + 1; i = i + 2
-      elseif b < 0xF0 then w = w + 2; i = i + 3
+      if b &lt; 0x80 then w = w + 1; i = i + 1
+      elseif b &lt; 0xE0 then w = w + 1; i = i + 2
+      elseif b &lt; 0xF0 then w = w + 2; i = i + 3
       else w = w + 2; i = i + 4 end
     end
     return w
@@ -538,7 +538,7 @@ function GaldamUI.renderAch()
     local lines, cur, cw = {}, "", 0
     for word in tostring(text):gmatch("%S+") do
       local ww = dwidth(word)
-      if cw > 0 and cw + 1 + ww > maxw then
+      if cw &gt; 0 and cw + 1 + ww &gt; maxw then
         lines[#lines + 1] = cur; cur = word; cw = ww
       elseif cw == 0 then cur = word; cw = ww
       else cur = cur .. " " .. word; cw = cw + 1 + ww end
@@ -547,7 +547,7 @@ function GaldamUI.renderAch()
     return lines
   end
   local maxw = 22
-  pcall(function() local px = GaldamUI.content:get_width(); if px and px > 60 then maxw = math.max(14, math.floor((px - 16) / 9)) end end)
+  pcall(function() local px = GaldamUI.content:get_width(); if px and px &gt; 60 then maxw = math.max(14, math.floor((px - 16) / 9)) end end)
   local function section(title, items, skey, color)
     local closed = GaldamUI.achTopClosed[skey]
     GaldamUI.content:cecho(" " .. color)
@@ -558,20 +558,20 @@ function GaldamUI.renderAch()
     for _, cat in ipairs(cats) do
       local ck = skey .. ":" .. cat
       local cc = GaldamUI.achCatClosed[ck]
-      GaldamUI.content:cecho("  <cyan>")
+      GaldamUI.content:cecho("  &lt;cyan&gt;")
       pcall(function() echoLink(mn, (cc and "▸ " or "▾ ") .. cat .. " (" .. #g[cat] .. ")", "GaldamUI.achToggleCat([[" .. ck .. "]])", "펼치기/접기", true) end)
       GaldamUI.content:echo("\n")
       if not cc then
         for _, r in ipairs(g[cat]) do
-          GaldamUI.content:cecho("   " .. (skey == "done" and "<green>✔ " or "<grey>🔒 "))
+          GaldamUI.content:cecho("   " .. (skey == "done" and "&lt;green&gt;✔ " or "&lt;grey&gt;🔒 "))
           pcall(function() echoLink(mn, r.nm, "GaldamUI.achSelect([[" .. r.id .. "]])", "눌러 상세보기", true) end)
           GaldamUI.content:echo("\n")
           if GaldamUI.achSel == r.id then
-            for _, ln in ipairs(wrap(r.desc, maxw - 5)) do GaldamUI.content:cecho("     <grey>" .. ln .. "\n") end
+            for _, ln in ipairs(wrap(r.desc, maxw - 5)) do GaldamUI.content:cecho("     &lt;grey&gt;" .. ln .. "\n") end
             if r.first ~= "" then
-              GaldamUI.content:cecho("     <yellow>🥇 최초 " .. r.first .. " <grey>(" .. r.cnt .. "명)\n")
+              GaldamUI.content:cecho("     &lt;yellow&gt;🥇 최초 " .. r.first .. " &lt;grey&gt;(" .. r.cnt .. "명)\n")
             else
-              GaldamUI.content:cecho("     <grey>· 미개척\n")
+              GaldamUI.content:cecho("     &lt;grey&gt;· 미개척\n")
             end
           end
         end
@@ -579,9 +579,9 @@ function GaldamUI.renderAch()
     end
     GaldamUI.content:echo("\n")
   end
-  GaldamUI.content:cecho("  <cyan>달성 " .. #done .. " / 전체 " .. (#done + #todo) .. "\n\n")
-  section("달성", done, "done", "<green>")
-  section("미달성", todo, "todo", "<grey>")
+  GaldamUI.content:cecho("  &lt;cyan&gt;달성 " .. #done .. " / 전체 " .. (#done + #todo) .. "\n\n")
+  section("달성", done, "done", "&lt;green&gt;")
+  section("미달성", todo, "todo", "&lt;grey&gt;")
 end
 
 -- ===== GMCP 핸들러 =====
@@ -615,10 +615,10 @@ function GaldamUI.showCmdTip(name, cmds)
   if not GaldamUI.tip then return end
   local x, y = 0, 0
   if not pcall(function() x, y = getMousePosition() end) then return end
-  local txt = "<b style='color:#ffffff;'>" .. name .. "</b><br><span style='color:#9fb3c0;'>클릭하면 상호작용 메뉴</span>"
+  local txt = "&lt;b style='color:#ffffff;'&gt;" .. name .. "&lt;/b&gt;&lt;br&gt;&lt;span style='color:#9fb3c0;'&gt;클릭하면 상호작용 메뉴&lt;/span&gt;"
   local wpx, hpx = 152, 40
   pcall(function() GaldamUI.tip:resize(wpx, hpx); GaldamUI.tip:move(math.max(0, x - wpx - 6), y + 12) end)
-  GaldamUI.tip:echo("<div style='margin:5px;line-height:15px;'>" .. txt .. "</div>")
+  GaldamUI.tip:echo("&lt;div style='margin:5px;line-height:15px;'&gt;" .. txt .. "&lt;/div&gt;")
   GaldamUI.tip:show()
   pcall(function() raiseWindow("GaldamTip") end)
 end
@@ -643,7 +643,7 @@ function GaldamUI.fillCtxMenu(name, cmds)
   if not GaldamUI.ctxMenu then return end
   local h = (#cmds + 1) * 19 + 12
   pcall(function() GaldamUI.ctxMenu:resize(196, h) end)
-  pcall(function() clearWindow(mn); cecho(mn, " <yellow><b>" .. name .. "</b>\n") end)
+  pcall(function() clearWindow(mn); cecho(mn, " &lt;yellow&gt;&lt;b&gt;" .. name .. "&lt;/b&gt;\n") end)
   for _, c in ipairs(cmds) do
     local arg = (c.kind == "arg")
     local lua = "GaldamUI.menuPick([[" .. c.cmd .. "]], " .. tostring(arg) .. ")"
@@ -678,8 +678,8 @@ function GaldamUI.openCtxMenu(name, cmds, id)
   local x, y = 0, 0
   pcall(function() x, y = getMousePosition() end)
   local sw, sh = getMainWindowSize()
-  if x + w > sw then x = sw - w - 6 end
-  if y + h > sh then y = math.max(0, sh - h - 6) end
+  if x + w &gt; sw then x = sw - w - 6 end
+  if y + h &gt; sh then y = math.max(0, sh - h - 6) end
   pcall(function() GaldamUI.ctxMenu:move(x, y) end)
   GaldamUI.ctxOpenId = id or ""
   GaldamUI.ctxName = name
@@ -729,11 +729,11 @@ function GaldamUI.tacStack(x, y)
   local mx, my = 0, 0
   pcall(function() mx, my = getMousePosition() end)
   local sw, sh = getMainWindowSize()
-  if mx + w > sw then mx = sw - w - 6 end
-  if my + h > sh then my = math.max(0, sh - h - 6) end
+  if mx + w &gt; sw then mx = sw - w - 6 end
+  if my + h &gt; sh then my = math.max(0, sh - h - 6) end
   pcall(function() GaldamUI.ctxMenu:resize(w, h); GaldamUI.ctxMenu:move(mx, my) end)
   GaldamUI.ctxOpenId = "stack:" .. x .. "," .. y
-  pcall(function() clearWindow(mn); cecho(mn, " <yellow><b>여러 개 (" .. #objs .. ")</b>\n") end)
+  pcall(function() clearWindow(mn); cecho(mn, " &lt;yellow&gt;&lt;b&gt;여러 개 (" .. #objs .. ")&lt;/b&gt;\n") end)
   for _, o in ipairs(objs) do
     local lua = "GaldamUI.tacClick([[" .. o.id .. "]],[[" .. o.name .. "]])"
     pcall(function()
@@ -757,10 +757,10 @@ function GaldamUI.refreshNearHighlight()
     if not bu[lr.id] then
       if near[GaldamUI.normId(lr.id)] then
         lr.lb:setStyleSheet("background-color: rgba(46,204,113,0.20); border:1px solid #2ecc71; border-radius:4px; qproperty-alignment:'AlignLeft';")
-        lr.lb:echo("<span style='color:#86f0b0;font-size:10pt;'>&nbsp;✋ " .. lr.name .. "</span>")
+        lr.lb:echo("&lt;span style='color:#86f0b0;font-size:10pt;'&gt;&amp;nbsp;✋ " .. lr.name .. "&lt;/span&gt;")
       else
         lr.lb:setStyleSheet("background-color: rgba(255,255,255,0.045); border-radius:4px; qproperty-alignment:'AlignLeft';")
-        lr.lb:echo("<span style='color:" .. lr.col .. ";font-size:10pt;'>&nbsp;▸ " .. lr.name .. "</span>")
+        lr.lb:echo("&lt;span style='color:" .. lr.col .. ";font-size:10pt;'&gt;&amp;nbsp;▸ " .. lr.name .. "&lt;/span&gt;")
       end
     end
   end
@@ -773,23 +773,23 @@ function GaldamUI.animateRoom()
   for _, lr in ipairs(GaldamUI.liveRows) do
     local bu = GaldamUI.blinkUntil[lr.id]
     if bu then
-      if tick < bu then
+      if tick &lt; bu then
         if (math.floor(tick / 2) % 2) == 0 then
           lr.lb:setStyleSheet("background-color: rgba(241,196,15,0.38); border:1px solid #f1c40f; border-radius:4px; qproperty-alignment:'AlignLeft';")
-          lr.lb:echo("<span style='color:#fff3b0;font-size:10pt;'>&nbsp;✨ " .. lr.name .. "</span>")
+          lr.lb:echo("&lt;span style='color:#fff3b0;font-size:10pt;'&gt;&amp;nbsp;✨ " .. lr.name .. "&lt;/span&gt;")
         else
           lr.lb:setStyleSheet("background-color: rgba(241,196,15,0.10); border:1px solid #6b5a12; border-radius:4px; qproperty-alignment:'AlignLeft';")
-          lr.lb:echo("<span style='color:" .. lr.col .. ";font-size:10pt;'>&nbsp;✨ " .. lr.name .. "</span>")
+          lr.lb:echo("&lt;span style='color:" .. lr.col .. ";font-size:10pt;'&gt;&amp;nbsp;✨ " .. lr.name .. "&lt;/span&gt;")
         end
       else
         GaldamUI.blinkUntil[lr.id] = nil
         local _near = GaldamTac and GaldamTac.nearIds and GaldamTac.nearIds[GaldamUI.normId(lr.id)]
         if _near then
           lr.lb:setStyleSheet("background-color: rgba(46,204,113,0.20); border:1px solid #2ecc71; border-radius:4px; qproperty-alignment:'AlignLeft';")
-          lr.lb:echo("<span style='color:#86f0b0;font-size:10pt;'>&nbsp;✋ " .. lr.name .. "</span>")
+          lr.lb:echo("&lt;span style='color:#86f0b0;font-size:10pt;'&gt;&amp;nbsp;✋ " .. lr.name .. "&lt;/span&gt;")
         else
           lr.lb:setStyleSheet("background-color: rgba(255,255,255,0.045); border-radius:4px; qproperty-alignment:'AlignLeft';")
-          lr.lb:echo("<span style='color:" .. lr.col .. ";font-size:10pt;'>&nbsp;▸ " .. lr.name .. "</span>")
+          lr.lb:echo("&lt;span style='color:" .. lr.col .. ";font-size:10pt;'&gt;&amp;nbsp;▸ " .. lr.name .. "&lt;/span&gt;")
         end
       end
     end
@@ -812,13 +812,13 @@ function GaldamUI.renderRoom()
   if GaldamTac and GaldamTac.lastData and GaldamTac.lastData.actors then
     for _, a in ipairs(GaldamTac.lastData.actors) do
       local sv = a.sus and tonumber(a.sus)
-      if a.k == "npc" and sv and sv > 0 then susById[GaldamUI.normId(tostring(a.id))] = sv end
+      if a.k == "npc" and sv and sv &gt; 0 then susById[GaldamUI.normId(tostring(a.id))] = sv end
     end
   end
   local function susBar(sus)
-    local filled = math.min(5, math.floor(sus / 90 * 5 + 0.999)); if filled < 1 then filled = 1 end
-    local col = (sus >= 61) and "#ff5040" or ((sus >= 31) and "#ff9640" or "#ffd24a")
-    return " <span style='color:" .. col .. ";font-size:9pt;'>" .. string.rep("▰", filled) .. string.rep("▱", 5 - filled) .. "</span>"
+    local filled = math.min(5, math.floor(sus / 90 * 5 + 0.999)); if filled &lt; 1 then filled = 1 end
+    local col = (sus &gt;= 61) and "#ff5040" or ((sus &gt;= 31) and "#ff9640" or "#ffd24a")
+    return " &lt;span style='color:" .. col .. ";font-size:9pt;'&gt;" .. string.rep("▰", filled) .. string.rep("▱", 5 - filled) .. "&lt;/span&gt;"
   end
   local rid = r and tostring(r.roomid) or nil
   if rid ~= GaldamUI.prevRoomId then GaldamUI.roomPage = 1 end
@@ -826,22 +826,22 @@ function GaldamUI.renderRoom()
   local items = {}
   local function add(html, col, cmds, id, arrivalPulse) items[#items + 1] = {html = html, col = col, cmds = cmds, id = id, arrivalPulse = arrivalPulse} end
   if not r then
-    add("<span style='color:#6a7078;'>(방 정보 없음)</span>")
+    add("&lt;span style='color:#6a7078;'&gt;(방 정보 없음)&lt;/span&gt;")
   else
-    add("<span style='color:#e8d24a;font-size:10pt;'><b>● 사람</b></span>")
+    add("&lt;span style='color:#e8d24a;font-size:10pt;'&gt;&lt;b&gt;● 사람&lt;/b&gt;&lt;/span&gt;")
     local hasP = false
     local _vis = (GaldamTac and ((GaldamTileView and GaldamTileView.on) or GaldamTac.shown)) and ((GaldamUI.normId(tostring(GaldamTac.visibleRoom))==GaldamUI.normId(tostring(r.roomid)) and GaldamTac.visibleIds) or {}) or nil
     for e in tostring(r.people or ""):gmatch("[^;]+") do local nm, cm, id = GaldamUI.parseEntity(e); if (not _vis) or (id and _vis[GaldamUI.normId(id)]) then add(nm, "#a8d8ff", cm, id, true); hasP = true end end
-    if not hasP then add("<span style='color:#6a7078;font-size:9pt;'>   (없음)</span>") end
-    add("<span style='color:#e8d24a;font-size:10pt;'><b>● 물건</b></span>")
+    if not hasP then add("&lt;span style='color:#6a7078;font-size:9pt;'&gt;   (없음)&lt;/span&gt;") end
+    add("&lt;span style='color:#e8d24a;font-size:10pt;'&gt;&lt;b&gt;● 물건&lt;/b&gt;&lt;/span&gt;")
     local hasO = false
     for e in tostring(r.objects or ""):gmatch("[^;]+") do local nm, cm, id = GaldamUI.parseEntity(e); if (not _vis) or (id and _vis[GaldamUI.normId(id)]) then add(nm, "#cfe0a0", cm, id); hasO = true end end
-    if not hasO then add("<span style='color:#6a7078;font-size:9pt;'>   (없음)</span>") end
+    if not hasO then add("&lt;span style='color:#6a7078;font-size:9pt;'&gt;   (없음)&lt;/span&gt;") end
     if r.here and tostring(r.here) ~= "" then
       local hc = GaldamUI.parseCmds(r.here)
-      if #hc > 0 then
-        add("<span style='color:#e8d24a;font-size:10pt;'><b>● 장소 명령어</b></span>")
-        add(tostring(r.name or "이 방"), "#9fd0e8", hc, nil)
+      if #hc &gt; 0 then
+        add("&lt;span style='color:#e8d24a;font-size:10pt;'&gt;&lt;b&gt;● 장소 명령어&lt;/b&gt;&lt;/span&gt;")
+        add(tostring(r.name or "이 방"), "#9fd0e8", hc, r.roomid)
       end
     end
   end
@@ -849,7 +849,7 @@ function GaldamUI.renderRoom()
   local rowH = 20
   local boxH = 200; pcall(function() boxH = GaldamUI.roomBox:get_height() end)
   local fitRows = math.max(1, math.floor((boxH - 2) / rowH))
-  local hasPage = #items > fitRows
+  local hasPage = #items &gt; fitRows
   local perPage = hasPage and math.max(1, math.floor((boxH - 24) / rowH)) or fitRows
   local totalPages = math.max(1, math.ceil(#items / perPage))
   local page = math.max(1, math.min(GaldamUI.roomPage or 1, totalPages))
@@ -865,7 +865,7 @@ function GaldamUI.renderRoom()
     if it.cmds then
       lb:setStyleSheet("background-color: rgba(255,255,255,0.045); border-radius:4px; qproperty-alignment:'AlignLeft';")
       local _sv = it.id and it.id ~= "" and susById[GaldamUI.normId(it.id)]
-      lb:echo("<span style='color:" .. it.col .. ";font-size:10pt;'>&nbsp;▸ " .. it.html .. "</span>" .. (_sv and susBar(_sv) or ""))
+      lb:echo("&lt;span style='color:" .. it.col .. ";font-size:10pt;'&gt;&amp;nbsp;▸ " .. it.html .. "&lt;/span&gt;" .. (_sv and susBar(_sv) or ""))
       lb:setOnEnter(function() GaldamUI.showCmdTip(it.html, it.cmds) end)
       lb:setOnLeave(function() GaldamUI.hideTip() end)
       lb:setClickCallback(function() GaldamUI.openCtxMenu(it.html, it.cmds, it.id) end)
@@ -882,7 +882,7 @@ function GaldamUI.renderRoom()
     idx = idx + 1
     local lb = GaldamUI.getRow(idx)
     lb:setStyleSheet("background-color: rgba(40,64,96,0.55); border-radius:4px; qproperty-alignment:'AlignCenter';")
-    lb:echo("<span style='color:#9fd0e8;font-size:10pt;'>◀  " .. page .. " / " .. totalPages .. "  ▶   (클릭=다음)</span>")
+    lb:echo("&lt;span style='color:#9fd0e8;font-size:10pt;'&gt;◀  " .. page .. " / " .. totalPages .. "  ▶   (클릭=다음)&lt;/span&gt;")
     lb:setOnEnter(function() end); lb:setOnLeave(function() end)
     lb:setClickCallback(function() GaldamUI.roomPage = (page % totalPages) + 1; GaldamUI.renderRoom() end)
     lb:move(2, y); lb:resize("96%", rowH); lb:show(); y = y + rowH
@@ -908,7 +908,7 @@ end
 function GaldamUI.onRoom()
   local r = gmcp.Galdam and gmcp.Galdam.Room
   if not (GaldamUI.built and r) then return end
-  GaldamUI.locHeader:echo(string.format("<center><span style='font-size:14pt;'><b>%s</b></span><br><span style='font-size:9pt;color:#8fb8c8;'>%s</span></center>", r.name or "?", r.area or ""))
+  GaldamUI.locHeader:echo(string.format("&lt;center&gt;&lt;span style='font-size:14pt;'&gt;&lt;b&gt;%s&lt;/b&gt;&lt;/span&gt;&lt;br&gt;&lt;span style='font-size:9pt;color:#8fb8c8;'&gt;%s&lt;/span&gt;&lt;/center&gt;", r.name or "?", r.area or ""))
   GaldamUI.setExits(r.exits or {})
   GaldamUI.renderRoom()
 end
@@ -925,10 +925,10 @@ end
 function GaldamUI.renderWanted()
   if not (GaldamUI.built and GaldamUI.wanted) then return end
   local tier = GaldamUI.curTier or 0
-  if tier <= 0 then GaldamUI.wanted:hide(); return end
+  if tier &lt;= 0 then GaldamUI.wanted:hide(); return end
   local tick = GaldamUI.tick or 0
   local bl = GaldamUI.blink
-  if bl and tick >= bl.endTick then GaldamUI.blink = nil; bl = nil end
+  if bl and tick &gt;= bl.endTick then GaldamUI.blink = nil; bl = nil end
   local t = (math.sin(GaldamUI.cyclePhase or 0) + 1) / 2
   local col = string.format("#%02x%02x%02x", math.floor(204+(43-204)*t), math.floor(43+(107-43)*t), math.floor(43+(204-43)*t))
   local stars = ""
@@ -939,16 +939,16 @@ function GaldamUI.renderWanted()
       ch = "★"
       if bl.kind == "add" then c = on and "#f1c40f" or "#473807"
       else c = on and "#f1c40f" or "#ffffff" end
-    elseif i <= tier then ch = "★"; c = "#f1c40f"
+    elseif i &lt;= tier then ch = "★"; c = "#f1c40f"
     else ch = "☆"; c = "#444444" end
-    stars = stars .. "<span style='font-size:26pt;color:"..c..";'>"..ch.."</span>"
+    stars = stars .. "&lt;span style='font-size:26pt;color:"..c..";'&gt;"..ch.."&lt;/span&gt;"
   end
   local lines = {}
-  lines[#lines+1] = "<span style='font-size:21pt;color:"..col..";'><b>수배</b></span>"
+  lines[#lines+1] = "&lt;span style='font-size:21pt;color:"..col..";'&gt;&lt;b&gt;수배&lt;/b&gt;&lt;/span&gt;"
   lines[#lines+1] = stars
   local h = 18 + #lines * 42
   if GaldamUI.wantedH ~= h then pcall(function() GaldamUI.wanted:resize("21%", h) end); GaldamUI.wantedH = h end
-  GaldamUI.wanted:echo("<center>"..table.concat(lines, "<br>").."</center>")
+  GaldamUI.wanted:echo("&lt;center&gt;"..table.concat(lines, "&lt;br&gt;").."&lt;/center&gt;")
   GaldamUI.wanted:show()
 end
 
@@ -1086,7 +1086,7 @@ end
 
 function GaldamUI.beginStanceCooldown(seconds)
   seconds = tonumber(seconds) or 0
-  if seconds <= 0 or not GaldamUI.stanceCd then return end
+  if seconds &lt;= 0 or not GaldamUI.stanceCd then return end
   if GaldamUI.stanceCdTimers then
     for _, id in ipairs(GaldamUI.stanceCdTimers) do pcall(killTimer, id) end
   end
@@ -1132,21 +1132,21 @@ end
 function GaldamUI.onVitals()
   local v = gmcp.Char and gmcp.Char.Vitals
   if not (GaldamUI.built and v) then return end
-  if v.hp then GaldamUI.hp:setValue(tonumber(v.hp) or 0, tonumber(v.hp_max) or 100, "<b>혈액 "..tostring(v.hp).."</b>") end
-  if v.cons and GaldamUI.cons then GaldamUI.cons:setValue(tonumber(v.cons) or 0, tonumber(v.cons_max) or 100, "<b>의식 "..tostring(v.cons).."/"..tostring(v.cons_max).."</b>") end
-  if v.thirst then local t=tonumber(v.thirst) or 0; GaldamUI.thirst:setValue(math.min(t,500),500,string.format("<b>목마름 %d</b>",math.floor(t))) end
-  if v.hunger then local h=tonumber(v.hunger) or 0; GaldamUI.hunger:setValue(math.min(h,500),500,string.format("<b>배고픔 %d</b>",math.floor(h))) end
-  if v.stress then local s=tonumber(v.stress) or 0; GaldamUI.stress:setValue(math.min(s,500),500,string.format("<b>스트레스 %d</b>",math.floor(s))) end
-  if v.stamina and GaldamUI.stamina then local st=tonumber(v.stamina) or 0; local sm=tonumber(v.stamina_max) or 100; GaldamUI.stamina:setValue(st, sm, string.format("<b>기력 %d</b>", st)) end
+  if v.hp then GaldamUI.hp:setValue(tonumber(v.hp) or 0, tonumber(v.hp_max) or 100, "&lt;b&gt;혈액 "..tostring(v.hp).."&lt;/b&gt;") end
+  if v.cons and GaldamUI.cons then GaldamUI.cons:setValue(tonumber(v.cons) or 0, tonumber(v.cons_max) or 100, "&lt;b&gt;의식 "..tostring(v.cons).."/"..tostring(v.cons_max).."&lt;/b&gt;") end
+  if v.thirst then local t=tonumber(v.thirst) or 0; GaldamUI.thirst:setValue(math.min(t,500),500,string.format("&lt;b&gt;목마름 %d&lt;/b&gt;",math.floor(t))) end
+  if v.hunger then local h=tonumber(v.hunger) or 0; GaldamUI.hunger:setValue(math.min(h,500),500,string.format("&lt;b&gt;배고픔 %d&lt;/b&gt;",math.floor(h))) end
+  if v.stress then local s=tonumber(v.stress) or 0; GaldamUI.stress:setValue(math.min(s,500),500,string.format("&lt;b&gt;스트레스 %d&lt;/b&gt;",math.floor(s))) end
+  if v.stamina and GaldamUI.stamina then local st=tonumber(v.stamina) or 0; local sm=tonumber(v.stamina_max) or 100; GaldamUI.stamina:setValue(st, sm, string.format("&lt;b&gt;기력 %d&lt;/b&gt;", st)) end
   if v.posture ~= nil and GaldamUI.updateStance then GaldamUI.updateStance(tonumber(v.posture) or 0, tonumber(v.speed) or 0) end
   if v.wanted then
     local w = tonumber(v.wanted) or 0
-    local nt = (w>=171 and 6) or (w>=141 and 5) or (w>=101 and 4) or (w>=61 and 3) or (w>=31 and 2) or (w>=1 and 1) or 0
+    local nt = (w&gt;=171 and 6) or (w&gt;=141 and 5) or (w&gt;=101 and 4) or (w&gt;=61 and 3) or (w&gt;=31 and 2) or (w&gt;=1 and 1) or 0
     local prev = GaldamUI.prevTier or 0
-    if nt > prev then
+    if nt &gt; prev then
       local set = {}; for i = prev+1, nt do set[i] = true end
       GaldamUI.blink = {set=set, interval=5, endTick=(GaldamUI.tick or 0)+30, kind="add"}
-    elseif nt < prev and nt > 0 then
+    elseif nt &lt; prev and nt &gt; 0 then
       local set = {}; for i = 1, nt do set[i] = true end
       GaldamUI.blink = {set=set, interval=2, endTick=(GaldamUI.tick or 0)+20, kind="remove"}
     end
@@ -1214,7 +1214,7 @@ function GaldamUI.renderBodyInto(ctx, d)
   pcall(function() bw = ctx.box:get_width(); bh = ctx.box:get_height() end)
   local ih = bh
   local iw = math.floor(ih * 2 / 3)
-  if iw > bw then iw = bw; ih = math.floor(iw * 3 / 2) end
+  if iw &gt; bw then iw = bw; ih = math.floor(iw * 3 / 2) end
   local ox = math.floor((bw - iw) / 2)
   ctx.img:move(ox, 0); ctx.img:resize(iw, ih)
   local imgf = (g == "f") and "woman_stat.png" or "man_stat.png"
@@ -1243,25 +1243,25 @@ function GaldamUI.renderBodyInto(ctx, d)
       row.frame:setStyleSheet("background-color: rgba(22,22,22,235); border:1px solid #55554d; border-radius:3px;")
       row.frame:show()
     end
-    local pct = (pd.mx > 0) and (pd.cur / pd.mx) or 0
+    local pct = (pd.mx &gt; 0) and (pd.cur / pd.mx) or 0
     -- 제목 라벨: 배경에 구워진 부위명(좌/우 표기 포함)을 완전히 덮고 새로 표시
     row.title:move(math.floor(ox + (x0 - 14) * s), math.floor((by - 68) * s))
     row.title:resize(math.ceil((x1 - x0 + 28) * s), math.ceil(30 * s))
     row.title:setStyleSheet("background-color:#191919; qproperty-alignment:'AlignCenter';")
     local tpx = math.max(8, math.floor(21 * s))
-    row.title:echo("<center><span style='font-size:" .. tpx .. "px; color:#dadace;'><b>" .. (GaldamUI.BPNAME[k] or k) .. "</b></span></center>")
+    row.title:echo("&lt;center&gt;&lt;span style='font-size:" .. tpx .. "px; color:#dadace;'&gt;&lt;b&gt;" .. (GaldamUI.BPNAME[k] or k) .. "&lt;/b&gt;&lt;/span&gt;&lt;/center&gt;")
     -- 숫자 라벨: 배경에 구워진 예시 숫자를 덮고 실시간 값 표시
     row.num:move(math.floor(ox + (x0 - 14) * s), math.floor((by - 38) * s))
     row.num:resize(math.ceil((x1 - x0 + 28) * s), math.ceil(32 * s))
     local col = "#bfe6bf"
-    if pd.sv == 1 then col = "#7d7d7d" elseif pd.cur <= 0 then col = "#ff5544" elseif pct < 0.3 then col = "#ff8866" elseif pct < 0.55 then col = "#ffd966" end
+    if pd.sv == 1 then col = "#7d7d7d" elseif pd.cur &lt;= 0 then col = "#ff5544" elseif pct &lt; 0.3 then col = "#ff8866" elseif pct &lt; 0.55 then col = "#ffd966" end
     local txt = (pd.sv == 1) and "절단됨" or (pd.cur .. " / " .. pd.mx)
     local extra = ""
-    if pd.sv == 0 and pd.st >= 3 then extra = " <span style='color:#e67e22;'>골절</span>"
-    elseif pd.sv == 0 and pd.cur <= 0 then extra = " <span style='color:#c0392b;'>너덜</span>" end
+    if pd.sv == 0 and pd.st &gt;= 3 then extra = " &lt;span style='color:#e67e22;'&gt;골절&lt;/span&gt;"
+    elseif pd.sv == 0 and pd.cur &lt;= 0 then extra = " &lt;span style='color:#c0392b;'&gt;너덜&lt;/span&gt;" end
     local fpx = math.max(8, math.floor(24 * s))
     row.num:setStyleSheet("background-color:#191919; qproperty-alignment:'AlignCenter';")
-    row.num:echo("<center><span style='font-size:" .. fpx .. "px; color:" .. col .. ";'><b>" .. txt .. extra .. "</b></span></center>")
+    row.num:echo("&lt;center&gt;&lt;span style='font-size:" .. fpx .. "px; color:" .. col .. ";'&gt;&lt;b&gt;" .. txt .. extra .. "&lt;/b&gt;&lt;/span&gt;&lt;/center&gt;")
     -- 체력바: 구워진 바를 덮고 실시간 비율 표시
     local bb = GaldamUI.BODYBAR and GaldamUI.BODYBAR[g] and GaldamUI.BODYBAR[g][k]
     local bx0, bx1 = bb and bb[1] or x0, bb and bb[2] or x1
@@ -1269,11 +1269,11 @@ function GaldamUI.renderBodyInto(ctx, d)
     row.bar:resize(math.ceil((bx1 - bx0 + 10) * s), math.max(4, math.floor(14 * s)))
     local p1 = math.max(0, math.min(1, pct))
     local bcol = "#37a93c"
-    if pd.sv == 1 then bcol = "#3a3a3a" elseif pd.cur <= 0 then bcol = "#7a1f1f" elseif pct < 0.3 then bcol = "#e74c3c" elseif pct < 0.55 then bcol = "#e6b820" end
+    if pd.sv == 1 then bcol = "#3a3a3a" elseif pd.cur &lt;= 0 then bcol = "#7a1f1f" elseif pct &lt; 0.3 then bcol = "#e74c3c" elseif pct &lt; 0.55 then bcol = "#e6b820" end
     local css
     if pd.sv == 1 then css = "background-color:#2a2a2a;"
-    elseif p1 <= 0 then css = "background-color:#23150f;"
-    elseif p1 >= 1 then css = "background-color:" .. bcol .. ";"
+    elseif p1 &lt;= 0 then css = "background-color:#23150f;"
+    elseif p1 &gt;= 1 then css = "background-color:" .. bcol .. ";"
     else css = string.format("background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 %s, stop:%.3f %s, stop:%.3f #23150f, stop:1 #23150f);", bcol, p1, bcol, math.min(1, p1 + 0.003)) end
     row.bar:setStyleSheet(css .. " border:1px solid #0b0b0b; border-radius:2px;")
     -- 장비: 박스 아래에 장착 아이템 (✋=손에 든 것)
@@ -1282,16 +1282,16 @@ function GaldamUI.renderBodyInto(ctx, d)
     local efpx = math.max(7, math.floor(23 * s))
     local full, disp
     if pd.items == "" then
-      disp = "<span style='color:#46503f;'>─</span>"
+      disp = "&lt;span style='color:#46503f;'&gt;─&lt;/span&gt;"
       full = (GaldamUI.BPNAME[k] or k) .. " · 장착 없음"
     else
       local list = {}
       for it in pd.items:gmatch("[^,]+") do list[#list + 1] = it end
-      disp = "<span style='color:#cfe3b8;'>" .. table.concat(list, " · ") .. "</span>"
+      disp = "&lt;span style='color:#cfe3b8;'&gt;" .. table.concat(list, " · ") .. "&lt;/span&gt;"
       full = (GaldamUI.BPNAME[k] or k) .. " · " .. table.concat(list, ", ")
     end
     row.eq:setStyleSheet("background-color: rgba(0,0,0,0); qproperty-alignment:'AlignCenter';")
-    row.eq:echo("<center><span style='font-size:" .. efpx .. "px;'>" .. disp .. "</span></center>")
+    row.eq:echo("&lt;center&gt;&lt;span style='font-size:" .. efpx .. "px;'&gt;" .. disp .. "&lt;/span&gt;&lt;/center&gt;")
     GaldamUI.attachTip(row.title, full)
     GaldamUI.attachTip(row.num, full)
     GaldamUI.attachTip(row.eq, full)
@@ -1315,15 +1315,15 @@ function GaldamUI.renderBodyInto(ctx, d)
   ctx.orgTxt:resize(math.ceil((O.x1 - O.x0 - 12) * s), math.ceil((O.y1 - O.y0 - 16) * s))
   ctx.orgTxt:setStyleSheet("background-color: rgba(0,0,0,0);")
   local ofs = math.max(7, math.floor(22 * s))
-  local lns = {"<span style='color:#dadace;'><b>― 장기 ―</b></span>"}
-  lns[#lns + 1] = "심장 <span style='color:#bfe6bf;'>정상</span>"  -- 심장 관통 = 즉사라 살아있으면 항상 정상
-  lns[#lns + 1] = "폐 " .. (og[1] > 0 and ("<span style='color:#ff5544;'><b>천공 ×" .. og[1] .. "</b></span>") or "<span style='color:#bfe6bf;'>정상</span>")
-  lns[#lns + 1] = "복강 " .. (og[2] > 0 and ("<span style='color:#ff5544;'><b>내출혈 ×" .. og[2] .. "</b></span>") or "<span style='color:#bfe6bf;'>정상</span>")
+  local lns = {"&lt;span style='color:#dadace;'&gt;&lt;b&gt;― 장기 ―&lt;/b&gt;&lt;/span&gt;"}
+  lns[#lns + 1] = "심장 &lt;span style='color:#bfe6bf;'&gt;정상&lt;/span&gt;"  -- 심장 관통 = 즉사라 살아있으면 항상 정상
+  lns[#lns + 1] = "폐 " .. (og[1] &gt; 0 and ("&lt;span style='color:#ff5544;'&gt;&lt;b&gt;천공 ×" .. og[1] .. "&lt;/b&gt;&lt;/span&gt;") or "&lt;span style='color:#bfe6bf;'&gt;정상&lt;/span&gt;")
+  lns[#lns + 1] = "복강 " .. (og[2] &gt; 0 and ("&lt;span style='color:#ff5544;'&gt;&lt;b&gt;내출혈 ×" .. og[2] .. "&lt;/b&gt;&lt;/span&gt;") or "&lt;span style='color:#bfe6bf;'&gt;정상&lt;/span&gt;")
   local extra = {}
-  if og[3] > 0 then extra[#extra + 1] = "<span style='color:#e74c3c;'>출혈 " .. og[3] .. "</span>" end
-  if og[4] > 0 then extra[#extra + 1] = "<span style='color:#9b59b6;'>질식 " .. og[4] .. "</span>" end
-  if #extra > 0 then lns[#lns + 1] = table.concat(extra, " · ") end
-  ctx.orgTxt:echo("<center><span style='font-size:" .. ofs .. "px; color:#dadace;'>" .. table.concat(lns, "<br>") .. "</span></center>")
+  if og[3] &gt; 0 then extra[#extra + 1] = "&lt;span style='color:#e74c3c;'&gt;출혈 " .. og[3] .. "&lt;/span&gt;" end
+  if og[4] &gt; 0 then extra[#extra + 1] = "&lt;span style='color:#9b59b6;'&gt;질식 " .. og[4] .. "&lt;/span&gt;" end
+  if #extra &gt; 0 then lns[#lns + 1] = table.concat(extra, " · ") end
+  ctx.orgTxt:echo("&lt;center&gt;&lt;span style='font-size:" .. ofs .. "px; color:#dadace;'&gt;" .. table.concat(lns, "&lt;br&gt;") .. "&lt;/span&gt;&lt;/center&gt;")
   GaldamUI.attachTip(ctx.orgTxt, "폐 천공·복강 내출혈은 봉합으로 치료 / 심장 관통=즉사")
   ctx.orgFrame:show(); ctx.orgTxt:show()
 end
@@ -1344,7 +1344,7 @@ function GaldamUI.onBodyNPC(rerender)
   local isNew = (GaldamUI.npcLast ~= nm)
   GaldamUI.npcLast = nm
   if isNew or rerender then pcall(function() GaldamUI.npcWin:show() end) end
-  GaldamUI.npcHdr:echo("<center><span style='font-size:15px; color:#cfe3b8;'><b>" .. nm .. "</b> — 신체 상태</span></center>")
+  GaldamUI.npcHdr:echo("&lt;center&gt;&lt;span style='font-size:15px; color:#cfe3b8;'&gt;&lt;b&gt;" .. nm .. "&lt;/b&gt; — 신체 상태&lt;/span&gt;&lt;/center&gt;")
   GaldamUI.renderBodyInto(GaldamUI.npcCtx, d)
 end
 
@@ -1373,7 +1373,15 @@ table.insert(GaldamUI._handlers, registerAnonymousEventHandler("sysUserWindowRes
 table.insert(GaldamUI._handlers, registerAnonymousEventHandler("sysWindowResizeEvent", function() GaldamUI.relayout() end))
 table.insert(GaldamUI._handlers, registerAnonymousEventHandler("sysDownloadDone", function() GaldamUI.refresh() end))
 GaldamUI.onRoom(); GaldamUI.onVitals(); GaldamUI.onStatus(); GaldamUI.onMap()
-]]></script>
+
+-- Coordinate commands carry the source room so an old menu cannot act elsewhere.
+function GaldamUI.workTreeMenu(x,y,roomId)
+  x,y=tonumber(x),tonumber(y)
+  roomId=tostring(roomId or "")
+  if not x or not y or not roomId:match("^#%d+$") then return end
+  GaldamUI.openCtxMenu("나무",{{label="벌목",cmd="_galdamworktree "..roomId.." "..math.floor(x).." "..math.floor(y),kind="go"}})
+end
+</script>
    <eventHandlerList></eventHandlerList>
   </Script>
    <Script isActive="yes" isFolder="no">
@@ -2598,7 +2606,11 @@ function GT.render(d)
           pcall(function()
             GT.win:setFgColor(tonumber(fr), tonumber(fgc), tonumber(fb))
             GT.win:setBgColor(tonumber(br), tonumber(bgc), tonumber(bb))
-            GT.win:echoLink(glyph .. pad, "", thint, true)
+            local tree=cover[key] and tostring(cover[key].k):find("tree",1,true) and (d.biome=="forest" or d.biome=="woods") and lm&gt;=0.28 and not (fog and fog[key])
+            local roomId=tostring((gmcp.Galdam.Room or {}).roomid or "")
+            local action=""
+            if tree and roomId:match("^#%d+$") then action="GaldamUI.workTreeMenu("..x..","..y..",[["..roomId.."]])" end
+            GT.win:echoLink(glyph .. pad, action, thint, true)
           end)
         else
           GT.win:decho("&lt;" .. ffg .. ":" .. fbg .. "&gt;" .. glyph .. pad)
@@ -3514,7 +3526,7 @@ function GTV.render(d)
 
   -- ④ 오브젝트(가구/차량/투명 struct)
   local oi = 0
-  local function objAt(x, y, f, id, name, kindTip)
+  local function objAt(x, y, f, id, name, kindTip, cellKind)
     oi = oi + 1
     local l = lbl("obj", oi)
     sty(l, imgcss(f)); geo(l, PX + x * CS, PY + y * CS, CS, CS)
@@ -3522,12 +3534,17 @@ function GTV.render(d)
     local realObj = id and tonumber(id) and tonumber(id) &gt; 0
     setTip(l, (realObj and name) or kindTip or name)
     -- 콜백은 대상이 바뀐 라벨만 재설정 (매 렌더 클로저 재생성 = 프레임 출렁임 원인)
-    local ck = tostring(id or 0) .. ":" .. (name or "")
+    local treeCell = not realObj and cellKind and cellKind:find("tree",1,true) and (d.biome=="forest" or d.biome=="woods") and lm(x,y)&gt;=0.28 and not fog[x..","..y]
+    local treeRoom = (gmcp.Galdam.Room or {}).roomid
+    local treeX,treeY=x+(tonumber(d._vx) or 0),y+(tonumber(d._vy) or 0)
+    local ck = tostring(id or 0) .. ":" .. (name or "") .. ":" .. tostring(treeCell) .. ":" .. tostring(treeRoom) .. ":" .. treeX .. "," .. treeY
     if l._cid ~= ck then
       l._cid = ck
       pcall(function()
         if id and tonumber(id) and tonumber(id) &gt; 0 then
           l:setClickCallback(function() GaldamUI.tacClick(tostring(id), name or "?") end)
+        elseif treeCell then
+          l:setClickCallback(function() GaldamUI.workTreeMenu(treeX,treeY,treeRoom) end)
         else l:setClickCallback(function() end) end
       end)
     end
@@ -3547,7 +3564,7 @@ function GTV.render(d)
   for _, c in ipairs(d.cover or {}) do
     if not (SFULL[c.k] or SOVER[c.k] or c.k == "fence") then
       local f = OBJF[c.k] or "prop"
-      objAt(tonumber(c.x), tonumber(c.y), f, c.id, c.n, tipOf(c.k))
+      objAt(tonumber(c.x), tonumber(c.y), f, c.id, c.n, tipOf(c.k), c.k)
     end
   end
   hideRest("obj", oi)
