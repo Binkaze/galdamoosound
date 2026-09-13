@@ -19,7 +19,7 @@ if GaldamUI._handlers then
   for _, id in ipairs(GaldamUI._handlers) do pcall(killAnonymousEventHandler, id) end
 end
 GaldamUI._handlers = {}
-GaldamUI.VERSION = "v58"   -- 한국 해안 월드 · 전술 타일 개편
+GaldamUI.VERSION = "v59"   -- 한국 해안 월드 · 전술 타일 개편
 
 local PANEL_W = 0.20      -- 우측 탭 패널 폭
 local BOTTOM_H = 120      -- 하단 HUD 바 높이
@@ -195,14 +195,8 @@ function GaldamUI.build()
   GaldamUI.cyclePhase = 0
   GaldamUI.cycleStep(GaldamUI.cycleGen)
 
-  -- 지도창
-  pcall(function()
-    if not GaldamUI.mapWin then
-      GaldamUI.mapWin = Geyser.UserWindow:new({name="갯담지도", width=520, height=430, x=900, y=300})
-    end
-    GaldamUI.mapWin:setFontSize(14)
-    GaldamUI.mapWin:cecho("\n  <grey>지도 없음")
-  end)
+  -- Smartphone atlas replaces the paid paper-map window.
+  if GaldamUI.mapWin then pcall(function() GaldamUI.mapWin:hide() end) end
 
   -- 커스텀 툴팁 라벨 (최상위, 마지막 생성 → z순서 위)
   pcall(function()
@@ -1099,15 +1093,7 @@ function GaldamUI.onStatus()
 end
 
 function GaldamUI.onMap()
-  local d = gmcp.Galdam and gmcp.Galdam.Map
-  if not (GaldamUI.built and GaldamUI.mapWin and d) then return end
-  GaldamUI.mapWin:clear()
-  if d.has == 1 and d.grid then
-    local raw = d.grid:gsub("<<E>>", "\27"):gsub("<<N>>", "\n")
-    GaldamUI.mapWin:decho(ansi2decho(raw))
-  else
-    GaldamUI.mapWin:cecho("\n  <grey>지도 없음 (갯담 지도 필요)")
-  end
+  if GaldamUI.mapWin then pcall(function() GaldamUI.mapWin:hide() end) end
 end
 
 -- ===== 신체 상태 탭 (man_stat/woman_stat 배경 + 실시간 부위HP/골절/절단/장비 오버레이) =====
@@ -4427,7 +4413,11 @@ function A.render()
   label('footer',22,ms+85,ms,32,'아이콘: 장소 확인 · 위 탭: 구역 확대 · 노란 점: 현재 위치','background:transparent;color:#b8c9b8;font-size:12px;')
   pcall(function() raiseWindow('GaetdamAtlasRoot') end)
 end
-A.alias=tempAlias('^(?:bigmap|월드맵|큰지도|지도보기)$',function() if A.active then A.hide() else A.show() end end)
+A.alias=tempAlias('^(?i:map|지도|bigmap|월드맵|큰지도|지도보기)\\s*$',function() A.show() end)
+A.handlers[#A.handlers+1]=registerAnonymousEventHandler('gmcp.Galdam.Atlas',function()
+  local d=gmcp.Galdam and gmcp.Galdam.Atlas
+  if d and tonumber(d.open)==1 then A.show() end
+end)
 A.handlers[#A.handlers+1]=registerAnonymousEventHandler('gmcp.Galdam.Room',function() if A.active then A.render() end end)
 A.handlers[#A.handlers+1]=registerAnonymousEventHandler('sysWindowResizeEvent',function() if A.active then A.render() end end)
 -- A hot package update keeps existing labels; update the displayed stamp too.
