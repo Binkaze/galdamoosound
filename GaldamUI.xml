@@ -19,7 +19,7 @@ if GaldamUI._handlers then
   for _, id in ipairs(GaldamUI._handlers) do pcall(killAnonymousEventHandler, id) end
 end
 GaldamUI._handlers = {}
-GaldamUI.VERSION = "v65"   -- 한국 해안 월드 · 전술 타일 개편
+GaldamUI.VERSION = "v66"   -- 한국 해안 월드 · 전술 타일 개편
 
 local PANEL_W = 0.20      -- 우측 탭 패널 폭
 local BOTTOM_H = 120      -- 하단 HUD 바 높이
@@ -744,7 +744,7 @@ function GaldamUI.renderRoom()
   else
     add("<span style='color:#e8d24a;font-size:10pt;'><b>● 사람</b></span>")
     local hasP = false
-    local _vis = (GaldamTileView and GaldamTileView.on and GaldamTac and GaldamTac.visibleIds) or nil
+    local _vis = (GaldamTac and ((GaldamTileView and GaldamTileView.on) or GaldamTac.shown)) and ((GaldamUI.normId(tostring(GaldamTac.visibleRoom))==GaldamUI.normId(tostring(r.roomid)) and GaldamTac.visibleIds) or {}) or nil
     for e in tostring(r.people or ""):gmatch("[^;]+") do local nm, cm, id = GaldamUI.parseEntity(e); if (not _vis) or (id and _vis[GaldamUI.normId(id)]) then add(nm, "#a8d8ff", cm, id, true); hasP = true end end
     if not hasP then add("<span style='color:#6a7078;font-size:9pt;'>   (없음)</span>") end
     add("<span style='color:#e8d24a;font-size:10pt;'><b>● 물건</b></span>")
@@ -2009,6 +2009,33 @@ function GT.present()
   if GT.win then GT.win:show() end
   if GaldamAtlas and GaldamAtlas.bringToFront then GaldamAtlas.bringToFront() end
 end
+-- Conservative grid rays: walls in either native geometry layer occlude actors and overlays.
+local function makeVision(d)
+ local opaque={};local blockers={wall=1,wall_h=1,wall_v=1,corner=1,building=1,breakwater=1,door=1,gate=1,greenhouse=1,lighthouse=1,house_wall=1,shed_wall=1,shop_wall=1,wall_stone=1,hull=1,roof_blue=1,roof_gray=1,roof_tile=1,roof_flat=1,facade_home=1,facade_shop=1,facade_civic=1,window_head=1,door_head=1}
+ for _,list in ipairs({d.cover or {},d.struct or {}})do for _,e in ipairs(list)do
+  local k=e.t or e.k or '';opaque[e.x..','..e.y]=(blockers[k] or k:match('^facade_sign_')) and true or nil
+ end end
+ local function blocked(x,y)return opaque[x..','..y]end
+ local function clear(x,y,tx,ty)
+  if not(x and y and tx and ty)then return false end
+  local nx,ny=math.abs(tx-x),math.abs(ty-y);local sx,sy=tx>x and 1 or -1,ty>y and 1 or -1;local ix,iy=0,0
+  while ix<nx or iy<ny do
+   local a,b=(1+2*ix)*ny,(1+2*iy)*nx
+   if a==b then
+    if blocked(x+sx,y) or blocked(x,y+sy)then return false end
+    x=x+sx;y=y+sy;ix=ix+1;iy=iy+1
+   elseif a<b then x=x+sx;ix=ix+1 else y=y+sy;iy=iy+1 end
+   if (x~=tx or y~=ty) and blocked(x,y)then return false end
+  end
+  return true
+ end
+ local fog={};local sx,sy=d.self and tonumber(d.self[1]),d.self and tonumber(d.self[2]);local radius=tonumber(d.vision_range) or math.max(d.w or 9,d.h or 9)
+ if sx and sy then for y=0,(d.h or 9)-1 do for x=0,(d.w or 9)-1 do
+  if math.max(math.abs(x-sx),math.abs(y-sy))>radius or not clear(sx,sy,x,y)then fog[x..','..y]=true end
+ end end end
+ return fog,clear
+end
+
 function GT.render(d)
   local w = tonumber(d.w) or 9
   local h = tonumber(d.h) or 9
@@ -2018,7 +2045,7 @@ function GT.render(d)
   local litrad = tonumber(d.litrad) or 0
   local weather = d.weather or "clear"
   local floor = d.floor or "ondol"
-  local outdoor = (biome == "forest" or biome == "road" or biome == "sea" or biome == "ocean" or biome == "village")
+  local outdoor = tonumber(d.outdoor)==1 or (d.outdoor==nil and (biome == "forest" or biome == "road" or biome == "sea" or biome == "ocean" or biome == "village"))
   local watery = (biome == "sea" or biome == "ocean")
   local flash = (GT.flash or 0) > 0
   local watch = (tonumber(d.watch) or 0) == 1   -- 경계상황(실내/알림/수배/잠입)에서만 평시 원뿔 표시
@@ -2092,28 +2119,8 @@ function GT.render(d)
 
   -- 플레이어 시야 음영(fog of war): 시선이 벽에 막힌 셀은 어둑하게.
   -- 데이터 갱신/위치 변경시에만 재계산(onTac이 fogKey 무효화), 애니 프레임은 캐시 재사용
-  local fog
-  if sx and sy then
-    local fkey = sx .. "," .. sy .. "|" .. w .. "x" .. h
-    if GT.fogKey == fkey and GT.fog then
-      fog = GT.fog
-    else
-      fog = {}
-      for yy = 0, h - 1 do
-        for xx = 0, w - 1 do
-          local fdx, fdy = xx - sx, yy - sy
-          local steps = math.max(math.abs(fdx), math.abs(fdy))
-          for i = 1, steps - 1 do
-            local cx = sx + math.floor(fdx * i / steps + 0.5)
-            local cy = sy + math.floor(fdy * i / steps + 0.5)
-            local s = struct[cx .. "," .. cy]
-            if s and FOGSOLID[s.t] then fog[xx .. "," .. yy] = true; break end
-          end
-        end
-      end
-      GT.fog = fog; GT.fogKey = fkey
-    end
-  end
+  local fog,clearSight=makeVision(d)
+  GT.fog=fog
 
   local OUTAMB = {[1]=0.40, [2]=0.85, [3]=1.0, [4]=0.50, [5]=0.28, [6]=0.16}
   local function lightMul(x, y)
@@ -2268,6 +2275,15 @@ function GT.render(d)
     end
   end
 
+  local function actorVisible(x,y)
+    return x and y and not fog[x..","..y] and lightMul(x,y)>=0.28
+  end
+  GT.visibleRoom=d.rid;GT.visibleIds={};GT.nearIds={}
+  for key,list in pairs(cellObj)do
+    local x,y=key:match("(%-?%d+),(%-?%d+)");x,y=tonumber(x),tonumber(y)
+    if actorVisible(x,y)then for _,o in ipairs(list)do GT.visibleIds[tostring(o.id)]=true;if sx and math.max(math.abs(x-sx),math.abs(y-sy))<=1 then GT.nearIds[tostring(o.id)]=true end end
+    else cellObj[key]=nil;actors[key]=nil end
+  end
   -- NPC 시야 원뿔 (코만도스식): facing+시야로 cone 셀에 누적. 평시 초록, 의심↑ 주황→빨강
   local cone = {}
   for _, a in ipairs(d.actors or {}) do
@@ -2278,7 +2294,7 @@ function GT.render(d)
       local ct = tonumber(a.ct) or 1
       local sus = tonumber(a.sus) or 0
       -- 경계상황(watch)이거나 의심중인 NPC만 원뿔 표시. 평시 공개장소=숨김
-      if ox and fxv and (watch or sus > 0) and (fxv ~= 0 or fyv ~= 0) then
+      if ox and fxv and actorVisible(ox,oy) and (watch or sus > 0) and (ct==0 or fxv ~= 0 or fyv ~= 0) then
         for cyy = 0, h - 1 do
           for cxx = 0, w - 1 do
             local vx, vy = cxx - ox, cyy - oy
@@ -2286,7 +2302,7 @@ function GT.render(d)
             if dist >= 1 and dist <= sr then
               local fdot = fxv * vx + fyv * vy
               local fcr = fxv * vy - fyv * vx
-              if fdot > 0 and math.abs(fcr) <= fdot * ct then
+              if (ct==0 or (fdot > 0 and math.abs(fcr) <= fdot * ct)) and actorVisible(cxx,cyy) and clearSight(ox,oy,cxx,cyy) then
                 local k = cxx .. "," .. cyy
                 local inten = (1 - dist / (sr + 1.5)) * 0.55
                 local e = cone[k]
@@ -3130,6 +3146,33 @@ local function skyLightLevel(d,lights,x,y,sx,sy,litrad)
   return math.min(1,v)
 end
 
+-- Conservative grid rays: walls in either native geometry layer occlude actors and overlays.
+local function makeVision(d)
+ local opaque={};local blockers={wall=1,wall_h=1,wall_v=1,corner=1,building=1,breakwater=1,door=1,gate=1,greenhouse=1,lighthouse=1,house_wall=1,shed_wall=1,shop_wall=1,wall_stone=1,hull=1,roof_blue=1,roof_gray=1,roof_tile=1,roof_flat=1,facade_home=1,facade_shop=1,facade_civic=1,window_head=1,door_head=1}
+ for _,list in ipairs({d.cover or {},d.struct or {}})do for _,e in ipairs(list)do
+  local k=e.t or e.k or '';opaque[e.x..','..e.y]=(blockers[k] or k:match('^facade_sign_')) and true or nil
+ end end
+ local function blocked(x,y)return opaque[x..','..y]end
+ local function clear(x,y,tx,ty)
+  if not(x and y and tx and ty)then return false end
+  local nx,ny=math.abs(tx-x),math.abs(ty-y);local sx,sy=tx>x and 1 or -1,ty>y and 1 or -1;local ix,iy=0,0
+  while ix<nx or iy<ny do
+   local a,b=(1+2*ix)*ny,(1+2*iy)*nx
+   if a==b then
+    if blocked(x+sx,y) or blocked(x,y+sy)then return false end
+    x=x+sx;y=y+sy;ix=ix+1;iy=iy+1
+   elseif a<b then x=x+sx;ix=ix+1 else y=y+sy;iy=iy+1 end
+   if (x~=tx or y~=ty) and blocked(x,y)then return false end
+  end
+  return true
+ end
+ local fog={};local sx,sy=d.self and tonumber(d.self[1]),d.self and tonumber(d.self[2]);local radius=tonumber(d.vision_range) or math.max(d.w or 9,d.h or 9)
+ if sx and sy then for y=0,(d.h or 9)-1 do for x=0,(d.w or 9)-1 do
+  if math.max(math.abs(x-sx),math.abs(y-sy))>radius or not clear(sx,sy,x,y)then fog[x..','..y]=true end
+ end end end
+ return fog,clear
+end
+
 function GTV.render(d)
   if not d then return end
   local architecture=GTV.architecture(d)
@@ -3138,7 +3181,7 @@ function GTV.render(d)
   local w = tonumber(d.w) or 9
   local h = tonumber(d.h) or 9
   local biome = d.biome or "indoor"
-  local outdoor = (biome == "forest" or biome == "road" or biome == "sea" or biome == "ocean" or biome == "village")
+  local outdoor = tonumber(d.outdoor)==1 or (d.outdoor==nil and (biome == "forest" or biome == "road" or biome == "sea" or biome == "ocean" or biome == "village"))
   local watery = (biome == "sea" or biome == "ocean")
   local tone = tonumber(d.tone) or 3
   local dark = tonumber(d.dark) or 0
@@ -3190,26 +3233,8 @@ function GTV.render(d)
 
   -- Native darkness and real powered fixtures determine illumination.
   -- 시야음영(fog) 캐시 (글리프판 v8과 동일 DDA)
-  local fog
-  if sx and sy then
-    local fkey = tostring(d._vx or 0) .. "," .. tostring(d._vy or 0) .. "|" .. sx .. "," .. sy .. "|" .. w .. "x" .. h
-    if GTV.fogKey == fkey and GTV.fog then fog = GTV.fog
-    else
-      fog = {}
-      for yy = 0, h - 1 do
-        for xx = 0, w - 1 do
-          local dx, dy = xx - sx, yy - sy
-          local steps = math.max(math.abs(dx), math.abs(dy))
-          for i = 1, steps - 1 do
-            local cx = sx + math.floor(dx * i / steps + 0.5)
-            local cy = sy + math.floor(dy * i / steps + 0.5)
-            if SOLID[stmap[cx .. "," .. cy] or ""] then fog[xx .. "," .. yy] = true; break end
-          end
-        end
-      end
-      GTV.fog = fog; GTV.fogKey = fkey
-    end
-  end
+  local fog,clearSight=makeVision(d)
+  GTV.fog=fog
   -- 실외 광원맵: 가로등(cover lamp) 주변 밝기 (밤/악천후 어둠막 fogp를 뚫음)
   local litmap = {}
   if outdoor then
@@ -3292,6 +3317,7 @@ function GTV.render(d)
   end
 
   -- 시야 내(lm 충분) 객체 id 집합 → 우측 패널 필터용 (시야 밖 사람/물건은 패널서도 숨김)
+  GaldamTac.visibleRoom=d.rid
   GaldamTac.visibleIds = {}
   GaldamTac.nearIds = {}
   if sx then
@@ -3508,7 +3534,7 @@ function GTV.render(d)
   for _, a in ipairs(d.actors or {}) do
     local x, y = tonumber(a.x), tonumber(a.y)
     -- 실외 야간 FOW: 광원/시야 밖(lm 낮음)의 액터는 미파악 → 숨김 (플레이어 본인은 아래서 별도 렌더)
-    if not (sx == x and sy == y) and not (outdoor and lm(x, y) < 0.28) then
+    if not (sx == x and sy == y) and lm(x,y)>=0.28 then
       local f = GTV.actorSprite(a)
       local sus = tonumber(a.sus) or 0
       actorAt(x, y, f, a.n, a.id)
@@ -3562,6 +3588,7 @@ function GTV.render(d)
 
   -- ⑧ 시야원뿔(rgba 오버레이) — 글리프판과 동일 기하
   local ci = 0
+  local coneCells={}
   for _, a in ipairs(d.actors or {}) do
     if a.k == "npc" and a.f then
       local ox, oy = tonumber(a.x), tonumber(a.y)
@@ -3569,7 +3596,7 @@ function GTV.render(d)
       local sr = tonumber(a.sr) or 5
       local ct = tonumber(a.ct) or 1
       local sus = tonumber(a.sus) or 0
-      if ox and fx and (watch or sus > 0) and (fx ~= 0 or fy ~= 0) then
+      if ox and fx and lm(ox,oy)>=0.28 and (watch or sus > 0) and (ct==0 or fx ~= 0 or fy ~= 0) then
         local cr, cg, cb = 70, 200, 90
         if sus >= 61 then cr, cg, cb = 235, 70, 60
         elseif sus >= 31 then cr, cg, cb = 235, 150, 60
@@ -3581,13 +3608,11 @@ function GTV.render(d)
             if dist >= 1 and dist <= sr then
               local fdot = fx * vx + fy * vy
               local fcr = fx * vy - fy * vx
-              if fdot > 0 and math.abs(fcr) <= fdot * ct then
-                ci = ci + 1
-                local l = lbl("cone", ci)
-                -- 또렷하게: 바닥 알파 40 + 거리감쇠, 같은 색 얇은 테두리 (틴트 위 레이어라 안 씻김)
-                local aint = 40 + math.floor((1 - dist / (sr + 1.5)) * 85)
-                sty(l, "background-color: rgba(" .. cr .. "," .. cg .. "," .. cb .. "," .. aint .. "); border:1px solid rgba(" .. cr .. "," .. cg .. "," .. cb .. ",110);")
-                geo(l, PX + cx * CS, PY + cy * CS, CS, CS)
+              if (ct==0 or (fdot > 0 and math.abs(fcr) <= fdot * ct)) and lm(cx,cy)>=0.28 and clearSight(ox,oy,cx,cy) then
+                local key=cx..","..cy
+                local intensity=ct==0 and 22 or (40+math.floor((1-dist/(sr+1.5))*85))
+                local prev=coneCells[key]
+                if not prev or sus>prev.sus then coneCells[key]={x=cx,y=cy,r=cr,g=cg,b=cb,sus=sus,alpha=intensity} end
               end
             end
           end
@@ -3595,6 +3620,13 @@ function GTV.render(d)
       end
     end
   end
+  for y=0,h-1 do for x=0,w-1 do
+    local c=coneCells[x..","..y]
+    if c then ci=ci+1;local l=lbl("cone",ci)
+      sty(l,"background-color: rgba("..c.r..","..c.g..","..c.b..","..c.alpha.."); border:0;")
+      geo(l,PX+x*CS,PY+y*CS,CS,CS)
+    end
+  end end
   hideRest("cone", ci)
 
   -- ⑨ 시간대 틴트(단일) + 날씨
