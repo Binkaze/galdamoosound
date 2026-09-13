@@ -19,7 +19,7 @@ if GaldamUI._handlers then
   for _, id in ipairs(GaldamUI._handlers) do pcall(killAnonymousEventHandler, id) end
 end
 GaldamUI._handlers = {}
-GaldamUI.VERSION = "v61"   -- 한국 해안 월드 · 전술 타일 개편
+GaldamUI.VERSION = "v62"   -- 한국 해안 월드 · 전술 타일 개편
 
 local PANEL_W = 0.20      -- 우측 탭 패널 폭
 local BOTTOM_H = 120      -- 하단 HUD 바 높이
@@ -1986,6 +1986,25 @@ local function realLights(d)
   return out
 end
 
+
+-- Diffuse skylight is transmitted by the server; indoor weather stays sheltered.
+local function skyLightLevel(d,lights,x,y,sx,sy,litrad)
+  local level=tonumber(d.daylight)
+  if not level then return nil end
+  local v=math.max(0,math.min(1,level/100))
+  for _,light in ipairs(lights) do
+    if light.on then
+      local dist=math.sqrt((x-light.x)^2+(y-light.y)^2)
+      if dist<=6 then v=math.max(v,0.96-dist*0.12) end
+    end
+  end
+  if litrad>0 and sx and sy then
+    local dist=math.max(math.abs(x-sx),math.abs(y-sy))
+    if dist<=litrad+1 then v=math.max(v,1-dist/(litrad+1.7)) end
+  end
+  return math.min(1,v)
+end
+
 function GT.render(d)
   local w = tonumber(d.w) or 9
   local h = tonumber(d.h) or 9
@@ -2005,7 +2024,7 @@ function GT.render(d)
   GT.win:clear()
   local nm = (gmcp.Galdam and gmcp.Galdam.Room and gmcp.Galdam.Room.name) or "전술 격자"
 
-  if (not outdoor) and dark >= 1 and litrad <= 0 then
+  if (not outdoor) and not tonumber(d.daylight) and dark >= 1 and litrad <= 0 then
     GT.win:decho("<70,72,86>  \226\140\150 ???\n\n")
     for i = 1, math.floor(h/2) do GT.win:decho("<11,11,15>" .. string.rep("\226\150\146", w) .. "\n") end
     GT.win:decho("\n<120,120,140>      너무 어두워 아무것도\n<120,120,140>      보이지 않는다...\n")
@@ -2095,6 +2114,8 @@ function GT.render(d)
   local OUTAMB = {[1]=0.40, [2]=0.85, [3]=1.0, [4]=0.50, [5]=0.28, [6]=0.16}
   local function lightMul(x, y)
     if not outdoor then
+      local sky=skyLightLevel(d,lightList,x,y,sx,sy,litrad)
+      if sky then return sky end
       if dark < 1 then return 1.0 end
       if litrad <= 0 or not sx then return 0.0 end
       local R = litrad + 1
@@ -3080,6 +3101,25 @@ function GTV.fenceSprite(map,x,y,style)
   return family.."_"..mask
 end
 
+
+-- Diffuse skylight is transmitted by the server; indoor weather stays sheltered.
+local function skyLightLevel(d,lights,x,y,sx,sy,litrad)
+  local level=tonumber(d.daylight)
+  if not level then return nil end
+  local v=math.max(0,math.min(1,level/100))
+  for _,light in ipairs(lights) do
+    if light.on then
+      local dist=math.sqrt((x-light.x)^2+(y-light.y)^2)
+      if dist<=6 then v=math.max(v,0.96-dist*0.12) end
+    end
+  end
+  if litrad>0 and sx and sy then
+    local dist=math.max(math.abs(x-sx),math.abs(y-sy))
+    if dist<=litrad+1 then v=math.max(v,1-dist/(litrad+1.7)) end
+  end
+  return math.min(1,v)
+end
+
 function GTV.render(d)
   if not d then return end
   local architecture=GTV.architecture(d)
@@ -3120,7 +3160,8 @@ function GTV.render(d)
   end
   local nm = (gmcp.Galdam and gmcp.Galdam.Room and gmcp.Galdam.Room.name) or "전술 격자"
   local tnames = {"새벽", "아침", "낮", "저녁", "노을", "밤"}
-  local sub = outdoor and (" <span style='color:#8890a4'>(" .. (tnames[tone] or "") .. (weather ~= "clear" and (" · " .. weather) or "") .. ")</span>") or ""
+  local sub = (outdoor or tonumber(d.daylight) ~= nil) and (" <span style='color:#8890a4'>(" .. (tnames[tone] or "") .. (weather ~= "clear" and (" · " .. weather) or "") .. ")</span>") or ""
+  if tonumber(d.daylight) then sub=sub .. " <span style='color:#aebca0'>· 비닐 채광</span>" end
   if d._fullw then sub = sub .. " <span style='color:#778397'>[" .. w .. "×" .. h .. " 근거리 / 전체 " .. d._fullw .. "×" .. d._fullh .. "]</span>" end
   GTV.hdr:echo("<b style='color:#9fc6ef'>⌖ " .. nm .. "</b>" .. sub .. " <span style='color:#667'>[타일뷰]</span>")
 
@@ -3191,11 +3232,14 @@ function GTV.render(d)
       end
     end
   end
+  local skyLights=realLights(d)
   local OUTAMB = {[1]=0.40, [2]=0.85, [3]=1.0, [4]=0.50, [5]=0.28, [6]=0.16}
   local function lm(x, y)
     -- 시야 차단(벽 너머): 시야에 포착될 때만 보임 = 낮밤 무관 거의 미파악
     if fog and fog[x .. "," .. y] and not (sx == x and sy == y) then return 0.06 end
     if not outdoor then
+      local sky=skyLightLevel(d,skyLights,x,y,sx,sy,litrad)
+      if sky then return sky end
       if dark < 1 then return 1.0 end
       if litrad <= 0 or not sx then return 0.0 end
       local dist = math.max(math.abs(x - sx), math.abs(y - sy))
