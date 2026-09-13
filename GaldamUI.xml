@@ -19,7 +19,7 @@ if GaldamUI._handlers then
   for _, id in ipairs(GaldamUI._handlers) do pcall(killAnonymousEventHandler, id) end
 end
 GaldamUI._handlers = {}
-GaldamUI.VERSION = "v64"   -- 한국 해안 월드 · 전술 타일 개편
+GaldamUI.VERSION = "v65"   -- 한국 해안 월드 · 전술 타일 개편
 
 local PANEL_W = 0.20      -- 우측 탭 패널 폭
 local BOTTOM_H = 120      -- 하단 HUD 바 높이
@@ -2005,6 +2005,10 @@ local function skyLightLevel(d,lights,x,y,sx,sy,litrad)
   return math.min(1,v)
 end
 
+function GT.present()
+  if GT.win then GT.win:show() end
+  if GaldamAtlas and GaldamAtlas.bringToFront then GaldamAtlas.bringToFront() end
+end
 function GT.render(d)
   local w = tonumber(d.w) or 9
   local h = tonumber(d.h) or 9
@@ -2543,7 +2547,7 @@ function GT.onTac()
   GT.makeWindow(); GT.lastData = d
   -- 타일뷰 ON이면 글리프 뷰는 양보 (타일뷰 블록이 자체 렌더)
   if GaldamTileView and GaldamTileView.on then GT.win:hide(); GT.shown = false; return end
-  GT.render(d); GT.win:show(); GT.shown = true
+  GT.render(d); GT.present(); GT.shown = true
   local wx = d.weather
   local anim = (wx == "rain" or wx == "snow" or wx == "storm") or fxActive(d) or smokeActive() or (d.biome == "sea" or d.biome == "ocean") or envAnim(d)
   if anim and not GT.wtimer then GT.wtimer = tempTimer(0.12, "GaldamTac.weatherTick()") end
@@ -2767,6 +2771,10 @@ function GTV.requestRefresh(reason)
   dlog("Tac 재요청: " .. tostring(reason or "?"))
   pcall(function() send("_galdam_refresh_tac", false) end)
 end
+function GTV.present()
+  if GTV.win then GTV.win:show() end
+  if GaldamAtlas and GaldamAtlas.bringToFront then GaldamAtlas.bringToFront() end
+end
 function GTV.bootstrap(reason)
   if not GTV.on then return end
   GTV.makeWin()
@@ -2777,7 +2785,7 @@ function GTV.bootstrap(reason)
     GTV.fogKey = nil
     local ok, err = pcall(GTV.render, d)
     if ok then
-      GTV.win:show()
+      GTV.present()
       if GaldamTac and GaldamTac.win then GaldamTac.win:hide(); GaldamTac.shown = false end
       dlog("부트스트랩 렌더: " .. tostring(reason or "?"))
       return
@@ -3685,7 +3693,7 @@ function GTV.render(d)
   hideRest("fogp", fpi)
 
   zfix()
-  if GTV.on then GTV.win:show() end
+  if GTV.on then GTV.present() end
   -- 타일뷰 갱신마다 우측 패널 재렌더 (시야 필터/근접 하이라이트/반짝 반영 — push_tac 시점)
   pcall(function() if GaldamUI and GaldamUI.renderRoom then GaldamUI.renderRoom() end end)
 
@@ -3754,7 +3762,7 @@ function GTV.onTac()
   if GTV.on then
     local ok, err = pcall(GTV.render, d)
     if ok then
-      GTV.win:show()
+      GTV.present()
     else
       dlog("render 오류: " .. tostring(err))
     end
@@ -3799,7 +3807,7 @@ function GTV.onRoom()
     GTV.lastData = cand
     GTV.fogKey = nil
     local ok, err = pcall(GTV.render, cand)
-    if ok then GTV.win:show() else dlog("render 오류: " .. tostring(err)) end
+    if ok then GTV.present() else dlog("render 오류: " .. tostring(err)) end
   else
     if GTV.win then GTV.win:hide() end
     GTV.lastData = nil
@@ -3836,7 +3844,7 @@ function GTV.toggle()
     echo("[Galdam] 타일뷰 ON — 격자 룸에서 그래픽 타일로 표시 (다시 '타일뷰' 입력=글리프 복귀)\n")
     local d = (GaldamTac and GaldamTac.lastData) or (gmcp.Galdam and gmcp.Galdam.Tac)
     if d then
-      GTV.lastData = d; GTV.fogKey = nil; GTV.render(d); GTV.win:show()
+      GTV.lastData = d; GTV.fogKey = nil; GTV.render(d); GTV.present()
       if GaldamTac and GaldamTac.win then GaldamTac.win:hide(); GaldamTac.shown = false end
     else
       GTV.scheduleBootstrap("toggle-no-data")
@@ -3846,7 +3854,7 @@ function GTV.toggle()
     if GTV.win then GTV.win:hide() end
     if GTV.timer then pcall(killTimer, GTV.timer); GTV.timer = nil end
     if GaldamTac and GaldamTac.lastData and GaldamTac.win then
-      GaldamTac.render(GaldamTac.lastData); GaldamTac.win:show(); GaldamTac.shown = true
+      GaldamTac.render(GaldamTac.lastData); GaldamTac.present(); GaldamTac.shown = true
     end
   end
 end
@@ -4521,6 +4529,10 @@ function A.project(x,y)
  if x<b[1] or x>b[3] or y<b[2] or y>b[4] then return nil end
  return 20+(x-b[1]+v.offset[1]+.5)/v.span*A.mapSize,112+(y-b[2]+v.offset[2]+.5)/v.span*A.mapSize
 end
+function A.bringToFront()
+ -- Geyser containers group sibling widgets; raising only the root leaves its children behind.
+ if A.active and A.root then A.root:raiseAll() end
+end
 function A.hide()A.active=false;if A.root then A.root:hide()end end
 function A.show(view)A.view=view or A.view;A.active=true;A.render()end
 function A.select(index)A.selected=index;A.render()end
@@ -4531,7 +4543,7 @@ function A.render()
   A.root:move((sw-480)/2,(sh-120)/2);A.root:resize(480,120);A.root:show()
   for _,n in pairs(A.nodes)do n:hide()end
   label('loading',0,0,480,120,'<center>갯담 생활지도<br><span style="font-size:13px;">'..A.syncText..'</span></center>','background:#13212c;color:#d8e5d7;border:1px solid #638781;border-radius:12px;',nil,22)
-  label('close',413,10,52,27,'닫기',BTN,A.hide,12);return
+  label('close',413,10,52,27,'닫기',BTN,A.hide,12);A.bringToFront();return
  end
  local sw,sh=getMainWindowSize();local ms=math.max(160,math.min(990,sh-80)-152);ms=math.min(ms,sw-408)
  A.mapSize=ms;local w,h=ms+360,ms+152;local side=ms+40;local right=300
@@ -4625,7 +4637,7 @@ function A.render()
   local p=A.position();if p then local best,dist='all',math.huge;for key,v in pairs(DATA.views)do local b=v.bounds;if key~='all' and p[1]>=b[1] and p[1]<=b[3] and p[2]>=b[2] and p[2]<=b[4] and v.span<dist then best,dist=key,v.span end end;A.view=best end;A.page=0;A.render()
  end,12)
  label('footer',22,h-28,ms,19,'아이콘으로 장소 확인　·　숫자 묶음을 누르면 지역 확대　·　노란 점은 내 위치','background:transparent;color:#92aeb4;',nil,11)
- pcall(function()raiseWindow('GaetdamAtlasRoot')end)
+ A.bringToFront()
 end
 A.alias=tempAlias('^(?i:map|지도|bigmap|월드맵|큰지도|지도보기)\\s*$',function() A.show();A.requestWorld(true) end)
 A.handlers[#A.handlers+1]=registerAnonymousEventHandler('gmcp.Galdam.Atlas',function()local d=gmcp.Galdam and gmcp.Galdam.Atlas;if d and tonumber(d.open)==1 then A.show()end end)
