@@ -19,7 +19,7 @@ if GaldamUI._handlers then
   for _, id in ipairs(GaldamUI._handlers) do pcall(killAnonymousEventHandler, id) end
 end
 GaldamUI._handlers = {}
-GaldamUI.VERSION = "v59"   -- 한국 해안 월드 · 전술 타일 개편
+GaldamUI.VERSION = "v60"   -- 한국 해안 월드 · 전술 타일 개편
 
 local PANEL_W = 0.20      -- 우측 탭 패널 폭
 local BOTTOM_H = 120      -- 하단 HUD 바 높이
@@ -738,14 +738,14 @@ function GaldamUI.renderRoom()
   if rid ~= GaldamUI.prevRoomId then GaldamUI.roomPage = 1 end
   -- 1) 항목 전부 수집 (헤더 포함, 자르지 않음)
   local items = {}
-  local function add(html, col, cmds, id) items[#items + 1] = {html = html, col = col, cmds = cmds, id = id} end
+  local function add(html, col, cmds, id, arrivalPulse) items[#items + 1] = {html = html, col = col, cmds = cmds, id = id, arrivalPulse = arrivalPulse} end
   if not r then
     add("<span style='color:#6a7078;'>(방 정보 없음)</span>")
   else
     add("<span style='color:#e8d24a;font-size:10pt;'><b>● 사람</b></span>")
     local hasP = false
     local _vis = (GaldamTileView and GaldamTileView.on and GaldamTac and GaldamTac.visibleIds) or nil
-    for e in tostring(r.people or ""):gmatch("[^;]+") do local nm, cm, id = GaldamUI.parseEntity(e); if (not _vis) or (id and _vis[GaldamUI.normId(id)]) then add(nm, "#a8d8ff", cm, id); hasP = true end end
+    for e in tostring(r.people or ""):gmatch("[^;]+") do local nm, cm, id = GaldamUI.parseEntity(e); if (not _vis) or (id and _vis[GaldamUI.normId(id)]) then add(nm, "#a8d8ff", cm, id, true); hasP = true end end
     if not hasP then add("<span style='color:#6a7078;font-size:9pt;'>   (없음)</span>") end
     add("<span style='color:#e8d24a;font-size:10pt;'><b>● 물건</b></span>")
     local hasO = false
@@ -783,7 +783,7 @@ function GaldamUI.renderRoom()
       lb:setOnEnter(function() GaldamUI.showCmdTip(it.html, it.cmds) end)
       lb:setOnLeave(function() GaldamUI.hideTip() end)
       lb:setClickCallback(function() GaldamUI.openCtxMenu(it.html, it.cmds, it.id) end)
-      if it.id and it.id ~= "" then GaldamUI.liveRows[#GaldamUI.liveRows + 1] = {lb = lb, id = it.id, name = it.html, col = it.col} end
+      if it.id and it.id ~= "" then GaldamUI.liveRows[#GaldamUI.liveRows + 1] = {lb = lb, id = it.id, name = it.html, col = it.col, arrivalPulse = it.arrivalPulse} end
     else
       lb:setStyleSheet("background-color: rgba(0,0,0,0);")
       lb:echo(it.html)
@@ -801,9 +801,11 @@ function GaldamUI.renderRoom()
     lb:setClickCallback(function() GaldamUI.roomPage = (page % totalPages) + 1; GaldamUI.renderRoom() end)
     lb:move(2, y); lb:resize("96%", rowH); lb:show(); y = y + rowH
   end
-  -- 새로 등장한 항목 ✨반짝
+  -- 사람의 새 등장만 강조. 물건은 시야/페이지 갱신에도 깜빡이지 않는다.
   local cur = {}
-  for _, lr in ipairs(GaldamUI.liveRows) do cur[lr.id] = true end
+  for _, it in ipairs(items) do
+    if it.arrivalPulse and it.id and it.id ~= "" then cur[it.id] = true end
+  end
   GaldamUI.blinkUntil = GaldamUI.blinkUntil or {}
   if rid and GaldamUI.prevRoomId == rid then
     for id in pairs(cur) do
