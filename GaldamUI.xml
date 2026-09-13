@@ -19,7 +19,7 @@ if GaldamUI._handlers then
   for _, id in ipairs(GaldamUI._handlers) do pcall(killAnonymousEventHandler, id) end
 end
 GaldamUI._handlers = {}
-GaldamUI.VERSION = "v66"   -- 한국 해안 월드 · 전술 타일 개편
+GaldamUI.VERSION = "v67"   -- 한국 해안 월드 · 전술 타일 개편
 
 local PANEL_W = 0.20      -- 우측 탭 패널 폭
 local BOTTOM_H = 120      -- 하단 HUD 바 높이
@@ -2294,7 +2294,7 @@ function GT.render(d)
       local ct = tonumber(a.ct) or 1
       local sus = tonumber(a.sus) or 0
       -- 경계상황(watch)이거나 의심중인 NPC만 원뿔 표시. 평시 공개장소=숨김
-      if ox and fxv and actorVisible(ox,oy) and (watch or sus > 0) and (ct==0 or fxv ~= 0 or fyv ~= 0) then
+      if ox and fxv and actorVisible(ox,oy) and (watch or sus > 0) and (fxv ~= 0 or fyv ~= 0) then
         for cyy = 0, h - 1 do
           for cxx = 0, w - 1 do
             local vx, vy = cxx - ox, cyy - oy
@@ -2302,7 +2302,7 @@ function GT.render(d)
             if dist >= 1 and dist <= sr then
               local fdot = fxv * vx + fyv * vy
               local fcr = fxv * vy - fyv * vx
-              if (ct==0 or (fdot > 0 and math.abs(fcr) <= fdot * ct)) and actorVisible(cxx,cyy) and clearSight(ox,oy,cxx,cyy) then
+              if ((ct<=0 and fdot>=0) or (ct>0 and fdot>0 and math.abs(fcr)<=fdot*ct)) and actorVisible(cxx,cyy) and clearSight(ox,oy,cxx,cyy) then
                 local k = cxx .. "," .. cyy
                 local inten = (1 - dist / (sr + 1.5)) * 0.55
                 local e = cone[k]
@@ -3596,7 +3596,7 @@ function GTV.render(d)
       local sr = tonumber(a.sr) or 5
       local ct = tonumber(a.ct) or 1
       local sus = tonumber(a.sus) or 0
-      if ox and fx and lm(ox,oy)>=0.28 and (watch or sus > 0) and (ct==0 or fx ~= 0 or fy ~= 0) then
+      if ox and fx and lm(ox,oy)>=0.28 and (watch or sus > 0) and (fx ~= 0 or fy ~= 0) then
         local cr, cg, cb = 70, 200, 90
         if sus >= 61 then cr, cg, cb = 235, 70, 60
         elseif sus >= 31 then cr, cg, cb = 235, 150, 60
@@ -3608,9 +3608,9 @@ function GTV.render(d)
             if dist >= 1 and dist <= sr then
               local fdot = fx * vx + fy * vy
               local fcr = fx * vy - fy * vx
-              if (ct==0 or (fdot > 0 and math.abs(fcr) <= fdot * ct)) and lm(cx,cy)>=0.28 and clearSight(ox,oy,cx,cy) then
+              if ((ct<=0 and fdot>=0) or (ct>0 and fdot>0 and math.abs(fcr)<=fdot*ct)) and lm(cx,cy)>=0.28 and clearSight(ox,oy,cx,cy) then
                 local key=cx..","..cy
-                local intensity=ct==0 and 22 or (40+math.floor((1-dist/(sr+1.5))*85))
+                local intensity=ct<=0 and 22 or (40+math.floor((1-dist/(sr+1.5))*85))
                 local prev=coneCells[key]
                 if not prev or sus>prev.sus then coneCells[key]={x=cx,y=cy,r=cr,g=cg,b=cb,sus=sus,alpha=intensity} end
               end
