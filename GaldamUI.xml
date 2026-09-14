@@ -105,10 +105,10 @@ if GaldamUI._handlers then
   for _, id in ipairs(GaldamUI._handlers) do pcall(killAnonymousEventHandler, id) end
 end
 GaldamUI._handlers = {}
-GaldamUI.VERSION = "v69"   -- 한국 해안 월드 · 전술 타일 개편
+GaldamUI.VERSION = "v71"   -- 한국 해안 월드 · 전술 타일 개편
 
 local PANEL_W = 0.20      -- 우측 탭 패널 폭
-local BOTTOM_H = 120      -- 하단 HUD 바 높이
+local BOTTOM_H = 148      -- 하단 HUD 바 높이
 GaldamUI.BOTTOM_H = BOTTOM_H
 
 -- 커스텀 이미지
@@ -127,8 +127,8 @@ for i = 0, 20 do IMGFILES[#IMGFILES + 1] = string.format("stance_cd_%02d.png", i
 local function imgPath(f) return GaldamUI.imgDir .. "/" .. f end
 local function imgTag(f, sz) return "&lt;center&gt;&lt;img src='"..imgPath(f).."' width='"..sz.."' height='"..sz.."'&gt;&lt;/center&gt;" end
 GaldamUI.imgTag = imgTag; GaldamUI.imgPath = imgPath
-local CSS_BTN = "background-color: rgba(34,84,116,205); border:2px solid #4fa3c7; border-radius:8px; qproperty-alignment:'AlignCenter';"
-local CSS_ACT = "background-color: rgba(38,70,48,215); border:2px solid #5fae6f; border-radius:8px; qproperty-alignment:'AlignCenter';"
+local CSS_BTN = "background-color:#171d19;border:0;border-bottom:1px solid #394536;color:#a0ad9d;qproperty-alignment:'AlignCenter';"
+local CSS_ACT = "background-color:#293326;border:0;border-bottom:2px solid #bdcd92;color:#e4e8d9;qproperty-alignment:'AlignCenter';"
 local CSS_OFF = "background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0.42 rgba(20,13,15,255), stop:0.46 #cc2b2b, stop:0.54 #cc2b2b, stop:0.58 rgba(20,13,15,255)); border:2px solid #7a2e2e; border-radius:6px; color:#9a7478; font-size:18px; qproperty-alignment:'AlignCenter';"
 
 -- 상태 아이콘: 한글 이름(툴팁) + severity 색(경고/심함/위험)
@@ -149,14 +149,18 @@ GaldamUI.SKNAME = {
 -- 즉시 뜨는 커스텀 툴팁 (네이티브는 표시 지연이 길어 hover 핸들러로 대체)
 function GaldamUI.showTip(txt)
   if not GaldamUI.tip then return end
-  local x, y = 0, 0
-  if not pcall(function() x, y = getMousePosition() end) then return end
-  local wpx = math.max(60, math.min(240, #txt * 6 + 24))
-  pcall(function() GaldamUI.tip:resize(wpx, 26); GaldamUI.tip:move(x + 14, y + 18) end)
-  GaldamUI.tip:echo("&lt;center style='margin-top:3px;'&gt;&lt;b&gt;"..txt.."&lt;/b&gt;&lt;/center&gt;")
-  GaldamUI.tip:show()
-  pcall(function() raiseWindow("GaldamTip") end)
+  local x,y=0,0
+  if not pcall(function() x,y=getMousePosition() end) then return end
+  local sw,sh=getMainWindowSize()
+  local count=0; for i=1,#tostring(txt) do local b=tostring(txt):byte(i); if b&lt;128 or b&gt;=192 then count=count+1 end end
+  local width=math.min(400,sw-24,math.max(180,count*12+20))
+  local height=math.min(sh-24,180,math.max(32,math.ceil(count/math.max(1,math.floor((width-20)/12)))*19+12))
+  GaldamUI.tip:resize(width,height)
+  GaldamUI.tip:move(math.max(4,math.min(sw-width-4,x+14)),math.max(4,math.min(sh-height-4,y+18)))
+  GaldamUI.tip:echo("&lt;span style='font-size:12px;color:#e4e8d9;'&gt;"..GaldamUI.HUD.escape(txt).."&lt;/span&gt;")
+  GaldamUI.tip:show(); pcall(function() raiseWindow("GaldamTip") end)
 end
+
 function GaldamUI.hideTip() pcall(function() GaldamUI.tip:hide() end) end
 function GaldamUI.attachTip(w, txt)
   local ok = pcall(function()
@@ -186,6 +190,309 @@ GaldamUI.TABS = {
   {key="body",    name="신체",   icon=nil, render="renderBody"},
 }
 
+-- Native Geyser HUD. Presentation metadata is independent of GMCP/game rules.
+do
+local U = GaldamUI
+local H = U.HUD or {}
+U.HUD = H
+H.theme = {bg="#171d19", panel="#202720", inset="#141a16", text="#e4e8d9", muted="#a0ad9d", line="#394536", accent="#bdcd92", blood="#ce9885", caution="#dec080", danger="#ef9382"}
+H.metrics = H.metrics or {
+  {key="hp", label="혈액", maximum="hp_max", group="primary", color="blood", warn=.55, danger=.30},
+  {key="cons", label="의식", maximum="cons_max", group="primary", color="accent", warn=.65, danger=.30},
+  {key="stamina", label="기력", maximum="stamina_max", group="primary", color="accent", warn=.30, danger=.15},
+  {key="hunger", label="허기", ceiling=500, group="needs", higherWorse=true, warn=.50, danger=.80},
+  {key="thirst", label="갈증", ceiling=500, group="needs", higherWorse=true, warn=.50, danger=.80},
+  {key="stress", label="스트레스", ceiling=500, group="needs", higherWorse=true, warn=.50, danger=.80},
+}
+H.bodyOrder = {"head","face","eye","neck","chest","back","abdomen","arm","hand","groin","ass","leg","foot"}
+H.values = H.values or {}
+H.statuses = H.statuses or {}
+H.animate = H.animate ~= false
+
+function H.escape(s)
+  return tostring(s or ""):gsub("&amp;","&amp;amp;"):gsub("&lt;","&amp;lt;"):gsub("&gt;","&amp;gt;"):gsub('"',"&amp;quot;"):gsub("'","&amp;#39;")
+end
+function H.short(s, n)
+  local chars = {}; for c in tostring(s or ""):gmatch("[%z\1-\127\194-\244][\128-\191]*") do chars[#chars+1]=c end
+  if #chars &lt;= n then return table.concat(chars) end
+  return table.concat(chars,"",1,math.max(1,n-1)).."…"
+end
+function H.number(v)
+  local n = tonumber(v)
+  if n and n == n and n ~= math.huge and n ~= -math.huge then return n end
+end
+function H.label(name, parent, size)
+  local w = Geyser.Label:new({name=name,x=0,y=0,width=10,height=size or 24},parent)
+  w:setStyleSheet("background:transparent;border:0;color:"..H.theme.text..";font-size:12px;")
+  return w
+end
+function H.place(w,x,y,width,height)
+  w:move(math.floor(x),math.floor(y)); w:resize(math.max(1,math.floor(width)),math.max(1,math.floor(height)))
+end
+function H.cancelAnimation()
+  if H.timer then killTimer(H.timer); H.timer=nil end
+  H.generation=(H.generation or 0)+1
+end
+function H.build()
+  H.cancelAnimation()
+  H.connected=nil
+  H.widgets={}; H.primary={}; H.needs={}; H.statusPage=1
+  H.background=H.label("GaldamHUDSurface",U.bottom)
+  H.background:setStyleSheet("background-color:"..H.theme.panel..";border:0;border-top:1px solid "..H.theme.line..";")
+  H.identity=H.label("GaldamHUDIdentity",U.bottom)
+  H.detail=H.label("GaldamHUDDetail",U.bottom)
+  H.detail:echo("신체 · 장비  ↗"); H.detail:setClickCallback(function() U.selectTab("body") end)
+  U.attachTip(H.detail,"신체 상태와 착용 장비 확인")
+  U.statusSlots={}
+  for _, def in ipairs(H.metrics) do
+    local item={def=def}
+    item.label=H.label("GaldamHUDLabel_"..def.key,U.bottom)
+    item.value=H.label("GaldamHUDValue_"..def.key,U.bottom)
+    item.hint=H.label("GaldamHUDHint_"..def.key,U.bottom)
+    item.bar=Geyser.Gauge:new({name="GaldamHUDBar_"..def.key,x=0,y=0,width=10,height=5},U.bottom)
+    item.bar.back:setStyleSheet("background-color:"..H.theme.line..";border:0;border-radius:2px;")
+    item.bar.text:setStyleSheet("background:transparent;border:0;")
+    H.widgets[def.key]=item
+    U[def.key]=item.bar -- preserve existing integrations that refer to these gauges
+    local group=def.group=="primary" and H.primary or H.needs
+    group[#group+1]=item
+  end
+  H.statusNext=H.label("GaldamHUDStatusNext",U.bottom)
+  H.statusNext:setClickCallback(function() H.statusPage=(H.statusPage or 1)+1; H.renderStatus() end)
+end
+function H.height(width)
+  return width &lt; 760 and 188 or 148
+end
+function H.layout(width,height)
+  if not H.background then return end
+  H.width=width
+  H.place(H.background,0,0,width,height)
+  H.place(H.identity,16,7,112,24)
+  H.place(H.detail,width-116,height-30,104,24)
+  local narrow=width&lt;760
+  local primaryWidth=width-32-(narrow and 0 or math.min(220,math.floor(width*.22)))
+  local cell=primaryWidth/math.max(1,#H.primary)
+  for i,item in ipairs(H.primary) do
+    local x=16+(i-1)*cell; local cw=cell-16
+    H.place(item.label,x,39,cw,19)
+    H.place(item.value,x,61,cw,30)
+    H.place(item.hint,x,93,cw,17)
+    H.place(item.bar,x,116,cw,5)
+  end
+  local needsWidth=math.max(130,width-150)
+  local nw=needsWidth/math.max(1,#H.needs)
+  for i,item in ipairs(H.needs) do
+    H.place(item.label,16+(i-1)*nw,height-27,nw-6,20)
+    item.value:hide(); item.hint:hide(); item.bar:hide()
+  end
+  local sx=narrow and 16 or 16+primaryWidth
+  local sy=narrow and 129 or 47
+  local sw=narrow and width-32 or width-sx-16
+  H.place(U.stance,sx,sy,sw,narrow and 25 or 66)
+  H.place(U.stanceCd,sx,sy,sw,narrow and 25 or 66)
+  -- Menu is a top-level surface: its six choices never cover or get clipped by the HUD.
+  H.place(U.stanceMenu,math.max(4,width-238),math.max(0,select(2,getMainWindowSize())-height-120),230,116)
+  H.renderStatus()
+end
+function H.severity(def, ratio)
+  if not ratio then return 0 end
+  if def.higherWorse then return ratio&gt;=def.danger and 2 or ratio&gt;=def.warn and 1 or 0 end
+  return ratio&lt;=def.danger and 2 or ratio&lt;=def.warn and 1 or 0
+end
+function H.renderVitals(animate)
+  if not H.widgets then return end
+  H.cancelAnimation()
+  local targets={}
+  for _,def in ipairs(H.metrics) do
+    local item=H.widgets[def.key]
+    local current=H.number(H.values[def.key])
+    local maximum=def.ceiling or H.number(H.values[def.maximum])
+    local known=current~=nil and maximum~=nil and maximum&gt;0
+    local ratio=known and math.max(0,math.min(1,current/maximum)) or nil
+    local severity=H.severity(def,ratio)
+    local col=severity==2 and H.theme.danger or severity==1 and H.theme.caution or H.theme[def.color or "accent"]
+    item.bar.front:setStyleSheet("background-color:"..col..";border:0;border-radius:2px;")
+    local status=not known and "수신 대기" or severity==2 and "위험" or severity==1 and "주의" or "안정"
+    item.known=known
+    local value=known and string.format("%.0f",current) or "—"
+    local maxText=known and string.format(" / %.0f",maximum) or ""
+    item.label:echo("&lt;span style='color:"..H.theme.muted..";'&gt;"..H.escape(def.label).."&lt;/span&gt;")
+    item.value:echo("&lt;span style='font-size:"..((H.width or 1400)&lt;760 and 20 or 25).."px;color:"..H.theme.text..";'&gt;"..value.."&lt;/span&gt;&lt;span style='font-size:11px;color:"..H.theme.muted..";'&gt;"..maxText.."&lt;/span&gt;")
+    item.hint:echo("&lt;span style='color:"..(severity&gt;0 and col or H.theme.muted)..";'&gt;"..status.."&lt;/span&gt;")
+    local pct=known and string.format("%.0f%%",ratio*100) or "—"
+    local tip=def.label.." "..value..maxText.." · "..status..(def.higherWorse and " · 높을수록 부담이 큽니다" or "")
+    U.attachTip(item.label,tip); U.attachTip(item.value,tip)
+    if def.group~="primary" then item.label:echo("&lt;span style='color:"..H.theme.muted..";'&gt;"..H.escape(def.label).."&lt;/span&gt; &lt;span style='color:"..(severity&gt;0 and col or H.theme.text)..";'&gt;"..pct.."&lt;/span&gt;") end
+    local target=(ratio or 0)*100
+    targets[#targets+1]={item=item,from=item.display or target,to=target}
+    item.target=target; item.severity=severity
+  end
+  local step=0; local generation=H.generation
+  local function draw()
+    if generation~=H.generation then return end
+    step=step+1
+    local progress=(animate and H.animate) and math.min(1,step/6) or 1
+    local eased=1-(1-progress)^3
+    for _,t in ipairs(targets) do
+      t.item.display=t.from+(t.to-t.from)*eased
+      t.item.bar:setValue(t.item.display,100,"")
+    end
+    if progress&lt;1 then H.timer=tempTimer(.03,draw) else H.timer=nil end
+  end
+  draw(); H.renderStatus()
+end
+function H.update(v)
+  if H.connected==false then return end
+  for _,def in ipairs(H.metrics) do
+    if v[def.key]~=nil then H.values[def.key]=H.number(v[def.key]) end
+    if def.maximum and v[def.maximum]~=nil then H.values[def.maximum]=H.number(v[def.maximum]) end
+  end
+  H.renderVitals(true)
+end
+function H.updateStatus(d)
+  if H.connected==false then return end
+  local list,seen={},{}
+  for token in tostring(d.icons or ""):gmatch("[^,]+") do
+    local key,severity=token:match("^%s*([%w_%-]+):(%d+)%s*$")
+    if key then seen[key]=math.max(seen[key] or 0,math.min(3,tonumber(severity))) end
+  end
+  for key,severity in pairs(seen) do list[#list+1]={key=key,severity=severity} end
+  table.sort(list,function(a,b)
+    if a.severity~=b.severity then return a.severity&gt;b.severity end
+    return a.key&lt;b.key
+  end)
+  H.statuses=list; H.statusPage=1; H.renderStatus()
+end
+function H.renderStatus()
+  if not H.identity then return end
+  local severity=0
+  for _,item in ipairs(H.primary or {}) do severity=math.max(severity,item.severity or 0) end
+  for _,s in ipairs(H.statuses) do severity=math.max(severity,s.severity&gt;=3 and 2 or 1) end
+  local known=false
+  for _,item in ipairs(H.primary or {}) do if item.known then known=true end end
+  local text=H.connected==false and "연결 끊김" or not known and "수신 대기" or severity==2 and "위험" or severity==1 and "주의" or "안정"
+  local color=severity==2 and H.theme.danger or severity==1 and H.theme.caution or H.theme.accent
+  H.identity:echo("&lt;span style='color:"..color..";'&gt;●&lt;/span&gt; 내 상태 &lt;span style='color:"..H.theme.muted..";'&gt;"..text.."&lt;/span&gt;")
+  local available=math.max(80,(H.width or 1400)-148)
+  local capacity=math.max(1,math.floor((available-68)/88))
+  local pages=math.max(1,math.ceil(#H.statuses/capacity))
+  if (H.statusPage or 1)&gt;pages then H.statusPage=1 end
+  local start=((H.statusPage or 1)-1)*capacity
+  for i=1,math.max(capacity,#U.statusSlots) do
+    local status=i&lt;=capacity and H.statuses[start+i] or nil
+    local slot=U.statusSlots[i]
+    if status then
+      if not slot then slot=H.label("GaldamHUDStatus_"..i,U.bottom); U.statusSlots[i]=slot end
+      H.place(slot,140+(i-1)*88,7,82,24)
+      local name=U.STNAME[status.key] or status.key
+      local col=status.severity&gt;=3 and H.theme.danger or H.theme.caution
+      slot:setStyleSheet("background-color:"..H.theme.inset..";border:0;border-radius:3px;color:"..col..";font-size:12px;qproperty-alignment:'AlignCenter';")
+      slot:echo(H.escape(H.short(name,6)))
+      U.attachTip(slot,name.." · "..({[0]="상태",[1]="주의",[2]="심함",[3]="위험"})[status.severity])
+      slot:setClickCallback(function() U.selectTab("body") end)
+      slot:show()
+    elseif slot then slot:hide() end
+  end
+  if pages&gt;1 then
+    H.place(H.statusNext,140+capacity*88,7,60,24)
+    H.statusNext:echo((H.statusPage or 1).."/"..pages.."  ›"); H.statusNext:show()
+    U.attachTip(H.statusNext,"다음 상태 보기 · 전체 "..#H.statuses.."개")
+  else H.statusNext:hide() end
+end
+function H.connection(connected)
+  H.connected=connected; H.values={}; H.statuses={}; H.statusPage=1
+  H.renderVitals(false)
+  U.hideStanceMenu()
+  if U.stanceCdTimers then for _,id in ipairs(U.stanceCdTimers) do pcall(killTimer,id) end end
+  U.stanceCdTimers={}; U.stanceCooldownActive=false
+  if U.stanceCd then U.stanceCd:hide() end
+end
+
+-- A readable list shares the body payload with the original anatomical diagram.
+-- New body keys and equipment names are rendered without changing this renderer.
+function H.body(ctx,d)
+  local bw,bh=ctx.box:get_width(),ctx.box:get_height()
+  ctx.data=d
+  if not ctx.hud then
+    ctx.hud={rows={},page=1,diagram=false}
+    local view=ctx.hud
+    view.bg=H.label(ctx.pre.."ListBG",ctx.box)
+    view.bg:setStyleSheet("background-color:"..H.theme.bg..";border:0;")
+    view.title=H.label(ctx.pre.."ListTitle",ctx.box)
+    view.toggle=H.label(ctx.pre.."ListToggle",ctx.box)
+    view.toggle:setClickCallback(function() view.diagram=not view.diagram; H.body(ctx,ctx.data) end)
+    view.summary=H.label(ctx.pre.."ListSummary",ctx.box)
+    view.organs=H.label(ctx.pre.."ListOrgans",ctx.box)
+    view.next=H.label(ctx.pre.."ListNext",ctx.box)
+    view.next:setClickCallback(function() view.page=view.page+1; H.body(ctx,ctx.data) end)
+    view.chartBox=Geyser.Container:new({name=ctx.pre.."ChartBox",x=0,y=34,width=bw,height=bh-34},ctx.box)
+    view.chart={box=view.chartBox,img=H.label(ctx.pre.."ChartImg",view.chartBox),rows={},pre=ctx.pre.."Chart"}
+  end
+  local view=ctx.hud
+  ctx.img:hide()
+  for _,row in pairs(ctx.rows or {}) do for _,w in pairs(row) do if type(w)=="table" and w.hide then w:hide() end end end
+  if ctx.orgFrame then ctx.orgFrame:hide(); ctx.orgTxt:hide() end
+  H.place(view.bg,0,0,bw,bh)
+  H.place(view.title,12,6,math.max(60,bw-110),24); view.title:echo("신체 · 장비")
+  H.place(view.toggle,bw-92,6,82,24); view.toggle:echo(view.diagram and "목록 보기  ›" or "도식 보기  ›")
+  for _,row in ipairs(view.rows) do row.text:hide(); row.bar:hide() end
+  if view.diagram then
+    view.summary:hide(); view.organs:hide(); view.next:hide()
+    H.place(view.chartBox,0,34,bw,bh-34); view.chartBox:show()
+    view.chart.img:show(); U.renderBodyDiagram(view.chart,d)
+    return
+  end
+  view.chartBox:hide(); view.summary:show(); view.organs:show(); view.next:show()
+  local parts,keys,known={},{},{}
+  for entry in tostring(d and d.list or ""):gmatch("[^;]+") do
+    local key,cur,mx,st,sv,items=entry:match("([^|]*)|([^|]*)|([^|]*)|([^|]*)|([^|]*)|(.*)")
+    if key and key~="" then parts[key]={key=key,cur=H.number(cur),mx=H.number(mx),st=tonumber(st) or 0,sv=tonumber(sv) or 0,items=items} end
+  end
+  for _,key in ipairs(H.bodyOrder) do if parts[key] then keys[#keys+1]=key; known[key]=true end end
+  local extras={}; for key in pairs(parts) do if not known[key] then extras[#extras+1]=key end end
+  table.sort(extras); for _,key in ipairs(extras) do keys[#keys+1]=key end
+  local injuries=0
+  for _,p in pairs(parts) do
+    p.ratio=p.cur and p.mx and p.mx&gt;0 and math.max(0,math.min(1,p.cur/p.mx)) or nil
+    p.injury=p.sv~=0 or p.st&gt;=3 or p.ratio and p.ratio&lt;.55
+    if p.injury then injuries=injuries+1 end
+  end
+  -- Injured parts are always encountered on the first page, ties retain anatomy order.
+  local rank={}; for i,key in ipairs(keys) do rank[key]=i end
+  table.sort(keys,function(a,b) if not not parts[a].injury~=not not parts[b].injury then return not not parts[a].injury end return rank[a]&lt;rank[b] end)
+  H.place(view.summary,12,32,bw-24,24)
+  view.summary:echo("&lt;span style='color:"..(injuries&gt;0 and H.theme.caution or H.theme.muted)..";'&gt;"..(#keys==0 and "신체 정보 수신 대기" or injuries&gt;0 and "손상 부위 "..injuries.."곳" or "심한 손상 없음").."&lt;/span&gt;")
+  local count=math.max(1,math.floor((bh-146)/51))
+  local pages=math.max(1,math.ceil(#keys/count)); if view.page&gt;pages then view.page=1 end
+  for i=1,count do
+    local p=parts[keys[(view.page-1)*count+i]]
+    if p then
+      local row=view.rows[i]
+      if not row then row={text=H.label(ctx.pre.."ListRow"..i,ctx.box),bar=H.label(ctx.pre.."ListBar"..i,ctx.box)}; view.rows[i]=row end
+      local name=U.BPNAME[p.key] or p.key
+      local state=p.sv~=0 and "절단됨" or p.st&gt;=3 and "골절" or p.cur and p.cur&lt;=0 and "심한 손상" or p.ratio and string.format("%.0f / %.0f",p.cur,p.mx) or "수신 대기"
+      local color=p.injury and H.theme.danger or H.theme.text
+      local equipment=p.items~="" and p.items or "장착 없음"
+      local shortEquipment=H.short(equipment,math.max(8,math.floor((bw-24)/12)))
+      H.place(row.text,12,59+(i-1)*51,bw-24,43)
+      row.text:echo("&lt;span style='color:"..color..";'&gt;"..H.escape(name).."  "..state.."&lt;/span&gt;&lt;br&gt;&lt;span style='font-size:11px;color:"..H.theme.muted..";'&gt;"..H.escape(shortEquipment).."&lt;/span&gt;")
+      H.place(row.bar,12,104+(i-1)*51,(bw-24)*(p.ratio or 0),3)
+      row.bar:setStyleSheet("background-color:"..(p.injury and H.theme.danger or H.theme.line)..";border:0;")
+      U.attachTip(row.text,name.." · "..state.." · "..equipment)
+      row.text:show(); if (p.ratio or 0)&gt;0 then row.bar:show() else row.bar:hide() end
+    end
+  end
+  local og={}; for v in tostring(d and d.og or ""):gmatch("[^|]+") do og[#og+1]=tonumber(v) or 0 end
+  local alerts={}; for i,name in ipairs({"폐 천공","복강 내출혈","출혈","질식"}) do if (og[i] or 0)&gt;0 then alerts[#alerts+1]=name.." "..og[i] end end
+  H.place(view.organs,12,bh-79,bw-24,48)
+  local organsText=#og==0 and "장기 정보 수신 대기" or #alerts==0 and "장기 · 특이 사항 없음" or table.concat(alerts," · ")
+  view.organs:echo("&lt;span style='font-size:11px;color:"..(#alerts&gt;0 and H.theme.danger or H.theme.muted)..";'&gt;"..H.escape(organsText).."&lt;/span&gt;")
+  U.attachTip(view.organs,organsText)
+  H.place(view.next,12,bh-28,bw-24,24)
+  view.next:echo("&lt;center&gt;"..view.page.." / "..pages..(pages&gt;1 and "   다음 부위  ›" or "   전체 부위").."&lt;/center&gt;")
+end
+end
+
 function GaldamUI.build()
   -- 기존 정리 (구버전 우측 HUD 요소 포함 — 재로드 시 잔재 제거)
   for _, k in ipairs({"bottom","rpanel","panel","info","dpad","act","statusBar"}) do
@@ -194,34 +501,17 @@ function GaldamUI.build()
 
   -- ===== 하단 HUD 바 (전체폭, 최하단) =====
   GaldamUI.bottom = Geyser.Container:new({name="GaldamBottom", x=0, y=0, width="100%", height=BOTTOM_H})
-  -- 상태 아이콘 슬롯 (onStatus 에서 px 배치)
-  GaldamUI.statusSlots = {}
-  for i = 1, 14 do
-    local s = Geyser.Label:new({name="stSlot"..i, x=4, y=4, width=46, height=46}, GaldamUI.bottom)
-    s:hide(); GaldamUI.statusSlots[i] = s
-  end
-  -- 게이지 4 (가로, 좌측 78%)
-  GaldamUI.gauges = {}
-  local function gauge(name, label, color, gx, w)
-    local g = Geyser.Gauge:new({name=name, x=gx, y=58, width=(w or "19%"), height=56}, GaldamUI.bottom)
-    g.front:setStyleSheet("background-color:"..color.."; border-radius:5px;")
-    g.back:setStyleSheet("background-color: rgba(40,40,40,200); border-radius:5px;")
-    g.text:setStyleSheet("color:#ffffff; font-size:13px; padding-left:5px;")
-    g:setValue(100,100,"&lt;b&gt;"..label.."&lt;/b&gt;"); return g
-  end
-  GaldamUI.hp      = gauge("GaldamHP",  "혈액",     "#c0392b", "1%",   "12.5%")
-  GaldamUI.cons    = gauge("GaldamCon", "의식",     "#27ae60", "14%",  "12.5%")
-  GaldamUI.thirst  = gauge("GaldamThi", "목마름",   "#2471a3", "27%",  "12.5%")
-  GaldamUI.hunger  = gauge("GaldamHun", "배고픔",   "#d68910", "40%",  "12.5%")
-  GaldamUI.stress  = gauge("GaldamStr", "스트레스", "#f1c40f", "53%",  "12.5%")
-  GaldamUI.stamina = gauge("GaldamStm", "기력",     "#16a085", "66%",  "12.5%")
+  GaldamUI.HUD.build()
   GaldamUI.buildStanceControl()
 
   -- ===== 우측 탭 패널 =====
   GaldamUI.rpanel = Geyser.Container:new({name="GaldamRPanel", x="-"..PANEL_W*100 .."%", y=0, width=PANEL_W*100 .."%", height="100%"})
+  GaldamUI.panelSurface = GaldamUI.HUD.label("GaldamPanelSurface",GaldamUI.rpanel)
+  GaldamUI.panelSurface:resize("100%","100%")
+  GaldamUI.panelSurface:setStyleSheet("background-color:#171d19;border:0;border-left:1px solid #394536;")
   -- 위치 헤더
   GaldamUI.locHeader = Geyser.Label:new({name="GaldamLoc", x=0, y=0, width="100%", height=40}, GaldamUI.rpanel)
-  GaldamUI.locHeader:setStyleSheet("background-color: rgba(15,25,35,235); border:1px solid #2a4a5a; border-radius:6px; color:#cfe8f0; qproperty-alignment:'AlignCenter';")
+  GaldamUI.locHeader:setStyleSheet("background-color:#202720;border:0;border-bottom:1px solid #394536;color:#e4e8d9; qproperty-alignment:'AlignCenter';")
   GaldamUI.locHeader:echo("&lt;center&gt;&lt;span style='font-size:15pt;'&gt;&lt;b&gt;갯담마을&lt;/b&gt;&lt;/span&gt;&lt;/center&gt;")
   -- 버전 스탬프 (우상단, 업데이트 적용 확인용)
   GaldamUI.verTag = Geyser.Label:new({name="GaldamVer", x="74%", y=2, width="25%", height=14}, GaldamUI.rpanel)
@@ -229,7 +519,7 @@ function GaldamUI.build()
   GaldamUI.verTag:echo("&lt;span style='font-size:8pt;'&gt;"..(GaldamUI.VERSION or "?").."&lt;/span&gt;")
   -- 실시간 방 패널 (사람/물건 — hover=명령전체, 클릭=드롭다운 메뉴). 라벨 호스트. 위치는 relayout
   GaldamUI.roomBox = Geyser.Container:new({name="GaldamRoomBox", x=0, y=44, width="100%", height=200}, GaldamUI.rpanel)
-  GaldamUI.roomRows = GaldamUI.roomRows or {}
+  GaldamUI.roomRows = {}
   -- 탭 버튼 행
   GaldamUI.tabBtns = {}
   local n = #GaldamUI.TABS
@@ -242,7 +532,7 @@ function GaldamUI.build()
   end
   -- 콘텐츠 (스크롤 가능)
   GaldamUI.content = Geyser.MiniConsole:new({name="GaldamTabContent", x=0, y=88, width="100%", height=200}, GaldamUI.rpanel)
-  GaldamUI.content:setColor(14, 18, 26)
+  GaldamUI.content:setColor(23,29,25)
   pcall(function() GaldamUI.content:setFontSize(11) end)
   GaldamUI.content:setWrap(28)
   -- 신체 상태 뷰 (신체 탭 전용 — 확장 모드에서 방 패널 자리까지 사용)
@@ -301,15 +591,19 @@ end
 function GaldamUI.relayout()
   if not GaldamUI.built then return end
   local w, h = getMainWindowSize()
-  local rw = math.floor(w * PANEL_W)
+  local rw = math.min(math.floor(w*.40),math.max(240,math.min(360,math.floor(w * PANEL_W))))
+  BOTTOM_H = GaldamUI.HUD.height(w)
+  GaldamUI.BOTTOM_H = BOTTOM_H
   setBorderRight(rw); setBorderBottom(BOTTOM_H)
   pcall(function()
     GaldamUI.bottom:move(0, h - BOTTOM_H); GaldamUI.bottom:resize(w, BOTTOM_H)
+    GaldamUI.HUD.layout(w,BOTTOM_H)
+    GaldamUI.HUD.renderVitals(false)
     if GaldamKeys and GaldamKeys.placeIndicator then GaldamKeys.placeIndicator() end
     local ph = h - BOTTOM_H
     GaldamUI.rpanel:move(w - rw, 0); GaldamUI.rpanel:resize(rw, ph)
     -- 상하분할: [헤더] / [방 패널] / [탭 버튼] / [탭 콘텐츠]
-    local headH, tabH, gap = 40, 32, 4
+    local headH, tabH, gap = 44, 60, 6
     local avail = ph - headH - tabH - gap * 4
     if avail &lt; 80 then avail = 80 end
     local roomH = math.floor(avail * 0.52)   -- 상단: 실시간 방 패널
@@ -328,10 +622,11 @@ function GaldamUI.relayout()
       tabY = roomY + roomH + gap
     end
     local n = #GaldamUI.TABS
-    local bw = math.floor(rw / n)
+    local cols = math.max(1,math.ceil(n/2))
+    local bw = math.floor(rw / cols)
     for i, t in ipairs(GaldamUI.TABS) do
       local b = GaldamUI.tabBtns[t.key]
-      if b then b:move((i - 1) * bw, tabY); b:resize(bw - 2, tabH) end
+      if b then b:move(((i-1)%cols)*bw+4,tabY+math.floor((i-1)/cols)*30); b:resize(bw-8,28) end
     end
     local cY = tabY + tabH + gap
     if bodyMode then
@@ -380,7 +675,7 @@ function GaldamUI.selectTab(key)
     if b then
       if t.key == key then b:setStyleSheet(CSS_ACT) else b:setStyleSheet(CSS_BTN) end
       if t.icon then b:echo(imgTag(t.icon, 28))
-      else b:echo("&lt;center&gt;&lt;span style='font-size:10pt;color:#dfeaf0;'&gt;&lt;b&gt;"..t.name.."&lt;/b&gt;&lt;/span&gt;&lt;/center&gt;") end
+      else b:echo("&lt;center&gt;&lt;span style='font-size:12px;color:#e4e8d9;'&gt;&lt;b&gt;"..t.name.."&lt;/b&gt;&lt;/span&gt;&lt;/center&gt;") end
     end
   end
   GaldamUI.renderTab()
@@ -998,7 +1293,10 @@ function GaldamUI.buildStanceControl()
   GaldamUI.stance:setClickCallback(function() GaldamUI.toggleStanceMenu() end)
   GaldamUI.attachTip(GaldamUI.stance, "자세/속도 변경")
 
-  GaldamUI.stanceMenu = Geyser.Container:new({name = "GaldamStanceMenu", x = "79.5%", y = 4, width = "19.5%", height = 110}, GaldamUI.bottom)
+  if GaldamUI.stanceMenu then GaldamUI.stanceMenu:hide() end
+  if GaldamUI.stanceCdTimers then for _,id in ipairs(GaldamUI.stanceCdTimers) do pcall(killTimer,id) end end
+  GaldamUI.stanceCooldownActive=false
+  GaldamUI.stanceMenu = Geyser.Container:new({name = "GaldamStanceMenu", x = "79.5%", y = 4, width = "19.5%", height = 116})
   GaldamUI.stanceOpts = {}
   for i, it in ipairs(GaldamUI.STANCE_ITEMS) do
     local row = math.floor((i - 1) / 3)
@@ -1027,6 +1325,7 @@ function GaldamUI.toggleStanceMenu()
   else
     GaldamUI.renderStanceMenu()
     GaldamUI.stanceMenu:show()
+    for _,b in pairs(GaldamUI.stanceOpts) do pcall(function() b:raise() end) end
     GaldamUI.stanceMenuVisible = true
   end
 end
@@ -1043,8 +1342,10 @@ function GaldamUI.renderStanceButton()
   local key = GaldamUI.stanceKey(pos, spd)
   local it = GaldamUI.stanceItem(key)
   local bg = GaldamUI.stanceBg(key)
-  GaldamUI.stance:setStyleSheet("background-color:" .. bg .. "; border:1px solid #2a4a5a; border-radius:5px; qproperty-alignment:'AlignCenter';")
-  GaldamUI.stance:echo(imgTag(it.icon, 44))
+  GaldamUI.stance:setStyleSheet("background-color:#141a16;border:0;border-radius:4px;color:#e4e8d9;qproperty-alignment:'AlignCenter';")
+  local narrow=(GaldamUI.HUD.width or 1400)&lt;760
+  local label=GaldamUI.stanceLabel(pos,spd)
+  GaldamUI.stance:echo("&lt;center&gt;&lt;span style='font-size:13px;color:#e4e8d9;'&gt;"..label.."  ▾&lt;/span&gt;"..(narrow and "" or "&lt;br&gt;&lt;span style='font-size:11px;color:#a0ad9d;'&gt;자세 · 이동 속도&lt;/span&gt;").."&lt;/center&gt;")
   GaldamUI.attachTip(GaldamUI.stance, GaldamUI.stanceLabel(pos, spd) .. " · 변경")
   GaldamUI.renderStanceMenu()
 end
@@ -1132,12 +1433,7 @@ end
 function GaldamUI.onVitals()
   local v = gmcp.Char and gmcp.Char.Vitals
   if not (GaldamUI.built and v) then return end
-  if v.hp then GaldamUI.hp:setValue(tonumber(v.hp) or 0, tonumber(v.hp_max) or 100, "&lt;b&gt;혈액 "..tostring(v.hp).."&lt;/b&gt;") end
-  if v.cons and GaldamUI.cons then GaldamUI.cons:setValue(tonumber(v.cons) or 0, tonumber(v.cons_max) or 100, "&lt;b&gt;의식 "..tostring(v.cons).."/"..tostring(v.cons_max).."&lt;/b&gt;") end
-  if v.thirst then local t=tonumber(v.thirst) or 0; GaldamUI.thirst:setValue(math.min(t,500),500,string.format("&lt;b&gt;목마름 %d&lt;/b&gt;",math.floor(t))) end
-  if v.hunger then local h=tonumber(v.hunger) or 0; GaldamUI.hunger:setValue(math.min(h,500),500,string.format("&lt;b&gt;배고픔 %d&lt;/b&gt;",math.floor(h))) end
-  if v.stress then local s=tonumber(v.stress) or 0; GaldamUI.stress:setValue(math.min(s,500),500,string.format("&lt;b&gt;스트레스 %d&lt;/b&gt;",math.floor(s))) end
-  if v.stamina and GaldamUI.stamina then local st=tonumber(v.stamina) or 0; local sm=tonumber(v.stamina_max) or 100; GaldamUI.stamina:setValue(st, sm, string.format("&lt;b&gt;기력 %d&lt;/b&gt;", st)) end
+  GaldamUI.HUD.update(v)
   if v.posture ~= nil and GaldamUI.updateStance then GaldamUI.updateStance(tonumber(v.posture) or 0, tonumber(v.speed) or 0) end
   if v.wanted then
     local w = tonumber(v.wanted) or 0
@@ -1157,27 +1453,8 @@ function GaldamUI.onVitals()
 end
 
 function GaldamUI.onStatus()
-  local d = gmcp.Galdam and gmcp.Galdam.Status
-  if not (GaldamUI.built and d and GaldamUI.statusSlots) then return end
-  local list = {}
-  for tok in tostring(d.icons or ""):gmatch("[^,]+") do
-    local k, sv = tok:match("(%a+):(%d+)")
-    if k then list[#list+1] = {k=k, sv=tonumber(sv) or 1} end
-  end
-  local cell, step = 46, 50
-  for i, slot in ipairs(GaldamUI.statusSlots) do
-    local it = list[i]
-    if it then
-      local sev = GaldamUI.STSEV[it.sv] or GaldamUI.STSEV[1]
-      pcall(function() slot:move(6 + (i-1)*step, 4); slot:resize(cell, cell) end)
-      slot:setStyleSheet("background-color:"..sev.bg.."; border:2px solid "..sev.b.."; border-radius:8px; qproperty-alignment:'AlignCenter';")
-      slot:echo(imgTag("status_"..it.k..".png", 38))
-      GaldamUI.attachTip(slot, GaldamUI.STNAME[it.k] or it.k)
-      slot:show()
-    else
-      slot:hide()
-    end
-  end
+  local d=gmcp.Galdam and gmcp.Galdam.Status
+  if GaldamUI.built and d then GaldamUI.HUD.updateStatus(d) end
 end
 
 function GaldamUI.onMap()
@@ -1200,7 +1477,7 @@ GaldamUI.BODYSYNTH = {back=true}
 GaldamUI.BODYORG = {x0=36, y0=1238, x1=400, y1=1505}
 
 -- 공용 신체 렌더러: ctx={box, img, rows, pre(라벨접두사)} + d(payload: gender/list/og)
-function GaldamUI.renderBodyInto(ctx, d)
+function GaldamUI.renderBodyDiagram(ctx, d)
   if not (GaldamUI.built and ctx and ctx.box) then return end
   local g = (d and d.gender == "f") and "f" or "m"
   local pdata = {}
@@ -1328,6 +1605,10 @@ function GaldamUI.renderBodyInto(ctx, d)
   ctx.orgFrame:show(); ctx.orgTxt:show()
 end
 
+function GaldamUI.renderBodyInto(ctx,d)
+  if GaldamUI.built and ctx and ctx.box then GaldamUI.HUD.body(ctx,d) end
+end
+
 function GaldamUI.renderBody()
   if not (GaldamUI.built and GaldamUI.bodyCtx) then return end
   GaldamUI.renderBodyInto(GaldamUI.bodyCtx, gmcp.Galdam and gmcp.Galdam.Body)
@@ -1356,9 +1637,11 @@ function GaldamUI.refresh()
   GaldamUI.onRoom(); GaldamUI.onVitals(); GaldamUI.onStatus(); GaldamUI.renderTab()
 end
 
-if not GaldamUI.built then GaldamUI.build() end
+GaldamUI.build()
 GaldamUI.relayout()
 GaldamUI.downloadImages()
+table.insert(GaldamUI._handlers,registerAnonymousEventHandler("sysDisconnectionEvent",function() GaldamUI.HUD.connection(false) end))
+table.insert(GaldamUI._handlers,registerAnonymousEventHandler("sysConnectionEvent",function() GaldamUI.HUD.connection(true) end))
 table.insert(GaldamUI._handlers, registerAnonymousEventHandler("gmcp.Galdam.Room", function() GaldamUI.onRoom() end))
 table.insert(GaldamUI._handlers, registerAnonymousEventHandler("gmcp.Galdam.ObjMenu", function() GaldamUI.onObjMenu() end))
 table.insert(GaldamUI._handlers, registerAnonymousEventHandler("gmcp.Char.Vitals", function() GaldamUI.onVitals() end))
@@ -2127,7 +2410,7 @@ local function makeVision(d)
   end
   return true
  end
- local fog={};local sx,sy=d.self and tonumber(d.self[1]),d.self and tonumber(d.self[2]);local radius=tonumber(d.vision_range) or math.max(d.w or 9,d.h or 9)
+ local fog={};local sx,sy=d.self and tonumber(d.self[1]),d.self and tonumber(d.self[2]);local radius=math.max(d.w or 9,d.h or 9) -- player display: no NPC senses cap
  if sx and sy then for y=0,(d.h or 9)-1 do for x=0,(d.w or 9)-1 do
   if math.max(math.abs(x-sx),math.abs(y-sy))&gt;radius or not clear(sx,sy,x,y)then fog[x..','..y]=true end
  end end end
@@ -2841,7 +3124,7 @@ function GTV.makeWin()
 end
 
 -- 오버레이 레이어는 마우스 통과(clickthrough) — 안 하면 틴트/원뿔/안개가 호버·클릭을 전부 삼킴!
-local THRU = {decal=1, shore=1, shade=1, fx=1, susdot=1, facedot=1, cone=1, tint=1, wx=1, glow=1, fogp=1}
+local THRU = {actionBody=1,ghostBody=1,actionFX=1,actionGhost=1,ghostFX=1,decal=1, shore=1, shade=1, fx=1, susdot=1, facedot=1, cone=1, tint=1, wx=1, glow=1, fogp=1}
 local function lbl(layer, i)
   GTV.P[layer] = GTV.P[layer] or {}
   local t = GTV.P[layer]
@@ -2864,6 +3147,739 @@ local function hideRest(layer, n)
   for i = n + 1, #t do t[i]:hide() end
 end
 local function imgcss(f, extra) return "border-image: url(" .. tp(f) .. "); background: transparent;" .. (extra or "") end
+-- Presentation-only animation. Grid coordinates, clicks and visibility remain server-owned.
+if GTV.motionTimer then pcall(killTimer, GTV.motionTimer) end
+GTV.motionTimer = nil
+GTV.motion = {}
+GTV.motionContext = nil
+GTV.activity = nil
+GTV.motionEnabled = GTV.motionEnabled ~= false
+
+function GTV.motionNow()
+  return getEpoch and getEpoch() or (GTV.motionClock or 0)
+end
+
+function GTV.resetMotion()
+  if GTV.motionTimer then pcall(killTimer, GTV.motionTimer) end
+  GTV.motionTimer = nil
+  GTV.motion = {}
+  GTV.motionContext = nil
+  GTV.activity = nil
+  if GTV.resetActions then GTV.resetActions() end
+end
+
+-- Keep a short sequence of accepted cells so fast turns never cut a corner.
+function GTV.sampleMotion(s, now)
+  while s.steps[1] and now &gt;= s.steps[1].finish do
+    local step = table.remove(s.steps, 1)
+    s.x, s.y = step.x, step.y
+  end
+  local step = s.steps[1]
+  if not step then return s.x, s.y, 0 end
+  local t = math.max(0, math.min(1, (now-step.start)/(step.finish-step.start)))
+  local ease = t*t*(3-2*t)
+  return s.x+(step.x-s.x)*ease, s.y+(step.y-s.y)*ease, math.sin(t*math.pi*2)^2
+end
+
+function GTV.beginMotion(d, cs)
+  local context = table.concat({tostring(d.rid or GTV.curRoom or ""), d.w, d.h,
+    d._vx or 0, d._vy or 0, cs}, ":")
+  if GTV.motionContext ~= context then
+    -- Room/camera/scale changes establish a new coordinate frame.
+    GTV.motion = {}
+    GTV.motionContext = context
+  end
+  GTV.motionSeen = {}
+end
+
+function GTV.bindMotion(key, l, x, y, cs, posture)
+  local now = GTV.motionNow()
+  local s = GTV.motion[key]
+  if not s then
+    s = {x=x,y=y,tx=x,ty=y,steps={},pose=posture or 0,poseFrom=posture or 0,poseAt=now}
+    GTV.motion[key] = s
+  end
+  GTV.sampleMotion(s, now)
+  if x ~= s.tx or y ~= s.ty then
+    local distance = math.max(math.abs(x-s.tx), math.abs(y-s.ty))
+    if GTV.motionEnabled and distance &lt;= 1 and #s.steps &lt; 3 then
+      local speed = key == "self" and tonumber(((gmcp.Char or {}).Vitals or {}).speed) or 0
+      local duration = speed == 2 and .14 or (speed == 1 and .19 or .26)
+      local tail = s.steps[#s.steps]
+      local start = tail and tail.finish or now
+      duration = math.max(.08, duration/(1+#s.steps))
+      s.steps[#s.steps+1] = {x=x,y=y,start=start,finish=start+duration}
+    else
+      s.x,s.y,s.steps = x,y,{}
+    end
+    s.face=math.floor(((math.atan2 and math.atan2(y-s.ty,x-s.tx) or math.atan(y-s.ty,x-s.tx))/(math.pi/4))+.5)%8
+    s.tx,s.ty = x,y
+    if key == "self" then GTV.activity = nil end
+  end
+  if posture ~= nil and posture ~= s.pose then
+    local t = math.max(0, math.min(1, (now-s.poseAt)/.24))
+    s.poseFrom = s.poseFrom+(s.pose-s.poseFrom)*t
+    s.pose,s.poseAt = posture,now
+  end
+  s.label,s.cs,s.attachments = l,cs,{}
+  s.sprite=l._sprite or s.sprite
+  s.ghost=nil
+  GTV.motionSeen[key] = true
+  return s
+end
+
+function GTV.attachMotion(s, l, x, y, w, h)
+  s.attachments[#s.attachments+1] = {label=l,x=x,y=y,w=w,h=h}
+end
+
+function GTV.drawMotion(now)
+  if GTV.pruneActionGhosts then GTV.pruneActionGhosts(now) end
+  local active = false
+  for key,s in pairs(GTV.motion) do
+    local x,y,bob = GTV.sampleMotion(s,now)
+    local cs = s.cs
+    local poseT = GTV.motionEnabled and math.max(0,math.min(1,(now-s.poseAt)/.24)) or 1
+    local pose = s.poseFrom+(s.pose-s.poseFrom)*poseT
+    local h = cs*(1-.23*pose)
+    local dx,dy = 0,-bob*cs*.07
+    local activity = key == "self" and GTV.activity
+    if activity and now &gt;= activity.expires then GTV.activity=nil;activity=nil end
+    if activity and GTV.motionEnabled and not GTV.actionCatalog then
+      local wave = math.sin((now-activity.start)*math.pi*4)
+      if activity.kind == "fish" then dx=wave*cs*.05;dy=dy-math.abs(wave)*cs*.04
+      elseif activity.kind == "pick" then dx=wave*cs*.025;h=h-cs*.10
+      else dy=dy-math.abs(wave)*cs*.06;h=h-cs*.05 end
+      active = true
+    end
+    if not GTV.motionEnabled then x,y,bob,dx,dy=s.tx,s.ty,0,0,0;s.steps={} end
+    if GTV.actionVisual then
+      local acting,ax,ay=GTV.actionVisual(s,key,now)
+      active=active or acting;dx=dx+(ax or 0);dy=dy+(ay or 0)
+    elseif GTV.actionCatalog then
+      s.action=nil;s.reaction=nil;s.effect=nil
+      sty(s.label,imgcss(s.sprite or "act_player"))
+      if s.actionFX then s.actionFX:hide() end
+    end
+    geo(s.label, 8+x*cs+dx, 28+y*cs+(cs-h)+dy, cs,h)
+    if s.bodyVisible and s.bodyLabel then
+      local pad=(s.bodyPadding or 0)/32
+      geo(s.bodyLabel,8+x*cs+dx-cs*pad,28+y*cs+(cs-h)+dy-h*pad,cs*(1+2*pad),h*(1+2*pad))
+    end
+    for _,a in ipairs(s.attachments) do
+      geo(a.label,a.x+(x-s.tx)*cs,a.y+(y-s.ty)*cs,a.w,a.h)
+    end
+    active = active or #s.steps&gt;0 or (poseT&lt;1 and s.poseFrom~=s.pose)
+  end
+  return active and GTV.motionEnabled
+end
+
+function GTV.scheduleMotion()
+  if not GTV.on then return end
+  local active = GTV.drawMotion(GTV.motionNow())
+  if not active and GTV.motionTimer then pcall(killTimer,GTV.motionTimer);GTV.motionTimer=nil end
+  if active and not GTV.motionTimer then
+    GTV.motionTimer = tempTimer(1/30, function() GaldamTileView.motionTick() end)
+  end
+end
+
+function GTV.motionTick()
+  GTV.motionTimer = nil
+  if not GTV.on then return end
+  GTV.motionClock = (GTV.motionClock or 0)+1/30
+  GTV.scheduleMotion()
+end
+
+function GTV.endMotion()
+  -- An actor leaving visibility is forgotten immediately, including its queued route.
+  local ghosts=0
+  for key,s in pairs(GTV.motion) do
+    if not GTV.motionSeen[key] then
+      local r=s.reaction
+      if r and (r.kind=="death" or r.kind=="knockout") and r.finish&gt;GTV.motionNow() then
+        ghosts=ghosts+1;s.ghost=true;s.attachments={}
+        s.label=lbl("actionGhost",ghosts);s.actionFX=lbl("ghostFX",ghosts);s.bodyLabel=lbl("ghostBody",ghosts)
+      else GTV.motion[key]=nil end
+    end
+  end
+  hideRest("actionGhost",ghosts);hideRest("ghostFX",ghosts);hideRest("ghostBody",ghosts)
+  GTV.scheduleMotion()
+end
+
+function GTV.motionVitals()
+  local s=GTV.motion.self
+  local v=(gmcp.Char or {}).Vitals or {}
+  if not s or v.posture == nil then return end
+  local pose=math.max(0,math.min(2,tonumber(v.posture) or 0))
+  if pose ~= s.pose then
+    local now=GTV.motionNow()
+    local t=math.max(0,math.min(1,(now-s.poseAt)/.24))
+    s.poseFrom=s.poseFrom+(s.pose-s.poseFrom)*t
+    s.pose,s.poseAt=pose,now
+    GTV.scheduleMotion()
+  end
+end
+
+function GTV.motionActivity(kind, payload, ending)
+  if GTV.localActivity then GTV.localActivity(kind,payload,ending) end
+  if ending then
+    if GTV.activity and GTV.activity.kind == kind and
+      (kind ~= "work" or tostring(payload.token) == GTV.activity.token) then
+      GTV.activity=nil
+      GTV.scheduleMotion()
+    end
+    return
+  end
+  if not (GTV.on and GTV.motionEnabled and GTV.motion.self) or payload.preview then return end
+  local now=GTV.motionNow()
+  local previous=GTV.activity
+  GTV.activity={kind=kind,token=tostring(payload.token),
+    start=previous and previous.kind==kind and previous.start or now,expires=now+30}
+  GTV.scheduleMotion()
+end
+
+for _,id in ipairs(GTV.motionHandlers or {}) do pcall(killAnonymousEventHandler,id) end
+GTV.motionHandlers={}
+local function motionHandler(event,fn)
+  GTV.motionHandlers[#GTV.motionHandlers+1]=registerAnonymousEventHandler(event,fn)
+end
+for _,spec in ipairs({{"Work","Start","work"},{"Work","Progress","work"},{"Work","End","work",true},
+  {"Fish","Hook","fish"},{"Fish","Fight","fish"},{"Fish","Reel","fish"},
+  {"Fish","End","fish",true},{"Fish","Caught","fish",true},
+  {"Pick","Round","pick"},{"Pick","End","pick",true}}) do
+  local group,event,kind,ending=spec[1],spec[2],spec[3],spec[4]
+  motionHandler("gmcp.Galdam."..group.."."..event,function()
+    local payload=(((gmcp.Galdam or {})[group] or {})[event])
+    if type(payload)=="table" then GTV.motionActivity(kind,payload,ending) end
+  end)
+end
+motionHandler("gmcp.Char.Vitals",function() GTV.motionVitals() end)
+motionHandler("sysDisconnectionEvent",function() GTV.resetMotion() end)
+if GTV.motionAlias then pcall(killAlias,GTV.motionAlias) end
+GTV.motionAlias=tempAlias("^동작애니$",function()
+  GTV.motionEnabled=not GTV.motionEnabled
+  GTV.activity=nil
+  GTV.scheduleMotion()
+  echo("[Galdam] 동작 애니메이션 "..(GTV.motionEnabled and "ON" or "OFF").."\n")
+end)
+
+-- Articulated vector frames extend the existing green/brown/navy tile characters.
+-- Written lazily to local SVG files: no network assets or frame-by-frame downloads.
+GTV.actionCatalog = {["attack"]={["label"]="근접 공격",["pose"]="strike",["fx"]="slash",["tool"]="blade",["priority"]=3,["seconds"]=0.48},["punch"]={["label"]="맨손 공격",["pose"]="strike",["fx"]="slash",["tool"]="",["priority"]=3,["seconds"]=0.42},["shoot"]={["label"]="사격",["pose"]="shoot",["fx"]="muzzle",["tool"]="gun",["priority"]=3,["seconds"]=0.36},["bowshot"]={["label"]="활·석궁 발사",["pose"]="aim",["fx"]="trail",["tool"]="bow",["priority"]=3,["seconds"]=0.48},["throw"]={["label"]="던지기",["pose"]="throw",["fx"]="trail",["tool"]="stone",["priority"]=3,["seconds"]=0.55},["aim"]={["label"]="조준",["pose"]="aim",["fx"]="",["tool"]="gun",["priority"]=2,["seconds"]=1.2},["reload"]={["label"]="재장전",["pose"]="reload",["fx"]="spark",["tool"]="gun",["priority"]=2,["seconds"]=1.1},["unjam"]={["label"]="탄 걸림 해소",["pose"]="reload",["fx"]="spark",["tool"]="gun",["priority"]=2,["seconds"]=1.2},["hit"]={["label"]="피격",["pose"]="hurt",["fx"]="impact",["tool"]="",["priority"]=5,["seconds"]=0.36},["miss"]={["label"]="빗나감",["pose"]="aim",["fx"]="miss",["tool"]="",["priority"]=2,["seconds"]=0.25},["dodge"]={["label"]="회피",["pose"]="dodge",["fx"]="trail",["tool"]="",["priority"]=4,["seconds"]=0.48},["parry"]={["label"]="무기 막기",["pose"]="guard",["fx"]="spark",["tool"]="blade",["priority"]=4,["seconds"]=0.45},["block"]={["label"]="방어·장갑 흡수",["pose"]="guard",["fx"]="shield",["tool"]="",["priority"]=4,["seconds"]=0.45},["feint"]={["label"]="견제",["pose"]="strike",["fx"]="",["tool"]="",["priority"]=3,["seconds"]=0.4},["disarm"]={["label"]="무장 해제 시도",["pose"]="reach",["fx"]="spark",["tool"]="",["priority"]=3,["seconds"]=0.6},["grapple"]={["label"]="붙잡기",["pose"]="push",["fx"]="",["tool"]="",["priority"]=3,["seconds"]=0.8},["shove"]={["label"]="밀치기",["pose"]="push",["fx"]="trail",["tool"]="",["priority"]=3,["seconds"]=0.48},["death"]={["label"]="사망",["pose"]="fall",["fx"]="",["tool"]="",["priority"]=10,["seconds"]=1.2},["knockout"]={["label"]="의식 상실",["pose"]="fall",["fx"]="stars",["tool"]="",["priority"]=9,["seconds"]=1.0},["wake"]={["label"]="일어나기",["pose"]="rise",["fx"]="",["tool"]="",["priority"]=8,["seconds"]=0.8},["eat"]={["label"]="먹기",["pose"]="eat",["fx"]="crumb",["tool"]="food",["priority"]=2,["seconds"]=1.1},["drink"]={["label"]="마시기",["pose"]="drink",["fx"]="drop",["tool"]="cup",["priority"]=2,["seconds"]=1.15},["smoke"]={["label"]="흡연",["pose"]="drink",["fx"]="smoke",["tool"]="cigarette",["priority"]=2,["seconds"]=1.2},["get"]={["label"]="줍기·꺼내기",["pose"]="reach",["fx"]="pickup",["tool"]="",["priority"]=2,["seconds"]=0.65},["put"]={["label"]="내려놓기·넣기",["pose"]="reach",["fx"]="",["tool"]="box",["priority"]=2,["seconds"]=0.65},["give"]={["label"]="건네기",["pose"]="offer",["fx"]="",["tool"]="box",["priority"]=2,["seconds"]=0.7},["feed"]={["label"]="먹이 주기",["pose"]="reach",["fx"]="crumb",["tool"]="food",["priority"]=2,["seconds"]=0.9},["equip"]={["label"]="장착·착용",["pose"]="equip",["fx"]="",["tool"]="",["priority"]=2,["seconds"]=0.9},["unequip"]={["label"]="장비 해제",["pose"]="equip",["fx"]="",["tool"]="",["priority"]=2,["seconds"]=0.8},["open"]={["label"]="문·뚜껑 열기",["pose"]="reach",["fx"]="",["tool"]="",["priority"]=2,["seconds"]=0.7},["close"]={["label"]="문·뚜껑 닫기",["pose"]="push",["fx"]="",["tool"]="",["priority"]=2,["seconds"]=0.7},["lock"]={["label"]="잠그기·열쇠 사용",["pose"]="work",["fx"]="spark",["tool"]="key",["priority"]=2,["seconds"]=0.9},["pick"]={["label"]="자물쇠 따기",["pose"]="work",["fx"]="spark",["tool"]="pick",["priority"]=2,["seconds"]=1.0},["search"]={["label"]="수색",["pose"]="reach",["fx"]="search",["tool"]="",["priority"]=2,["seconds"]=1.2},["inspect"]={["label"]="살펴보기",["pose"]="inspect",["fx"]="search",["tool"]="",["priority"]=1,["seconds"]=1.0},["use"]={["label"]="도구·설비 사용",["pose"]="work",["fx"]="",["tool"]="",["priority"]=2,["seconds"]=0.85},["talk"]={["label"]="말하기",["pose"]="talk",["fx"]="speech",["tool"]="",["priority"]=1,["seconds"]=1.3},["gesture"]={["label"]="몸짓",["pose"]="wave",["fx"]="",["tool"]="",["priority"]=1,["seconds"]=1.0},["dance"]={["label"]="춤",["pose"]="dance",["fx"]="music",["tool"]="",["priority"]=1,["seconds"]=1.4},["bow"]={["label"]="인사",["pose"]="bow",["fx"]="",["tool"]="",["priority"]=1,["seconds"]=0.9},["cheer"]={["label"]="환호",["pose"]="cheer",["fx"]="stars",["tool"]="",["priority"]=1,["seconds"]=1.0},["sleep"]={["label"]="수면",["pose"]="lie",["fx"]="sleep",["tool"]="",["priority"]=2,["seconds"]=2.0},["sit"]={["label"]="앉기",["pose"]="sit",["fx"]="",["tool"]="",["priority"]=2,["seconds"]=0.6},["stand"]={["label"]="서기",["pose"]="rise",["fx"]="",["tool"]="",["priority"]=2,["seconds"]=0.6},["recline"]={["label"]="눕기",["pose"]="fall",["fx"]="",["tool"]="",["priority"]=2,["seconds"]=0.8},["climb"]={["label"]="오르기",["pose"]="climb",["fx"]="",["tool"]="",["priority"]=2,["seconds"]=1.1},["swim"]={["label"]="수영",["pose"]="swim",["fx"]="ripple",["tool"]="",["priority"]=2,["seconds"]=1.1},["drive"]={["label"]="운전·조타",["pose"]="drive",["fx"]="",["tool"]="wheel",["priority"]=2,["seconds"]=1.2},["push"]={["label"]="밀기·당기기·끌기",["pose"]="push",["fx"]="",["tool"]="",["priority"]=2,["seconds"]=1.0},["restrain"]={["label"]="결박·구속",["pose"]="work",["fx"]="",["tool"]="rope",["priority"]=3,["seconds"]=1.1},["struggle"]={["label"]="몸부림",["pose"]="struggle",["fx"]="trail",["tool"]="",["priority"]=3,["seconds"]=0.8},["cpr"]={["label"]="심폐소생술",["pose"]="push",["fx"]="medical",["tool"]="",["priority"]=3,["seconds"]=1.2},["vomit"]={["label"]="구토",["pose"]="bow",["fx"]="sick",["tool"]="",["priority"]=3,["seconds"]=0.9},["wash"]={["label"]="씻기",["pose"]="work",["fx"]="drop",["tool"]="",["priority"]=2,["seconds"]=1.1},["photography"]={["label"]="사진 찍기",["pose"]="inspect",["fx"]="flash",["tool"]="camera",["priority"]=2,["seconds"]=0.8},["hack"]={["label"]="해킹·전자 작업",["pose"]="work",["fx"]="spark",["tool"]="tablet",["priority"]=2,["seconds"]=1.2},["fish"]={["label"]="낚시 챔질·감기",["pose"]="reel",["fx"]="ripple",["tool"]="rod",["priority"]=2,["seconds"]=1.0},["cast"]={["label"]="낚싯대 던지기",["pose"]="throw",["fx"]="ripple",["tool"]="rod",["priority"]=2,["seconds"]=0.8},["wood"]={["label"]="벌목",["pose"]="strike",["fx"]="chip",["tool"]="axe",["priority"]=2,["seconds"]=1.0},["mine"]={["label"]="채광",["pose"]="strike",["fx"]="spark",["tool"]="pickaxe",["priority"]=2,["seconds"]=1.0},["dig"]={["label"]="땅 파기",["pose"]="dig",["fx"]="dust",["tool"]="shovel",["priority"]=2,["seconds"]=1.1},["skin"]={["label"]="도축·가죽 벗기기",["pose"]="work",["fx"]="",["tool"]="knife",["priority"]=2,["seconds"]=1.1},["fishprep"]={["label"]="생선 손질",["pose"]="work",["fx"]="",["tool"]="knife",["priority"]=2,["seconds"]=1.1},["net"]={["label"]="그물 손질",["pose"]="work",["fx"]="",["tool"]="net",["priority"]=2,["seconds"]=1.1},["repair"]={["label"]="수리·제작",["pose"]="work",["fx"]="spark",["tool"]="hammer",["priority"]=2,["seconds"]=1.1},["medical"]={["label"]="붕대·봉합·수술",["pose"]="work",["fx"]="medical",["tool"]="bandage",["priority"]=3,["seconds"]=1.2},["farm"]={["label"]="농사·경작",["pose"]="dig",["fx"]="leaf",["tool"]="hoe",["priority"]=2,["seconds"]=1.1},["gather"]={["label"]="채집",["pose"]="reach",["fx"]="leaf",["tool"]="",["priority"]=2,["seconds"]=1.1},["cook"]={["label"]="요리",["pose"]="stir",["fx"]="steam",["tool"]="spoon",["priority"]=2,["seconds"]=1.2},["fire"]={["label"]="불 피우기",["pose"]="work",["fx"]="flame",["tool"]="",["priority"]=2,["seconds"]=1.1},["trap"]={["label"]="덫 설치",["pose"]="reach",["fx"]="",["tool"]="trap",["priority"]=2,["seconds"]=1.1},["hunt"]={["label"]="사냥 준비",["pose"]="aim",["fx"]="",["tool"]="bow",["priority"]=2,["seconds"]=1.1}}
+GTV.actionAnimals = {["act_wolf"]="iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAABmElEQVR42u1WPUvDQAB9V/ILRBAEl6qLg7QQuihoDQULsaN/QXBRwVGwBUdBuwhdOjo4xmKFEKyrFOokSDVujt0FIU4X8nG53uXSuvRNIcm99+7du+SAGWaYYQLQTcMTfZb7DxNTMVCrGDETLFPaJJeiVjEAwGPd63ccksrAvX2XGO1eZZ/I8hFVURYazVZ0xgCAdvsW80sLAACaAJEVHrx9JL5fXFvxxYPCLFi2g37HIUREnCeaRD7OALeEtK2NZkuYSBaW7bC3oW4a3vnRQWgd07SfCkiXkM6ekqgkIDJe4+xfZVzXTwAAx/Ur/x5tPzMB3TS8qLhqCgCws7HuX2/qJmEmwBLPqmi8Pmgi4pRAxGBQTKSMGgDcXJwCAB6fB1xh0WbLJKmJzCIJ0ULJ/IZDBkqFKnl57Xq7W0Ucnl36xOPI5lbz26o9ySXNKgtyqSUoFapCwu77V5nL+PsDq/sQHvP5XY6mNhq6vdh3ICqeX158ihkIkKliNHR73ANJlmJCHaCxTAPMJci64TxhqSOZiqFpppoKfz9MsB7NAcYdAAAAAElFTkSuQmCC",["act_deer"]="iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAABdUlEQVR42mNgGAWjYDgCEx/n/8SqZaK3I9DFWWjlgCpfI4Y2BgaCIcFC6+io8jWCs9s2n6NfFMBDAc3SKl8jlGggOQQu7J+CM1gNHHMYsYlj87mJj/P/M1v2MjJSaik2kNK7HmsUFE3bziAiKw7nE3QANovv3XqIU72SmjzccmSLcYXKmS17GVmIySr4LCVHHdyBvkb/WbBZvrQunYGBgYEhumkmQZ+QC2DpggmX5QwMDAxL69KxJiByUj/dS0JCjqjyNWKo8jViYKR2FBDy+cq2bAZlvSBGnOXAmS17GaOhRSg58Y9NDz5HMRKqTChJhOgWo/seb0l4ZsteRgYGBpQKhRjHkJpoWUgJVmINx6U+vGoqdWtDWCiR2xih2AFCqkoOlGZXFloaTpYDCFl87+Z9R1IsQFcPM//d7XsHMEpCevka2S7qN8n+/GRoW3+caOWMhKJASVlqP0qQ3n3mSA13wqKAkd6JEGYxwaKYWg5Ct3DQAQDRdJ0eOQR2tgAAAABJRU5ErkJggg==",["act_boar"]="iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAABtklEQVR42u1Wv2rCQBz+neQJHAJtpxpsBykO9QEiRnRwdKgUERxd+goZu/YFBIdiHyBjQvMA2YqDhtihUMFB1xaE6xS4O+/MXTR2yQeB/Ln7fd99vy+XAOTIkeOfgbIqXOs0cHweOJ6QpyBTrNlt4Wa3hUXPeOSWoUN8kGKUHRAR87D92UHgeCgWEMON1iByA8kQ98wK9Wzqz7j3SCGsgFG7CotwBW60pkQg0jZWXbPbwizRIlwJHbgpX8DUn8H9VZFadSzmzf+AB/OOEoFIclJErdPAo3Y1kZQHN1pTDojGBI6HNFGC05LLwjJ0sJ56GGVBLuuA8DVchKujVm4ZOpWBQyhktREliZjYQ7AMHbQst1lSxMQewsAeQ+B4aBa8YgCA55cpQqJd7NTo9zvUdaX2iLgtCBwPyfZPJZQDeyyfgVOKSKqDZL5oaVoiImZ3W00lSDJC2LFJDmiyaZYpxo6XgVBAsVwykyYv55919l7p9vpdpVWaKjGPlMLuF9z5Fz0n+q6z9Tfh0t8LIUteMi73VkMWOxabcOkfzMApyaS+BbEt5wC3BaohPIZY+bc8raBzupoKf8614Fs0FdVGAAAAAElFTkSuQmCC",["act_tiger"]="iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAB9klEQVR42u1WMWvCQBT+og7OxUkIhUL/gWMplVB1kGbxB3Qp0qVkaSe32qUuwa20Q/fiIEhBRBDpVFw6OIjWIqFCITgrKNfp5JK7mKjRdvAb771733fvvXt3wA477LABxNIK8WoL/IWIrQjQVZkTIRIV2mQpdFVGPpwg5nhmWdOgkFalLq0kYNAskGyxBgB4uDq12PaPr6Vl47mWIJVJkFQmQQbNAhk0C0REDADZYg3UDwC0sgGtbCCXjCISDkJXZZjGD7SyYdknuZ2WBqekRqcNAMhXhwCAXDI6989Xh6Dp1lXZss76UYGtSl0KuJGzJ6TkdmIWkXCQWxP56qqMt8dzEnC7Qkan7UjGZmKRKBFoiQIi8tJNypJuERklFJFGwkHO1wmS6ORs/VYF7YeX2yxn+269Os8BXZXnnbquEFE/AMDRxbPEXcNYWiF+knvth5BoRLYqdUmDP+W4vHsCOwnpBORKwJ6eOsbSCmHXvIix+9sHj+tbYFfIkroFW0aoL4+RXewyz7BQgFPXOmHv8OBk3etqEWCOZ0hlEgQA3j968W38nrgSmOMZ+p0vR/JFNgDAdAKt1LPu+RzG7VkbdfuN+SS0T8B5s00nvAAm2LoYdfsNx1F8dt/ceAk4AVSEa5p9Il/4IfGjwxcRe/oR+SHITvjv8AtLFPV6VEk7SwAAAABJRU5ErkJggg==",["act_raccoon"]="iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAABjElEQVR42mNgGAWjYBTQAJj4OP8nVo5pIBxBFwd42FlgOAKbo1hI9VVJejhO+Z6ZKxnObNnLiOwIBgaG/+gOY2Bg+A9TR5QDVmyeRVRwlqSHMzCkh//vmbmSaE+xkOrjK9cf4lSvoykPl99x6ATD/3+MDAwM8ABhWNWezBBWORdFjJEYy/FZig3sOHSCwcPOgmH7gZM41TAy/Wc4s2UvIwu1LSclkXrYWfxnoaXlpZlhWMWvXH/IsOPQCdxpADkeoamWZN/BLCAEGAkVIOQ4AD0tkJwLkDWRGwq4QgK5nEBxAMznlPgYn2dwRQkTtmDfcegE0XFIbFTQvS4gxnIUByAHPTqbnNAgNhSZ8LkY2RBiHQHTAy1oyKsLkC1DzxGkJDySKqMdh06gZBEhVSUHJXXF/fg037t53xFdjJAerA5At5hUS1HAn58MO/YdRNVz95kjuvnvbt87gFESoluupCyF4RtkwygF727fO4C3PUBNy4jKBbBgoQfAGgX4ooPaFhNsEVHLQfQMVbIAACn3yXxBJxFYAAAAAElFTkSuQmCC",["act_leopard"]="iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAABo0lEQVR42mNgGAWjYBTQAJj4OP8nVo5pIBxBFwc0h+piOAKbo1hoGRXNoboMtQwM/7GJndmyl5EsB1w70I0zaLUcShlJNY+RUkuxgbieHSg+hoHMvj0MIrLiDAwMDAywEGAk1eKHD58yzN1/i4GBgYEh2VENRU5eXhpuObLF2EDt6ssMZ7bsZWQhZHndgv1YLUMHEEfdgsTx6stEpQ+GUN3/LORkIUKOIQbAHMmIzfJFJR7w4KbEAnzRgNUBMJ8Tij9iACyddOcnYMjduHQMdzmAHIfIDsGV8MgBnvETGDEcYOLj/B+X5cT4FN1hxDqUBVuiO7NlLyOsBIM5hByf166+zMCAliNg+R+lIEL3PUwRusOICRXkLIgtS6I7ACMNoCtAtpSY/E1qIqaoMkJ3LCnVMFUcIKSq5EBpjmCipeFkhYCJj/P/ezfvO+LSgE+OgYGBgeHPT4ba5WdQ9dx95ojusXe37x1AyQXIiQee2P78xHQAkmGUgne37x1gQU5MyHk/umWTIz2igJHUKKCm7/E2SGiVCGEWk9Qko8RB6BYOOgAA/9fGygZw3U8AAAAASUVORK5CYII=",["act_bear"]="iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAABfUlEQVR42mNgGAWjYBQMMGCklcEmPs7/YewzW/Yy0tUBJj7O/6X4eOH8Z58+wx0BcxiMz0iqwfYmGjjlD565wXBmy15GbA6AAZg4zFEsxFhc3JD9nxh19iYaDPYmGv8PnrmBVQ6bOCOpPr596ylO9apq0nB5bL6+dPUOg4isOANRUYBsOT5LsYFnnz4zIEcBLjVntuxlZKS25cQ6AAZYqG05KY7E6gBqWCzFx0t0KDDRyocwR+CTl+LjZWChheWV2WEM7VNXwR0xuTKZIbd9LtZSkYkWliPTkyuTUWiiygH0koxcRyADkkLgzJa9jPjijxBon7oKq+UkJUKYI8h1CMxSfJbjzIa4UjMx0YKsFj0kyHIAeg1GinqySkIYEFJVciCk+d7N+47oYkrqivtJiSoWUi3GZikK+POT4dm7n6h67j5zRDf/3e17BzCyIbrlSspSGL5BNoxS8O72vQN40wA1LSMqG8KChR4AaxSQmggpsZjkVjG5DqJnqJIFAMV5w5XhnnlOAAAAAElFTkSuQmCC",["act_wild"]="iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAA70lEQVR42mNgGI4gz8fwPzFiDAwMDEwD7VgmWvke2cfYxAZNCDDSOu6xgUlbzjMOmhBgoaZhT959YdBXEMWr5uKD18M0FwRZqf7H5fuJ2y/A2foKogxBVqr/6RoC+Z4G9CsHaJoIkYOOruUAzGJiUjgxatYdu81IdAjgS1w0DwFyLIflc3R9MHFk31O9IEK2GL3AQbeYYAhQO+jR4374tgeGjwPWHbvNiJ6QqB3/gz8KqBEK+HxP9aKYmIKHdAcwM7jBHWKuupNYB6w7edsdzvnLsIsqDiAb4HHAEGqWkxMSeHxOfr+AGIcQYfEogAEAgVNnZrl7mTQAAAAASUVORK5CYII=",["act_dog"]="iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAABjElEQVR42u1Vu0rEQBS9d8kXiCAIgrtqIbhW1uKyluYDbIOVjaax2yofkLWxzC9YJKWD+wGpVkFkNbGy3F4QYjVhktwkM3nZ5EAgMMw9Z849dwagR48eLeDkYhrJrg3+Q0QnAmb6OCOCEjUQF5dsHskqVxHBP0qYplp0yea5Ao+nt6haD/npHVMHw3bB9xiqkFIwbDfhAsfNwxNs7mwBAMQ8GhUevkgRhx9fucTD/d2YXCTmuL8+j/8tgMj3GKIYDtEFkbyIlILlvpACKGjcDjEY4r8quYrIxBT4HkPDdsEx9biPVcln+jgmkAph+uSOqTdycplWIBVC2f6VYXh4RI/r6RXm3oS+x1DWviZAXkS+x9ACiPLGqUmgyoMiI0Z0z7m7LG2BJpNoqrjMnvDtNbMnfdNqdeyjrm3Vx6yWgI2D0VndDAzaLF7JgTLi4D2cFFb8/QHr0U/u+fyepOuvV8EiMwVp8tHe9nNGgFCsLtarYFGYgSbJpDLAbekCZAu6CGH6kNj2yHXpaiX8ATY+u45nKy7YAAAAAElFTkSuQmCC",["act_cat"]="iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAABoklEQVR42u1Wv0vDQBj9LuQvcHRwqKirQ90tXQtxk+CaSdAtiJNk9RYxm7iJBJ0a6Frs3g5d02KVQjt2F4Q4XTgvXy6XX4eDD7Lkx/fefd97dwH4x19Du9eNdfIZGPl03NcmgvDEjzcXAADgeD4AAEwGQ6Kt7dNxP273unEdI5DVEJ8Z4gt1rVp1IUZTXXVtKyUCE2U2OVrXtoACxNg91unCAmQJOTw6KTw+E5ud6APVWLL3HM8HGoTJihmubh+S+5kxdDw/MSJGHM2WmQIO9neSCPPEGGgQwmQwJAbmfBZLnpRdMkSzZS4x74WX5/vY4OPneH5qM8ojLQsahECDEAgWEyaiCjkNQmk3mBcIZkLVNqqIuLs+R5+tPld69oEsnJ5dksytWIxK46ehbC+vMg5sIWLiSJEDRUUMT+raVkqEKMAsMkfV0RTpWiUTYkd30f+JSgK29lrHtf4T1l28VAfyiBfRR0da8fsL6NPr72/e1x2x/ma+GKVSIJK3drffUgK4YlWxmS9GUg/USabkAdYWHUBHoMOE4iJJ05HT2dVS+AH/hdS9+xCfFgAAAABJRU5ErkJggg=="}
+GTV.actionFrames = {}
+GTV.actionPending = {}
+GTV.actionSeq = 0
+local ACTION_DIR = getMudletHomeDir() .. "/galdam-actions-v2"
+pcall(function() lfs.mkdir(ACTION_DIR) end)
+local function n(v) return string.format("%.2f",v) end
+local function path(d,color,width)
+  return '&lt;path d="'..d..'" fill="none" stroke="'..color..'" stroke-width="'..(width or 2)..'" stroke-linecap="round" stroke-linejoin="round"/&gt;'
+end
+local function line(x,y,xx,yy,color,width)
+  return path('M'..n(x)..' '..n(y)..'L'..n(xx)..' '..n(yy),color,width)
+end
+local function circle(x,y,r,color)
+  return '&lt;circle cx="'..n(x)..'" cy="'..n(y)..'" r="'..n(r)..'" fill="'..color..'"/&gt;'
+end
+
+-- Appearance schema 1. Pose providers never inspect clothing or weapon IDs.
+GTV.visuals = GTV.visuals or {}
+GTV.looks = {}
+GTV.visualGeneration = (GTV.visualGeneration or 0)+1
+GTV.poseProviders = GTV.poseProviders or {}
+GTV.bodyProviders = GTV.bodyProviders or {}
+GTV.visualSlots=GTV.visualSlots or {
+  back={order=10,anchor="torso",layer="back"},legs={order=30,anchor="hips"},feet={order=35,anchor="leftFoot"},
+  torso={order=40,anchor="torso"},coat={order=50,anchor="torso"},hands={order=55,anchor="rightHand"},
+  head={order=60,anchor="head"},offhand={order=70,anchor="leftHand"},mainhand={order=80,anchor="rightHand"}}
+local function validId(id) return type(id)=="string" and #id&lt;=96 and id:match("^[%w_.%-]+$") end
+local function color(c) return type(c)=="string" and c:match("^#%x%x%x%x%x%x$") and c or nil end
+local function stable(value)
+  if type(value)~="table" then return tostring(value) end
+  local keys={};for k in pairs(value) do keys[#keys+1]=k end
+  table.sort(keys,function(a,b) return tostring(a)&lt;tostring(b) end)
+  local out={};for _,k in ipairs(keys) do out[#out+1]=tostring(k)..":"..stable(value[k]) end
+  return "{"..table.concat(out,";").."}"
+end
+local function fingerprint(s)
+  local hash=5381
+  for i=1,#s do hash=(hash*33+s:byte(i))%4294967296 end
+  return string.format("%08x",hash)
+end
+
+function GTV.slotOrder()
+  local slots={};for id in pairs(GTV.visualSlots) do slots[#slots+1]=id end
+  table.sort(slots,function(a,b)
+    local x,y=GTV.visualSlots[a].order or 50,GTV.visualSlots[b].order or 50
+    return x==y and a&lt;b or x&lt;y
+  end)
+  return slots
+end
+function GTV.registerSlot(id,definition)
+  assert(validId(id) and type(definition)=="table","slot definition required")
+  GTV.visualSlots[id]=definition;GTV.visualGeneration=GTV.visualGeneration+1;GTV.actionFrames={}
+end
+function GTV.registerBody(id,provider)
+  assert(validId(id) and type(provider)=="function","body renderer required")
+  GTV.bodyProviders[id]=provider;GTV.visualGeneration=GTV.visualGeneration+1;GTV.actionFrames={}
+end
+
+function GTV.registerVisual(id,definition)
+  assert(validId(id) and type(definition)=="table","visual ID and definition required")
+  assert(GTV.visualSlots[definition.slot],"register the visual slot first")
+  -- Definitions are trusted local content packs. Their SVG is not accepted over GMCP.
+  assert(type(definition.parts or {})=="table","parts must be a table")
+  GTV.visuals[id]=definition
+  GTV.visualGeneration=GTV.visualGeneration+1
+  GTV.actionFrames={}
+  if GTV.refreshAppearance and not GTV.appearanceBatch then GTV.refreshAppearance() end
+end
+
+function GTV.registerPose(id,provider)
+  assert(validId(id) and type(provider)=="function","pose ID and function required")
+  GTV.poseProviders[id]=provider
+  GTV.visualGeneration=GTV.visualGeneration+1
+  GTV.actionFrames={}
+end
+
+function GTV.registerAction(id,definition)
+  assert(validId(id) and type(definition)=="table" and validId(definition.pose),"action definition required")
+  assert(type(definition.seconds)=="number" and definition.seconds&gt;0 and definition.seconds&lt;=120,"invalid action duration")
+  definition.priority=tonumber(definition.priority) or 2
+  definition.fx=definition.fx or "";definition.tool=definition.tool or ""
+  GTV.actionCatalog[id]=definition
+  GTV.visualGeneration=GTV.visualGeneration+1;GTV.actionFrames={}
+end
+
+function GTV.setAppearance(key,input)
+  if type(input)~="table" or (input.v~=nil and tonumber(input.v)~=1) then return false end
+  local look={v=1,slots={}}
+  if color(input.skin) then look.skin=input.skin end
+  -- Only registered asset references and colors cross the server boundary.
+  for i,entry in ipairs(type(input.slots)=="table" and input.slots or {}) do
+    if i&gt;24 then break end
+    if type(entry)=="table" and validId(entry.slot) and validId(entry.visual) then
+      look.slots[entry.slot]={visual=entry.visual,tint=color(entry.tint),item=tonumber(entry.item)}
+    end
+  end
+  local signature=stable(look)
+  local previous=GTV.looks[key]
+  if previous and previous.signature==signature then return false end
+  local visualState={skin=look.skin,slots={}}
+  for slot,entry in pairs(look.slots) do visualState.slots[slot]={visual=entry.visual,tint=entry.tint} end
+  look.signature=signature;look.cacheKey=fingerprint(stable(visualState))
+  GTV.looks[key]=look
+  -- Deliberately preserve the action start time, movement queue and actor identity.
+  if GTV.refreshAppearance and not GTV.appearanceBatch then GTV.refreshAppearance() end
+  return true
+end
+
+function GTV.resolveLook(sprite,look)
+  look=look or {slots={}}
+  local palette={torso=sprite=="act_cop" and "#2e3c60" or (sprite=="act_player" and "#469650" or "#966e50"),
+    skin=look.skin or "#ebc8a5",legs="#303a40",feet="#303a40",hands=look.skin or "#ebc8a5"}
+  local resolved={palette=palette,slots={},cacheKey=look.cacheKey or "base",padding=0}
+  for _,slot in ipairs(GTV.slotOrder()) do
+    local entry=look.slots and look.slots[slot]
+    local definition=entry and GTV.visuals[entry.visual]
+    local handCompatible=definition and (slot=="mainhand" or slot=="offhand") and (definition.slot=="mainhand" or definition.slot=="offhand")
+    if definition and (definition.slot==slot or handCompatible) then
+      resolved.slots[slot]={definition=definition,tint=entry.tint or definition.tint or "#b7cbd0",id=entry.visual}
+      resolved.padding=math.max(resolved.padding,math.max(0,math.min(32,tonumber(definition.padding) or 8)))
+      for part,c in pairs(definition.palette or {}) do
+        if palette[part] then palette[part]=color(c=="tint" and resolved.slots[slot].tint or c) or palette[part] end
+      end
+    end
+  end
+  return resolved
+end
+
+function GTV.renderVisualSlot(look,slot,rig)
+  local visual=look.slots[slot]
+  if not visual then return "" end
+  local out={}
+  local parts=visual.definition.views and visual.definition.views[rig.face] or visual.definition.parts or {}
+  for _,part in ipairs(parts) do
+    local socket=part.anchor=="grip" and GTV.visualSlots[slot].anchor or part.anchor
+    local anchor=rig.anchors[socket or GTV.visualSlots[slot].anchor or "torso"]
+    if anchor then
+      local svg=part.svg or ""
+      -- Optional PNG/SVG parts use a trusted local path from the registered content pack.
+      if part.image then
+        local url=tostring(part.image):gsub("&amp;","&amp;amp;"):gsub('"',"&amp;quot;"):gsub("&lt;","&amp;lt;")
+        svg='&lt;image x="'..tostring(part.x or 0)..'" y="'..tostring(part.y or 0)..'" width="'..tostring(part.width or 8)..'" height="'..tostring(part.height or 8)..'" xlink:href="'..url..'"/&gt;'
+      end
+      svg=svg:gsub("{{tint}}",visual.tint)
+      out[#out+1]='&lt;g transform="translate('..n(anchor.x)..' '..n(anchor.y)..') rotate('..n((anchor.angle or 0)+(part.angle or 0))..')"&gt;'..svg..'&lt;/g&gt;'
+    end
+  end
+  return table.concat(out)
+end
+
+function GTV.renderVisualLayers(look,rig,layer)
+  local out={}
+  for _,slot in ipairs(GTV.slotOrder()) do
+    if slot~="mainhand" and (GTV.visualSlots[slot].layer or "front")==layer then
+      out[#out+1]=GTV.renderVisualSlot(look,slot,rig)
+    end
+  end
+  return table.concat(out)
+end
+
+function GTV.refreshAppearance()
+  if not GTV.on or not GTV.drawMotion then return end
+  GTV.scheduleMotion()
+end
+
+function GTV.onAppearance(payload)
+  payload=type(payload)=="table" and payload or (gmcp.Galdam or {}).Appearance
+  if type(payload)~="table" or tonumber(payload.v)~=1 or type(payload.actors)~="table" then return end
+  local rid=GTV.lastData and tonumber(GTV.lastData.rid) or GTV.curRoom
+  if not rid or tonumber(payload.rid)~=rid then return end
+  local seq=tonumber(payload.seq)
+  if not seq or seq&lt;=(GTV.appearanceSeq or 0) then return end
+  GTV.appearanceSeq=seq
+  GTV.appearanceBatch=true
+  for i,entry in ipairs(payload.actors) do
+    if i&gt;64 then break end
+    if type(entry)=="table" and tonumber(entry.actor) and tonumber(entry.actor)&gt;0 then
+      local key=tonumber(entry.self)==1 and "self" or "actor:"..tostring(tonumber(entry.actor))
+      GTV.setAppearance(key,entry.look)
+    end
+  end
+  GTV.appearanceBatch=false
+  GTV.refreshAppearance()
+end
+
+-- Small example content pack. Adding outfits/weapons does not add animation frames.
+GTV.registerVisual("clothes.field_jacket",{slot="coat",palette={torso="tint"},tint="#8b7755",parts={
+  {anchor="torso",svg='&lt;path d="M0 -5V6M-4 0H-1M1 0H4" fill="none" stroke="#d7c8a2" stroke-width=".7"/&gt;'}}})
+GTV.registerVisual("clothes.blue_trousers",{slot="legs",palette={legs="#46637b"},parts={}})
+GTV.registerVisual("clothes.work_boots",{slot="feet",palette={feet="#674d35"},parts={}})
+GTV.registerVisual("armor.helmet",{slot="head",parts={{anchor="head",svg='&lt;path d="M-6 0V-3Q0 -9 6 -3V0Z" fill="{{tint}}" stroke="#293d3c"/&gt;&lt;path d="M-6 0H7" stroke="#17292b" stroke-width="1.5"/&gt;'}}})
+GTV.registerVisual("armor.vest",{slot="coat",parts={{anchor="torso",svg='&lt;rect x="-5" y="-5" width="10" height="10" rx="2" fill="{{tint}}" stroke="#243638"/&gt;&lt;path d="M-3 -2H3M-3 1H3" stroke="#9cad9b" stroke-width=".8"/&gt;'}}})
+GTV.registerVisual("gear.backpack",{slot="back",parts={{anchor="torso",svg='&lt;rect x="-9" y="-6" width="8" height="13" rx="3" fill="{{tint}}" stroke="#293a2e"/&gt;'}}})
+GTV.registerVisual("weapon.short_sword",{slot="mainhand",parts={{anchor="grip",angle=90,svg='&lt;path d="M-2 0H2M0 2V-8L2 -6L1 -1" fill="#c9dbe2" stroke="#68808c" stroke-width="1.2"/&gt;'}}})
+GTV.registerVisual("weapon.handgun",{slot="mainhand",parts={{anchor="grip",svg='&lt;path d="M-2 -2H9V1H2V5H-1Z" fill="{{tint}}" stroke="#243239" stroke-width="1"/&gt;'}}})
+GTV.registerVisual("weapon.wood_axe",{slot="mainhand",parts={{anchor="grip",angle=90,svg='&lt;path d="M-3 0H7M5 -4H8V4H5" fill="#bdccd0" stroke="#a78054" stroke-width="1.7"/&gt;'}}})
+GTV.registerVisual("armor.buckler",{slot="offhand",parts={{anchor="grip",svg='&lt;circle r="5" fill="{{tint}}" stroke="#bac6c6" stroke-width="1.3"/&gt;&lt;circle r="1.5" fill="#829798"/&gt;'}}})
+
+function GTV.actionPose(pose,frame,face)
+  if GTV.poseProviders and GTV.poseProviders[pose] then return GTV.poseProviders[pose](frame,face) end
+  local t=(frame%8)/7
+  local wave=math.sin(t*math.pi*2)
+  local beat=math.sin(t*math.pi)
+  local left=face==3 or face==4 or face==5
+  local lx,ly,rx,ry=9,21,23,21
+  local lfoot,rfoot,lean,lift=0,0,0,0
+  if pose=="walk" or pose=="climb" or pose=="dance" then
+    lfoot=wave*2.8;rfoot=-lfoot;ly=20-wave*4;ry=20+wave*4;lift=-math.abs(wave)*.5
+  elseif pose=="strike" then rx=21+beat*9;ry=8+(1-beat)*13;lean=beat*8
+  elseif pose=="shoot" then lx,ly,rx,ry=23-beat*2,15,28-beat*3,15;lean=-beat*4
+  elseif pose=="aim" then lx,ly,rx,ry=23,15,28,15
+  elseif pose=="reload" then lx,ly,rx,ry=19+wave*2,18,23,16
+  elseif pose=="throw" then rx,ry=18+beat*13,9+beat*5;lean=beat*8
+  elseif pose=="guard" then lx,ly,rx,ry=13,13,23,10+beat*2;lean=-beat*8
+  elseif pose=="dodge" then lean=-beat*22;lx,ly,rx,ry=8,17,24,16;lift=beat*2
+  elseif pose=="hurt" then lean=-beat*14;lx,ly,rx,ry=8,16,25,18
+  elseif pose=="eat" then rx,ry=19+wave*.7,10+beat*4;lx,ly=13,19
+  elseif pose=="drink" then rx,ry=21,10+beat*2;lean=-beat*5
+  elseif pose=="reach" or pose=="dig" then lean=beat*22;lift=beat*2;rx,ry=25,23+beat*5;lx,ly=18,22+beat*4
+  elseif pose=="offer" then rx,ry=24+beat*5,17;lx,ly=19+beat*5,18
+  elseif pose=="equip" then lx,ly=15+wave*3,13;rx,ry=17-wave*3,19
+  elseif pose=="work" then lx,ly=20,22;rx,ry=24+wave*2,19+wave*3;lean=8
+  elseif pose=="stir" then lx,ly=18,22;rx,ry=23+wave*3,21+math.cos(t*math.pi*2)*2;lean=6
+  elseif pose=="inspect" then lx,ly=13,12;rx,ry=23,9;lean=-4
+  elseif pose=="talk" then lx,ly=8,20-wave;rx,ry=24,16+wave*3
+  elseif pose=="wave" then rx,ry=25+wave*3,5;lx,ly=9,21
+  elseif pose=="cheer" then lx,ly=7,5+wave*2;rx,ry=25,5-wave*2;lift=-beat*2
+  elseif pose=="bow" then lean=beat*28;lift=beat*2;rx,ry=23,23
+  elseif pose=="push" then lx,ly=24+beat*3,15;rx,ry=25+beat*3,21;lean=beat*10
+  elseif pose=="struggle" then lx,ly=10+wave*3,17;rx,ry=22-wave*3,17;lean=wave*12
+  elseif pose=="drive" then lx,ly=21+wave,16;rx,ry=24-wave,21
+  elseif pose=="reel" then lx,ly=21,17;rx,ry=24+wave*2,18+wave*2;lean=-beat*5
+  end
+  if pose=="climb" then ly=11-wave*6;ry=11+wave*6 end
+  local angle=left and 180-face*45 or face*45
+  if pose=="shoot" or pose=="aim" then
+    local dx,dy=math.cos(angle*math.pi/180),math.sin(angle*math.pi/180)
+    rx,ry=18+dx*(9-beat),15+dy*(9-beat);lx,ly=18+dx*4,15+dy*4
+  end
+  if pose=="dance" then lean=wave*12;lx=8-wave*3;rx=24+wave*3;ry=9 end
+  if pose=="sit" then lift=4;lfoot=-3;rfoot=-3;lx,ly,rx,ry=10,20,22,20 end
+  if pose=="swim" then lift=6;lx,ly=8+wave*3,11;rx,ry=24-wave*3,11;lfoot=wave*2;rfoot=-wave*2 end
+  if pose=="fall" then lean=-85*t;lift=4*t
+  elseif pose=="rise" then lean=-85*(1-t);lift=4*(1-t)
+  elseif pose=="lie" then lean=-85;lift=4 end
+
+  local r={pose=pose,frame=frame,face=face,lx=lx,ly=ly,rx=rx,ry=ry,lfoot=lfoot,rfoot=rfoot,lean=lean,lift=lift,angle=angle,left=left}
+  r.anchors={root={x=0,y=0},torso={x=16,y=18},head={x=16,y=9},hips={x=16,y=23},
+    leftShoulder={x=11,y=15},rightShoulder={x=21,y=15},
+    leftHand={x=lx,y=ly,angle=angle},rightHand={x=rx,y=ry,angle=angle},
+    leftFoot={x=12,y=27+lfoot},rightFoot={x=20,y=27+rfoot}}
+  local function limb(x,y,xx,yy)
+    return {x=x,y=y,angle=(math.atan2 and math.atan2(yy-y,xx-x) or math.atan(yy-y,xx-x))*180/math.pi,length=math.sqrt((xx-x)^2+(yy-y)^2)}
+  end
+  r.anchors.leftUpperArm=limb(11,15,(11+lx)/2,(15+ly)/2)
+  r.anchors.rightUpperArm=limb(21,15,(21+rx)/2,(15+ry)/2)
+  r.anchors.leftForearm=limb((11+lx)/2,(15+ly)/2,lx,ly)
+  r.anchors.rightForearm=limb((21+rx)/2,(15+ry)/2,rx,ry)
+  r.anchors.leftLeg=limb(13,22,12,27+lfoot)
+  r.anchors.rightLeg=limb(19,22,20,27+rfoot)
+  return r
+end
+
+function GTV.actionSVG(sprite,kind,frame,face,effectOnly,appearance)
+  local spec=GTV.actionCatalog[kind] or {pose=kind,tool="",fx=""}
+  local pose,tool,fx=spec.pose,spec.tool,spec.fx
+  if not effectOnly and GTV.bodyProviders and GTV.bodyProviders[sprite] then
+    return GTV.bodyProviders[sprite](GTV.actionPose(pose,frame,face),GTV.resolveLook(sprite,appearance),spec)
+  end
+  local t=(frame%8)/7
+  local wave=math.sin(t*math.pi*2)
+  local beat=math.sin(t*math.pi)
+  local left=face==3 or face==4 or face==5
+  if not effectOnly and GTV.actionAnimals[sprite] then
+    local angle=pose=="fall" and -75*t or (pose=="rise" and -75*(1-t) or (pose=="hurt" and -beat*12 or (pose=="strike" and beat*10 or 0)))
+    return '&lt;svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="32" height="32" viewBox="0 0 32 32"&gt;&lt;g transform="'..(left and 'translate(32 0) scale(-1 1) ' or '')..'rotate('..n(angle)..' 16 22)"&gt;&lt;image x="0" y="0" width="32" height="32" xlink:href="data:image/png;base64,'..GTV.actionAnimals[sprite]..'"/&gt;&lt;/g&gt;&lt;/svg&gt;'
+  end
+  local body=sprite=="act_cop" and "#2e3c60" or (sprite=="act_player" and "#469650" or "#966e50")
+  local look=GTV.resolveLook(sprite,appearance)
+  body=look.palette.torso
+  local skin,boot,outline=look.palette.skin,look.palette.legs,"#253333"
+  local padding=look.padding
+  local bodyHeader='&lt;svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="'..(32+2*padding)..'" height="'..(32+2*padding)..'" viewBox="'..(-padding)..' '..(-padding)..' '..(32+2*padding)..' '..(32+2*padding)..'"&gt;' 
+  local parts={effectOnly and '&lt;svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="-8 -8 48 48"&gt;'
+    or bodyHeader}
+  if not effectOnly then
+    parts[#parts+1]='&lt;ellipse cx="16" cy="27" rx="9" ry="3" fill="#000" opacity=".24"/&gt;'
+    if sprite=="act_player" then parts[#parts+1]='&lt;ellipse cx="16" cy="19" rx="13" ry="13" fill="none" stroke="#78ebff" stroke-width="1.3" opacity=".85"/&gt;' end
+    local rig=GTV.actionPose(pose,frame,face)
+    local lx,ly,rx,ry=rig.lx,rig.ly,rig.rx,rig.ry
+    local lfoot,rfoot,lean,lift,angle=rig.lfoot,rig.rfoot,rig.lean,rig.lift,rig.angle
+    parts[#parts+1]='&lt;g transform="'..(left and 'translate(32 0) scale(-1 1) ' or '')..'translate(0 '..n(lift)..') rotate('..n(lean)..' 16 24)"&gt;'
+    parts[#parts+1]=GTV.renderVisualLayers(look,rig,"back")
+    parts[#parts+1]=line(13,22,12,27+lfoot,boot,3)
+    parts[#parts+1]=line(19,22,20,27+rfoot,boot,3)
+    parts[#parts+1]=line(11,27+lfoot,13,27+lfoot,look.palette.feet,2)
+    parts[#parts+1]=line(19,27+rfoot,21,27+rfoot,look.palette.feet,2)
+    parts[#parts+1]='&lt;rect x="10" y="13" width="12" height="12" rx="4" fill="'..body..'" stroke="'..outline..'" stroke-width="1"/&gt;'
+    parts[#parts+1]=line(11,15,lx,ly,body,3.8)..circle(lx,ly,1.6,look.palette.hands)
+    parts[#parts+1]=line(21,15,rx,ry,body,3.8)..circle(rx,ry,1.6,look.palette.hands)
+    parts[#parts+1]='&lt;ellipse cx="16" cy="9" rx="5" ry="5" fill="'..skin..'" stroke="#96785f" stroke-width=".8"/&gt;'
+    parts[#parts+1]=circle(18,9+(face==6 and 1 or face==2 and -1 or 0),.65,"#34403c")
+    if sprite=="act_cop" and not look.slots.head then parts[#parts+1]='&lt;path d="M11 7V4H21V7H23V9H10V7Z" fill="#222c48"/&gt;' end
+    parts[#parts+1]=GTV.renderVisualLayers(look,rig,"front")
+    local usesEquipped=(pose=="strike" or pose=="shoot" or pose=="aim" or pose=="guard" or pose=="reload" or pose=="walk" or pose=="idle")
+    if look.slots.mainhand and usesEquipped then
+      parts[#parts+1]=GTV.renderVisualSlot(look,"mainhand",rig)
+    elseif tool~="" then
+      parts[#parts+1]='&lt;g transform="translate('..n(rx)..' '..n(ry)..') rotate('..n((pose=="shoot" or pose=="aim") and angle or 0)..')"&gt;'
+      if tool=="gun" then parts[#parts+1]='&lt;path d="M-2 -2H9V1H2V5H-1Z" fill="#5f7277" stroke="#243239" stroke-width="1"/&gt;'
+      elseif tool=="blade" or tool=="knife" then parts[#parts+1]=line(0,2,0,-2,"#705b43",2)..'&lt;path d="M0 -2L1 -8L3 -3Z" fill="#cadce1"/&gt;'
+      elseif tool=="axe" or tool=="pickaxe" or tool=="hammer" or tool=="hoe" or tool=="shovel" then
+        parts[#parts+1]=line(0,4,0,-7,"#a78054",2)
+        parts[#parts+1]=tool=="shovel" and '&lt;path d="M-3 -8L0 -12L3 -8V-4H-3Z" fill="#a7b7b8"/&gt;' or path(tool=="pickaxe" and 'M-6 -5Q0 -10 6 -5' or 'M-4 -7H4V-3H0',"#a7b7b8",3)
+      elseif tool=="rod" then parts[#parts+1]=path('M0 3L5 -15Q9 -16 10 -11',"#c3a875",1.2)..path('M10 -11V11',"#c5dedc",.55)
+      elseif tool=="bow" then parts[#parts+1]=path('M4 -10Q13 0 4 10Z',"#b99160",1.5)
+      elseif tool=="cup" then parts[#parts+1]='&lt;path d="M-2 -5H4L3 2H-1Z" fill="#bddde1"/&gt;'
+      elseif tool=="food" then parts[#parts+1]=circle(1,-2,2.8,"#dda55f")
+      elseif tool=="spoon" then parts[#parts+1]=line(0,0,2,-6,"#e3d3ad",1.3)..circle(2,-7,1.5,"#e3d3ad")
+      elseif tool=="net" or tool=="trap" then parts[#parts+1]=path('M-3 0L3 -6L9 0L3 6ZM0 -3L6 3M0 3L6 -3',"#b8c7a0",1)
+      elseif tool=="wheel" then parts[#parts+1]='&lt;circle r="5" fill="none" stroke="#9cacb1" stroke-width="1.5"/&gt;'..path('M-5 0H5M0 0V5',"#9cacb1",1)
+      elseif tool=="cigarette" then parts[#parts+1]=line(0,0,5,0,"#eee6d3",1.3)..circle(5,0,.7,"#e98657")
+      elseif tool=="key" or tool=="pick" then parts[#parts+1]=path('M0 0L5 -3L7 -1',"#e6d08f",1.3)
+      elseif tool=="bandage" then parts[#parts+1]='&lt;rect x="-2" y="-3" width="7" height="5" rx="2" fill="#f1ebdc"/&gt;'
+      elseif tool=="rope" then parts[#parts+1]=path('M0 0C-7 -10 10 -8 6 0S-2 8 0 0',"#d2b889",1.5)
+      elseif tool=="camera" or tool=="tablet" then parts[#parts+1]='&lt;rect x="-3" y="-4" width="8" height="6" rx="1" fill="#425664" stroke="#a8ccd4"/&gt;'..circle(1,-1,1.6,"#add8df")
+      else parts[#parts+1]='&lt;rect x="-2" y="-4" width="6" height="5" rx="1" fill="#bcaa80"/&gt;' end
+      parts[#parts+1]='&lt;/g&gt;'
+    end
+    parts[#parts+1]='&lt;/g&gt;'
+  end
+  -- Effects remain separate labels for animals, whose species art is preserved.
+  if effectOnly and fx~="" then
+    local alpha=math.max(.08,1-t)
+    parts[#parts+1]='&lt;g opacity="'..n(alpha)..'" transform="'..(left and 'translate(32 0) scale(-1 1)' or '')..'"&gt;'
+    if fx=="slash" then parts[#parts+1]=path('M24 4Q'..n(35+beat*4)..' 15 23 29',"#fff1bf",1.8)
+    elseif fx=="muzzle" or fx=="flash" then parts[#parts+1]='&lt;path d="M29 13L37 10L34 15L40 18L33 18L34 24L29 19Z" fill="#ffeab0"/&gt;'
+    elseif fx=="impact" then
+      for i=0,5 do local a=i*math.pi/3;local r=4+beat*7;parts[#parts+1]=line(16+math.cos(a)*r,15+math.sin(a)*r,16+math.cos(a)*(r+4),15+math.sin(a)*(r+4),"#efc18c",1.6) end
+    elseif fx=="shield" then parts[#parts+1]=path('M25 9L34 12L33 22L29 26L25 22Z',"#bddeef",2)
+    elseif fx=="ripple" then parts[#parts+1]='&lt;ellipse cx="16" cy="27" rx="'..n(7+t*11)..'" ry="'..n(2+t*3)..'" fill="none" stroke="#a6e5ee" stroke-width="1.3"/&gt;'
+    elseif fx=="speech" then parts[#parts+1]='&lt;path d="M20 -2H35V8H27L23 12V8H20Z" fill="#e0eee1" stroke="#6b8a7f"/&gt;'..circle(24,3,.8,"#617d76")..circle(28,3,.8,"#617d76")..circle(32,3,.8,"#617d76")
+    elseif fx=="medical" then parts[#parts+1]=path('M28 5V15M23 10H33',"#b0e5c1",2.5)
+    elseif fx=="sleep" then parts[#parts+1]=path('M25 3H30L25 8H30M31 -3H36L31 2H36',"#c6dcf5",1.4)
+    elseif fx=="search" then parts[#parts+1]='&lt;circle cx="29" cy="7" r="4" fill="none" stroke="#dae9be" stroke-width="1.3"/&gt;'..line(32,10,35,13,"#dae9be",1.3)
+    elseif fx=="miss" then parts[#parts+1]=path('M28 10L34 16M34 10L28 16',"#a6b9bf",1.3)
+    elseif fx=="flame" then parts[#parts+1]='&lt;path d="M24 27Q20 21 26 15Q25 20 30 23Q33 29 24 27" fill="#ffc87e"/&gt;'
+    elseif fx=="trail" then parts[#parts+1]=path('M1 15L7 15M-2 20H5M1 24H7',"#b7cfd1",1)
+    elseif fx=="music" then parts[#parts+1]=path('M29 8V-1L35 -3V6',"#ded1ef",1.5)..circle(27,8,2,"#ded1ef")..circle(33,6,2,"#ded1ef")
+    else
+      local color=({spark="#ffe6a0",chip="#cbad7a",dust="#c4b49a",leaf="#a6d88f",drop="#b0e8ff",crumb="#f0cc8b",steam="#e0e7df",smoke="#b8c1c1",pickup="#f8e7aa",stars="#f5d79b",sick="#b9cd8c"})[fx] or "#d4e1d9"
+      for i=1,4 do
+        local x=21+i*2+math.sin(i*2)*t*7;local y=16-i*3-t*6
+        parts[#parts+1]=circle(x,y,(fx=="steam" or fx=="smoke") and 2 or 1,color)
+      end
+    end
+    parts[#parts+1]='&lt;/g&gt;'
+  end
+  parts[#parts+1]='&lt;/svg&gt;'
+  return table.concat(parts)
+end
+
+function GTV.actionFrame(sprite,kind,frame,face,effect,appearance)
+  local key=table.concat({sprite,kind,frame,face,effect and "fx" or "body",GTV.visualGeneration or 0,appearance and appearance.cacheKey or "base"},"_")
+  local file=GTV.actionFrames[key]
+  if not file then
+    file=ACTION_DIR.."/"..key..".svg"
+    local f=io.open(file,"w")
+    if not f then return nil end
+    f:write(GTV.actionSVG(sprite,kind,frame,face,effect,appearance));f:close()
+    GTV.actionFrames[key]=file
+  end
+  return 'border-image: url("'..file..'"); background: transparent; border:0;'
+end
+
+local function reaction(kind)
+  return kind=="attack" or kind=="punch" or kind=="shoot" or kind=="bowshot" or kind=="throw" or kind=="hit"
+    or kind=="miss" or kind=="parry" or kind=="block" or kind=="dodge" or kind=="death" or kind=="knockout" or kind=="wake"
+end
+function GTV.acceptAction(s,event)
+  local now=GTV.motionNow()
+  local spec=GTV.actionCatalog[event.kind]
+  if event.phase=="end" or event.phase=="cancel" then
+    if s.action and s.action.token==event.token then
+      if event.phase=="end" and now-s.action.start&lt;.35 then
+        s.action.finish=s.action.start+.35;s.action.loop=false
+      else s.action=nil end
+    end
+    return
+  end
+  local channel=event.kind=="miss" and "effect" or (reaction(event.kind) and event.phase~="start" and "reaction" or "action")
+  local previous=s[channel]
+  if event.kind~="wake" and previous and previous.finish&gt;now and (GTV.actionCatalog[previous.kind].priority&gt;spec.priority) then return end
+  local duration=math.max(.08,math.min(120,tonumber(event.ms) and event.ms/1000 or spec.seconds))
+  s[channel]={kind=event.kind,start=now,finish=now+duration,token=event.token,loop=event.phase=="start"}
+  if event.tx and event.ty then
+    local dx,dy=event.tx-event.x,event.ty-event.y
+    if dx~=0 or dy~=0 then
+      s.face=math.floor(((math.atan2 and math.atan2(dy,dx) or math.atan(dy,dx))/(math.pi/4))+.5)%8
+    end
+  end
+  if event.kind=="death" or event.kind=="knockout" then s.action=nil;s.steps={} end
+end
+
+function GTV.onAction(event)
+  event=type(event)=="table" and event or (gmcp.Galdam or {}).Action
+  if not event or not GTV.on or not GTV.actionCatalog[event.kind] then return end
+  local rid,seq,actor=tonumber(event.rid),tonumber(event.seq),tonumber(event.actor)
+  local current=GTV.lastData and tonumber(GTV.lastData.rid) or GTV.curRoom
+  if not rid or (current and rid~=current) or not seq or seq&lt;=GTV.actionSeq or not actor or actor&lt;=0 then return end
+  if event.phase~="once" and event.phase~="start" and event.phase~="end" and event.phase~="cancel" then return end
+  for _,field in ipairs({"x","y","tx","ty"}) do if type(event[field])~="number" or event[field]~=event[field] or math.abs(event[field])&gt;10000 then return end end
+  if type(event.token)~="string" or #event.token&gt;120 or type(event.ms)~="number" or event.ms~=event.ms then return end
+  GTV.actionSeq=seq
+  if event.look then GTV.setAppearance(tonumber(event.self)==1 and "self" or "actor:"..tostring(actor),event.look) end
+  if not GTV.motionEnabled then return end
+  local key=tonumber(event.self)==1 and "self" or "actor:"..tostring(actor)
+  local s=GTV.motion[key]
+  if s then GTV.acceptAction(s,event);GTV.scheduleMotion()
+  else
+    -- GMCP may arrive just before Tac; only bind when the actor becomes visible.
+    GTV.actionPending[key]={event=event,expires=GTV.motionNow()+.8}
+    local count=0;for _ in pairs(GTV.actionPending) do count=count+1 end
+    if count&gt;32 then GTV.actionPending={} end
+  end
+end
+
+function GTV.localActivity(kind,payload,ending)
+  local s=GTV.motion.self
+  if not s or payload.preview or not GTV.on or not GTV.motionEnabled then return end
+  local actionKind=kind
+  if kind=="work" then actionKind=payload.kind end
+  local token=tostring(payload.token or kind)
+  if kind=="work" and not actionKind then
+    actionKind=s.action and s.action.token==token and s.action.kind
+  end
+  if not GTV.actionCatalog[actionKind or ""] then return end
+  GTV.acceptAction(s,{kind=actionKind,phase=ending and (tonumber(payload.success)==0 and "cancel" or "end") or "start",token=token,
+    ms=kind=="work" and 120000 or 30000})
+end
+
+function GTV.actionVisual(s,key,now)
+  if not GTV.motionEnabled then s.action=nil;s.reaction=nil;s.effect=nil end
+  local pending=GTV.actionPending[key]
+  if pending then
+    if pending.expires&gt;=now then GTV.acceptAction(s,pending.event) end
+    GTV.actionPending[key]=nil
+  end
+  if s.action and now&gt;=s.action.finish then s.action=nil end
+  if s.reaction and now&gt;=s.reaction.finish then s.reaction=nil end
+  if s.effect and now&gt;=s.effect.finish then s.effect=nil end
+  local playing=s.reaction or s.action
+  local moving=#s.steps&gt;0
+  local kind=playing and playing.kind or (moving and "walk" or "idle")
+  local spec=GTV.actionCatalog[kind]
+  local frame=playing and math.min(7,math.floor((now-playing.start)/(playing.loop and (spec.seconds or 1) or (playing.finish-playing.start))*8)) or 0
+  if playing and playing.loop then frame=math.floor((now-playing.start)/(spec.seconds or 1)*8)%8 end
+  if moving and not playing then frame=math.floor(now*18)%8 end
+  local sprite=s.sprite or "act_player"
+  local appearance=GTV.looks[key]
+  local human=sprite=="act_player" or sprite=="act_npc" or sprite=="act_cop"
+  s.bodyVisible=false
+  if s.bodyLabel then s.bodyLabel:hide() end
+  if (human or GTV.actionAnimals[sprite] or GTV.bodyProviders[sprite]) and (playing or moving or appearance) then
+    local css=GTV.actionFrame(sprite,kind,frame,s.face or 0,false,appearance)
+    if css then
+      if appearance and (human or GTV.bodyProviders[sprite]) and s.bodyLabel then
+        sty(s.label,"background: transparent; border:0;")
+        sty(s.bodyLabel,css);s.bodyVisible=true;s.bodyPadding=GTV.resolveLook(sprite,appearance).padding
+      else sty(s.label,css) end
+    end
+  else
+    sty(s.label,imgcss(sprite))
+  end
+  local extraX,extraY=0,0
+  if playing and not human then
+    local t=(now-playing.start)/(playing.finish-playing.start)
+    extraX=math.sin(t*math.pi)*s.cs*(kind=="hit" and -.09 or .08)
+  end
+  if s.actionFX then
+    local effect=s.effect or playing
+    local effectSpec=effect and GTV.actionCatalog[effect.kind]
+    if effectSpec and effectSpec.fx~="" then
+      local effectFrame=effect==playing and frame or math.min(7,math.floor((now-effect.start)/(effect.finish-effect.start)*8))
+      local css=GTV.actionFrame(sprite,effect.kind,effectFrame,s.face or 0,true)
+      if css then
+        sty(s.actionFX,css)
+        local x,y=GTV.sampleMotion(s,now)
+        geo(s.actionFX,8+x*s.cs-s.cs*.25,28+y*s.cs-s.cs*.25,s.cs*1.5,s.cs*1.5)
+      end
+    else s.actionFX:hide() end
+  end
+  return playing~=nil or s.effect~=nil,extraX,extraY
+end
+
+function GTV.resetActions()
+  GTV.actionPending={};GTV.actionSeq=0
+  GTV.looks={};GTV.appearanceSeq=0
+  for _,layer in ipairs({"actionGhost","actionFX","actionBody","ghostBody"}) do
+    for _,l in ipairs(GTV.P[layer] or {}) do l:hide() end
+  end
+end
+function GTV.pruneActionGhosts(now)
+  for key,s in pairs(GTV.motion) do
+    if s.ghost and (not s.reaction or s.reaction.finish&lt;=now) then
+      s.label:hide();if s.bodyLabel then s.bodyLabel:hide() end;if s.actionFX then s.actionFX:hide() end;GTV.motion[key]=nil
+    end
+  end
+end
+
+for _,id in ipairs(GTV.actionHandlers or {}) do pcall(killAnonymousEventHandler,id) end
+GTV.actionHandlers={registerAnonymousEventHandler("gmcp.Galdam.Action",function() GTV.onAction() end),
+  registerAnonymousEventHandler("gmcp.Galdam.Appearance",function() GTV.onAppearance() end)}
+
 function GTV.gcss(rgbA, rgbB, cx, cy, rad)
   cx = cx or 0.5; cy = cy or 0.5; rad = rad or 0.5
   return "background: qradialgradient(cx:" .. cx .. ", cy:" .. cy .. ", radius:" .. rad .. ", fx:" .. cx .. ", fy:" .. cy .. ", stop:0 rgba(" .. rgbA .. "), stop:0.55 rgba(" .. rgbB .. "), stop:1 rgba(0,0,0,0)); border:0;"
@@ -2947,7 +3963,7 @@ end
 
 -- z순서 재구축: 라벨이 새로 생기면 레이어 순서대로 raise
 -- (원뿔은 틴트/날씨 '위' = 시간대 어둠/비에 안 씻기고 또렷하게)
-local LAYERS = {"ground","shore","decal","shade","obj","item","fx","actor","light","susdot","facedot","tint","wx","cone","fogp","glow"}
+local LAYERS = {"ground","shore","decal","shade","obj","item","fx","actor","actionBody","actionGhost","ghostBody","actionFX","ghostFX","light","susdot","facedot","tint","wx","cone","fogp","glow"}
 local function zfix()
   if not GTV.zdirty then return end
   GTV.zdirty = false
@@ -3069,6 +4085,14 @@ function GTV.viewport(d)
   local vw, vh = math.min(21, fw), math.min(21, fh)
   local x0 = math.max(0, math.min(fw - vw, sx - math.floor(vw / 2)))
   local y0 = math.max(0, math.min(fh - vh, sy - math.floor(vh / 2)))
+  -- Keep the camera still while walking through the middle of a large map.
+  local cameraKey=tostring(d.rid or GTV.curRoom or "")..":"..fw..":"..fh
+  local camera=GTV.motionCamera
+  if camera and camera.key==cameraKey and sx&gt;=camera.x+4 and sx&lt;camera.x+vw-4
+    and sy&gt;=camera.y+4 and sy&lt;camera.y+vh-4 then
+    x0,y0=camera.x,camera.y
+  end
+  GTV.motionCamera={key=cameraKey,x=x0,y=y0}
   local v = {}
   for k, val in pairs(d) do v[k] = val end
   v.w, v.h = vw, vh
@@ -3272,7 +4296,7 @@ local function makeVision(d)
   end
   return true
  end
- local fog={};local sx,sy=d.self and tonumber(d.self[1]),d.self and tonumber(d.self[2]);local radius=tonumber(d.vision_range) or math.max(d.w or 9,d.h or 9)
+ local fog={};local sx,sy=d.self and tonumber(d.self[1]),d.self and tonumber(d.self[2]);local radius=math.max(d.w or 9,d.h or 9) -- player display: no NPC senses cap
  if sx and sy then for y=0,(d.h or 9)-1 do for x=0,(d.w or 9)-1 do
   if math.max(math.abs(x-sx),math.abs(y-sy))&gt;radius or not clear(sx,sy,x,y)then fog[x..','..y]=true end
  end end end
@@ -3617,11 +4641,15 @@ function GTV.render(d)
   hideRest("fx", fi)
 
   -- ⑦ 액터 + 의심도 점
+  GTV.beginMotion(d, CS)
   local ai, ui = 0, 0
-  local function actorAt(x, y, f, name, id)
+  local function actorAt(x, y, f, name, id, key, posture)
     ai = ai + 1
     local l = lbl("actor", ai)
     sty(l, imgcss(f)); geo(l, PX + x * CS, PY + y * CS, CS, CS)
+    l._sprite=f
+    local motion = GTV.bindMotion(key, l, x, y, CS, posture)
+    motion.actionFX=lbl("actionFX",ai);motion.bodyLabel=lbl("actionBody",ai)
     local ck = tostring(id or 0) .. ":" .. (name or "")
     if l._cid ~= ck then
       l._cid = ck
@@ -3640,6 +4668,7 @@ function GTV.render(d)
         elseif GaldamUI and GaldamUI.attachTip then GaldamUI.attachTip(l, name or "?") end
       end)
     end
+    return motion
   end
   local fdi = 0
   for _, a in ipairs(d.actors or {}) do
@@ -3648,13 +4677,14 @@ function GTV.render(d)
     if not (sx == x and sy == y) and lm(x,y)&gt;=0.28 then
       local f = GTV.actorSprite(a)
       local sus = tonumber(a.sus) or 0
-      actorAt(x, y, f, a.n, a.id)
+      local motion = actorAt(x, y, f, a.n, a.id, "actor:"..tostring(a.id or (x..","..y)), tonumber(a.posture) or 0)
       if a.k == "npc" and sus &gt; 0 then
         ui = ui + 1
         local dl = lbl("susdot", ui)
         local col = (sus &gt;= 61) and "rgba(255,70,55,235)" or ((sus &gt;= 31) and "rgba(255,150,60,235)" or "rgba(245,210,80,235)")
         sty(dl, "background-color: " .. col .. "; border-radius: " .. math.floor(CS * 0.12) .. "px; border: 1px solid rgba(20,20,24,200);")
         geo(dl, PX + x * CS + CS - math.floor(CS * 0.3), PY + y * CS, math.floor(CS * 0.25), math.floor(CS * 0.25))
+        GTV.attachMotion(motion, dl, PX+x*CS+CS-math.floor(CS*.3), PY+y*CS, math.floor(CS*.25), math.floor(CS*.25))
       end
       -- 시선 방향 표식 — 평시에도 상시 표시 (원뿔만 경계상황 전용)
       if a.k == "npc" and a.f then
@@ -3668,12 +4698,17 @@ function GTV.render(d)
           local cxp = PX + x * CS + math.floor(CS / 2 - sz / 2 + fx2 * CS * 0.34)
           local cyp = PY + y * CS + math.floor(CS / 2 - sz / 2 + fy2 * CS * 0.34)
           geo(fl, cxp, cyp, sz, sz)
+          GTV.attachMotion(motion, fl, cxp, cyp, sz, sz)
         end
       end
     end
   end
-  if sx and sy then actorAt(sx, sy, "act_player", "나") end
-  hideRest("actor", ai); hideRest("susdot", ui); hideRest("facedot", fdi)
+  if sx and sy then
+    local v=(gmcp.Char or {}).Vitals or {}
+    actorAt(sx, sy, "act_player", "나", nil, "self", math.max(0,math.min(2,tonumber(v.posture) or 0)))
+  end
+  GTV.endMotion()
+  hideRest("actor", ai); hideRest("actionFX",ai); hideRest("actionBody",ai); hideRest("susdot", ui); hideRest("facedot", fdi)
 
   -- Actual ceiling fixtures: small corner overlays keep floor/actors usable.
   -- They never enter stmap, cover, pathfinding, or collision calculations.
@@ -3883,6 +4918,8 @@ end
 
 -- 룸 전환 시 풀 라벨의 모든 캐시 무효화 (잔상/스테일 방지 — 룸 바뀔 때만 1회 전체 재도색)
 function GTV.flushCaches()
+  GTV.resetMotion()
+  GTV.motionCamera=nil
   for ly, pool in pairs(GTV.P or {}) do
     for _, l in ipairs(pool) do l._css = nil; l._geo = nil; l._cid = nil; l._tip = nil end
   end
@@ -3993,6 +5030,7 @@ function GTV.toggle()
       GTV.scheduleBootstrap("toggle-no-data")
     end
   else
+    GTV.resetMotion()
     echo("[Galdam] 타일뷰 OFF — 글리프 격자로 복귀\n")
     if GTV.win then GTV.win:hide() end
     if GTV.timer then pcall(killTimer, GTV.timer); GTV.timer = nil end
