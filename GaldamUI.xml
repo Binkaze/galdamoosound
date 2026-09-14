@@ -105,7 +105,7 @@ if GaldamUI._handlers then
   for _, id in ipairs(GaldamUI._handlers) do pcall(killAnonymousEventHandler, id) end
 end
 GaldamUI._handlers = {}
-GaldamUI.VERSION = "v76"   -- 한국 해안 월드 · 전술 타일 개편
+GaldamUI.VERSION = "v77"   -- 한국 해안 월드 · 전술 타일 개편
 
 local PANEL_W = 0.20      -- 우측 탭 패널 폭
 local BOTTOM_H = 148      -- 하단 HUD 바 높이
@@ -263,33 +263,36 @@ function H.build()
   H.statusNext:setClickCallback(function() H.statusPage=(H.statusPage or 1)+1; H.renderStatus() end)
 end
 function H.height(width)
-  return width &lt; 760 and 188 or 148
+  return width &lt; 760 and 228 or 204
 end
 function H.layout(width,height)
   if not H.background then return end
   H.width=width
   H.place(H.background,0,0,width,height)
   H.place(H.identity,16,7,112,24)
-  H.place(H.detail,width-116,height-30,104,24)
   local narrow=width&lt;760
+  H.place(H.detail,width-132,narrow and 129 or height-38,116,26)
   local primaryWidth=width-32-(narrow and 0 or math.min(220,math.floor(width*.22)))
   local cell=primaryWidth/math.max(1,#H.primary)
   for i,item in ipairs(H.primary) do
     local x=16+(i-1)*cell; local cw=cell-16
-    H.place(item.label,x,39,cw,19)
+    H.place(item.label,x,37,cw,23)
     H.place(item.value,x,61,cw,30)
-    H.place(item.hint,x,93,cw,17)
-    H.place(item.bar,x,116,cw,5)
+    H.place(item.hint,x,93,cw,19)
+    H.place(item.bar,x,116,cw,7)
   end
-  local needsWidth=math.max(130,width-150)
+  local needsWidth=primaryWidth
   local nw=needsWidth/math.max(1,#H.needs)
   for i,item in ipairs(H.needs) do
-    H.place(item.label,16+(i-1)*nw,height-27,nw-6,20)
-    item.value:hide(); item.hint:hide(); item.bar:hide()
+    local x=16+(i-1)*nw;local cw=nw-16
+    H.place(item.label,x,height-66,cw,29)
+    H.place(item.hint,x,height-36,cw,18)
+    H.place(item.bar,x,height-14,cw,8)
+    item.value:hide();item.label:show();item.hint:show();item.bar:show()
   end
   local sx=narrow and 16 or 16+primaryWidth
   local sy=narrow and 129 or 47
-  local sw=narrow and width-32 or width-sx-16
+  local sw=narrow and width-164 or width-sx-16
   H.place(U.stance,sx,sy,sw,narrow and 25 or 66)
   H.place(U.stanceCd,sx,sy,sw,narrow and 25 or 66)
   U.renderStanceButton()
@@ -319,13 +322,17 @@ function H.renderVitals(animate)
     item.known=known
     local value=known and string.format("%.0f",current) or "—"
     local maxText=known and string.format(" / %.0f",maximum) or ""
-    item.label:echo("&lt;span style='color:"..H.theme.muted..";'&gt;"..H.escape(def.label).."&lt;/span&gt;")
-    item.value:echo("&lt;span style='font-size:"..((H.width or 1400)&lt;760 and 20 or 25).."px;color:"..H.theme.text..";'&gt;"..value.."&lt;/span&gt;&lt;span style='font-size:11px;color:"..H.theme.muted..";'&gt;"..maxText.."&lt;/span&gt;")
-    item.hint:echo("&lt;span style='color:"..(severity&gt;0 and col or H.theme.muted)..";'&gt;"..status.."&lt;/span&gt;")
+    item.label:echo("&lt;span style='font-size:16px;font-weight:600;color:"..H.theme.text..";'&gt;"..H.escape(def.label).."&lt;/span&gt;")
+    item.value:echo("&lt;span style='font-size:"..((H.width or 1400)&lt;760 and 24 or 28).."px;color:"..H.theme.text..";'&gt;"..value.."&lt;/span&gt;&lt;span style='font-size:14px;color:"..H.theme.muted..";'&gt;"..maxText.."&lt;/span&gt;")
+    item.hint:echo("&lt;span style='font-size:14px;color:"..(severity&gt;0 and col or H.theme.muted)..";'&gt;"..status.."&lt;/span&gt;")
     local pct=known and string.format("%.0f%%",ratio*100) or "—"
     local tip=def.label.." "..value..maxText.." · "..status..(def.higherWorse and " · 높을수록 부담이 큽니다" or "")
     U.attachTip(item.label,tip); U.attachTip(item.value,tip)
-    if def.group~="primary" then item.label:echo("&lt;span style='color:"..H.theme.muted..";'&gt;"..H.escape(def.label).."&lt;/span&gt; &lt;span style='color:"..(severity&gt;0 and col or H.theme.text)..";'&gt;"..pct.."&lt;/span&gt;") end
+    if def.group~="primary" then
+      local label=def.key=="thirst" and "목마름" or def.label
+      item.label:echo("&lt;span style='font-size:18px;font-weight:600;color:"..H.theme.text..";'&gt;"..H.escape(label).."&lt;/span&gt;  &lt;span style='font-size:24px;font-weight:600;color:"..(severity&gt;0 and col or H.theme.text)..";'&gt;"..pct.."&lt;/span&gt;")
+      item.hint:echo("&lt;span style='font-size:14px;color:"..(severity&gt;0 and col or H.theme.muted)..";'&gt;"..status..(known and " · 높을수록 위험" or "").."&lt;/span&gt;")
+    end
     local target=(ratio or 0)*100
     targets[#targets+1]={item=item,from=item.display or target,to=target}
     item.target=target; item.severity=severity
@@ -614,7 +621,7 @@ function GaldamUI.relayout()
       GaldamMinimap.layout(rw,ph,headH+gap)
     end
     local avail = ph - headH - miniH - tabH - gap * 4
-    if avail &lt; 80 then avail = 80 end
+    if avail &lt; 32 then avail = 32 end
     local roomH = math.floor(avail * 0.52)   -- 상단: 실시간 방 패널
     local contentH = avail - roomH           -- 하단: 탭 콘텐츠
     GaldamUI.locHeader:move(0, 0); GaldamUI.locHeader:resize(rw, headH)
@@ -5905,7 +5912,7 @@ end
 function M.height(rw,ph)
   if ph&lt;420 then return 72,56 end
   local size=math.max(108,math.min(196,rw-28,math.floor((ph-250)*.45)))
-  return size+42,size
+  return size+50,size
 end
 function M.open()
   A.show('all')
@@ -5934,7 +5941,7 @@ function M.render()
   local compact=height==72
   local x=compact and 12 or math.floor((M.rw-size)/2)
   local y=M.y+(compact and 8 or 24)
-  local ink='background:transparent;color:#aebca3;font-size:10px;'
+  local ink='background:transparent;color:#c4d0b9;font-size:12px;'
   widget('surface',8,M.y,M.rw-16,height-4,'background:#1b251f;border:1px solid #3f5140;border-radius:7px;')
   local titleX=compact and 80 or 16
   widget('title',titleX,M.y+5,M.rw-titleX-18,16,ink,'&lt;b&gt;월드맵&lt;/b&gt; &lt;span style="color:#819783"&gt;· 전체 보기 ↗&lt;/span&gt;')
