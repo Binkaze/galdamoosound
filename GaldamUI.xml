@@ -105,7 +105,7 @@ if GaldamUI._handlers then
   for _, id in ipairs(GaldamUI._handlers) do pcall(killAnonymousEventHandler, id) end
 end
 GaldamUI._handlers = {}
-GaldamUI.VERSION = "v72"   -- 한국 해안 월드 · 전술 타일 개편
+GaldamUI.VERSION = "v73"   -- 한국 해안 월드 · 전술 타일 개편
 
 local PANEL_W = 0.20      -- 우측 탭 패널 폭
 local BOTTOM_H = 148      -- 하단 HUD 바 높이
@@ -210,7 +210,8 @@ H.statuses = H.statuses or {}
 H.animate = H.animate ~= false
 
 function H.escape(s)
-  return tostring(s or ""):gsub("&amp;","&amp;amp;"):gsub("&lt;","&amp;lt;"):gsub("&gt;","&amp;gt;"):gsub('"',"&amp;quot;"):gsub("'","&amp;#39;")
+  local escaped = tostring(s or ""):gsub("&amp;","&amp;amp;"):gsub("&lt;","&amp;lt;"):gsub("&gt;","&amp;gt;"):gsub('"',"&amp;quot;"):gsub("'","&amp;#39;")
+  return escaped
 end
 function H.short(s, n)
   local chars = {}; for c in tostring(s or ""):gmatch("[%z\1-\127\194-\244][\128-\191]*") do chars[#chars+1]=c end
@@ -388,7 +389,7 @@ function H.renderStatus()
       local name=U.STNAME[status.key] or status.key
       local col=status.severity&gt;=3 and H.theme.danger or H.theme.caution
       slot:setStyleSheet("background-color:"..H.theme.inset..";border:0;border-radius:3px;color:"..col..";font-size:12px;qproperty-alignment:'AlignCenter';")
-      slot:echo(H.escape(H.short(name,6)))
+      slot:echo(H.escape(H.short(name,6)),col)
       U.attachTip(slot,name.." · "..({[0]="상태",[1]="주의",[2]="심함",[3]="위험"})[status.severity])
       slot:setClickCallback(function() U.selectTab("body") end)
       slot:show()
