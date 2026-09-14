@@ -105,7 +105,7 @@ if GaldamUI._handlers then
   for _, id in ipairs(GaldamUI._handlers) do pcall(killAnonymousEventHandler, id) end
 end
 GaldamUI._handlers = {}
-GaldamUI.VERSION = "v77"   -- 한국 해안 월드 · 전술 타일 개편
+GaldamUI.VERSION = "v78"   -- 한국 해안 월드 · 전술 타일 개편
 
 local PANEL_W = 0.20      -- 우측 탭 패널 폭
 local BOTTOM_H = 148      -- 하단 HUD 바 높이
@@ -5902,6 +5902,11 @@ if M.timer then pcall(killTimer,M.timer) end
 if M.startTimer then pcall(killTimer,M.startTimer) end
 if M.nodes then for _,node in pairs(M.nodes) do node:hide() end end
 M.handlers={};M.nodes={};M.timer=nil;M.startTimer=nil;M.connected=true;M.synced=false;M.lastRequest=nil
+M.scales={9,17,33,0}
+if not M.zoom then
+  pcall(function() local f=io.open(dir..'/minimap-scale.txt','r');if f then M.zoom=tonumber(f:read('*a'));f:close() end end)
+end
+M.zoom=math.max(1,math.min(4,math.floor(tonumber(M.zoom) or 2)))
 local function roomId(v) return tonumber((tostring(v or ''):gsub('#',''))) end
 M.rid=roomId((gmcp.Galdam and gmcp.Galdam.Room or {}).roomid)
   or roomId((gmcp.Galdam and gmcp.Galdam.Tac or {}).rid)
@@ -5918,6 +5923,29 @@ function M.open()
   A.show('all')
   A.requestWorld(true)
 end
+function M.setZoom(index)
+  M.zoom=math.max(1,math.min(#M.scales,index))
+  pcall(function() local f=io.open(dir..'/minimap-scale.txt','w');if f then f:write(tostring(M.zoom));f:close() end end)
+  M.render()
+end
+function M.mapAt(p)
+  local span=M.scales[M.zoom]
+  if not p or span==0 then return A.data.views.all,A.mapFiles.all end
+  local key=table.concat({A.svgSerial or 0,M.zoom,p[1],p[2]},':')
+  if M.mapKey==key and M.localFile then return M.localView,M.localFile end
+  local half=(span-1)/2
+  local view={span=span,bounds={p[1]-half,p[2]-half,p[1]+half,p[2]+half},offset={0,0}}
+  local serial=(M.fileSerial or 0)+1
+  local path=dir..'/minimap-'..serial..'.svg'
+  local ok=pcall(function()
+    local f=assert(io.open(path,'wb'));f:write(A.svgFor({views={mini=view},surface=A.data.surface},'mini'));f:close()
+  end)
+  if not ok then return A.data.views.all,A.mapFiles.all end
+  local previous=M.localFile
+  M.mapKey,M.localView,M.localFile,M.fileSerial=key,view,path,serial
+  if previous and previous~=path then pcall(os.remove,previous) end
+  return view,path
+end
 local function widget(key,x,y,w,h,css,html)
   local node=M.nodes[key]
   if not node then
@@ -5929,6 +5957,7 @@ local function widget(key,x,y,w,h,css,html)
   if node._miniCSS~=css then node._miniCSS=css;node:setStyleSheet(css) end
   if html and node._miniHTML~=html then node._miniHTML=html;node:echo(html,'#e4e8d9') end
   node:show()
+  if key=='halo' or key=='self' then pcall(function()node:raise()end) end
   return node
 end
 function M.layout(rw,ph,y)
@@ -5944,11 +5973,17 @@ function M.render()
   local ink='background:transparent;color:#c4d0b9;font-size:12px;'
   widget('surface',8,M.y,M.rw-16,height-4,'background:#1b251f;border:1px solid #3f5140;border-radius:7px;')
   local titleX=compact and 80 or 16
-  widget('title',titleX,M.y+5,M.rw-titleX-18,16,ink,'&lt;b&gt;월드맵&lt;/b&gt; &lt;span style="color:#819783"&gt;· 전체 보기 ↗&lt;/span&gt;')
+  local scale=M.scales[M.zoom]
+  widget('title',titleX,M.y+5,M.rw-titleX-88,16,ink,'&lt;b&gt;'..(scale==0 and '월드 전체' or ('주변 '..scale..'×'..scale))..'&lt;/b&gt;')
+  local button='background:#304339;color:#edf3dc;border:1px solid #64816a;border-radius:3px;font-size:16px;qproperty-alignment:AlignCenter;'
+  widget('zoomOut',M.rw-74,M.y+3,28,20,button,'−'):setClickCallback(function()M.setZoom(M.zoom+1)end)
+  widget('zoomIn',M.rw-42,M.y+3,28,20,button,'＋'):setClickCallback(function()M.setZoom(M.zoom-1)end)
   local ready=M.connected and M.synced and A.ready and A.data.views.all and A.mapFiles and A.mapFiles.all
-  local style=ready and ('border-image:url("'..A.mapFiles.all..'");background:#203842;border:0;') or 'background:#263b3c;border:0;'
-  widget('map',x,y,size,size,style)
   local p=ready and A.data.positions[tostring(M.rid)]
+  local view,file
+  if ready then view,file=M.mapAt(p) end
+  local style=ready and ('border-image:url("'..file..'");background:#203842;border:0;') or 'background:#263b3c;border:0;'
+  widget('map',x,y,size,size,style)
   local caption=not M.connected and '연결 대기' or (not ready and '월드맵 불러오는 중…' or (p and p[3] or '지도 밖 · 위치 미확인'))
   local cy=compact and M.y+29 or y+size+3
   local cx=compact and 80 or 12
@@ -5956,14 +5991,33 @@ function M.render()
     '&lt;span style="color:#f1dfa0"&gt;●&lt;/span&gt; '..escape(caption))
   if M.nodes.halo then M.nodes.halo:hide();M.nodes.self:hide() end
   if M.nodes.north then M.nodes.north:hide() end
+  for i=1,12 do if M.nodes['place'..i] then M.nodes['place'..i]:hide() end end
   if ready then
+    local function project(wx,wy)
+      local b=view.bounds
+      if wx&lt;b[1] or wy&lt;b[2] or wx&gt;b[3] or wy&gt;b[4] then return end
+      return x+(wx-b[1]+view.offset[1]+.5)/view.span*size,y+(wy-b[2]+view.offset[2]+.5)/view.span*size
+    end
+    if scale~=0 and p and not compact then
+      local places={}
+      for _,pin in ipairs(A.data.pins) do
+        if pin.kind~='home' and pin.kind~='tree' and pin.kind~='farm' and project(pin.x,pin.y) then places[#places+1]=pin end
+      end
+      table.sort(places,function(a,b)return (a.x-p[1])^2+(a.y-p[2])^2&lt;(b.x-p[1])^2+(b.y-p[2])^2 end)
+      for i=1,math.min(12,#places) do
+        local pin=places[i];local px,py=project(pin.x,pin.y)
+        local node=widget('place'..i,math.max(x,math.min(x+size-14,px-7)),math.max(y,math.min(y+size-14,py-7)),14,14,
+          'background:transparent;border-image:url("'..dir..'/'..pin.kind..'.png");')
+        GaldamUI.attachTip(node,pin.full)
+      end
+    end
     if not compact then widget('north',x+size-21,y+4,18,21,'background:#223d3d;color:#dde9d5;font-size:10px;qproperty-alignment:AlignCenter;','↑N') end
     if p then
-      local view=A.data.views.all;local b=view.bounds
-      local px=x+(p[1]-b[1]+view.offset[1]+.5)/view.span*size
-      local py=y+(p[2]-b[2]+view.offset[2]+.5)/view.span*size
+      local px,py=project(p[1],p[2])
+      if px then
       widget('halo',px-9,py-9,18,18,'background:rgba(255,226,132,55);border:1px solid #fff1bf;border-radius:9px;')
       widget('self',px-4,py-4,8,8,'background:#ffe49b;border:2px solid #243e35;border-radius:4px;')
+      end
     end
   end
 end
