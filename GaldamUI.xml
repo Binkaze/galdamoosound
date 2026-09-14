@@ -105,7 +105,7 @@ if GaldamUI._handlers then
   for _, id in ipairs(GaldamUI._handlers) do pcall(killAnonymousEventHandler, id) end
 end
 GaldamUI._handlers = {}
-GaldamUI.VERSION = "v74"   -- 한국 해안 월드 · 전술 타일 개편
+GaldamUI.VERSION = "v75"   -- 한국 해안 월드 · 전술 타일 개편
 
 local PANEL_W = 0.20      -- 우측 탭 패널 폭
 local BOTTOM_H = 148      -- 하단 HUD 바 높이
@@ -3183,7 +3183,7 @@ function GTV.sampleMotion(s, now)
   local step = s.steps[1]
   if not step then return s.x, s.y, 0 end
   local t = math.max(0, math.min(1, (now-step.start)/(step.finish-step.start)))
-  local ease = t*t*(3-2*t)
+  local ease = t -- constant travel speed across consecutive confirmed cells
   return s.x+(step.x-s.x)*ease, s.y+(step.y-s.y)*ease, math.sin(t*math.pi*2)^2
 end
 
@@ -3208,13 +3208,28 @@ function GTV.bindMotion(key, l, x, y, cs, posture)
   GTV.sampleMotion(s, now)
   if x ~= s.tx or y ~= s.ty then
     local distance = math.max(math.abs(x-s.tx), math.abs(y-s.ty))
-    if GTV.motionEnabled and distance &lt;= 1 and #s.steps &lt; 3 then
-      local speed = key == "self" and tonumber(((gmcp.Char or {}).Vitals or {}).speed) or 0
+    local speed = key == "self" and tonumber(((gmcp.Char or {}).Vitals or {}).speed) or 0
+    local dx,dy=x-s.tx,y-s.ty
+    local straight=dx==0 or dy==0 or math.abs(dx)==math.abs(dy)
+    local stride=key=="self" and (speed==2 and 3 or (speed==1 and 2 or 1)) or 1
+    if GTV.motionEnabled and distance &lt;= stride and straight and #s.steps &lt; 32 then
       local duration = speed == 2 and .14 or (speed == 1 and .19 or .26)
       local tail = s.steps[#s.steps]
       local start = tail and tail.finish or now
-      duration = math.max(.08, duration/(1+#s.steps))
+      duration = math.max(.04, duration/(1+#s.steps))
       s.steps[#s.steps+1] = {x=x,y=y,start=start,finish=start+duration}
+      -- Bound visual delay, preserving every accepted turn instead of snapping on overflow.
+      if s.steps[#s.steps].finish-now &gt; .40 then
+        local px,py=GTV.sampleMotion(s,now)
+        s.x,s.y=px,py
+        local weights,total={},0
+        for i,step in ipairs(s.steps) do
+          local weight=math.max(.001,math.max(math.abs(step.x-px),math.abs(step.y-py)))
+          weights[i]=weight;total=total+weight;px,py=step.x,step.y
+        end
+        local at=now
+        for i,step in ipairs(s.steps) do step.start=at;at=at+.40*weights[i]/total;step.finish=at end
+      end
     else
       s.x,s.y,s.steps = x,y,{}
     end
@@ -3915,7 +3930,7 @@ function GTV.requestRefresh(reason)
   pcall(function() send("_galdam_refresh_tac", false) end)
 end
 function GTV.present()
-  if GTV.win then GTV.win:show() end
+  if GTV.win and (GTV.win.hidden ~= false or GTV.win.auto_hidden) then GTV.win:show() end
   if GaldamAtlas and GaldamAtlas.bringToFront then GaldamAtlas.bringToFront() end
   if GaldamActivityArt then GaldamActivityArt.front() end
 end
@@ -4309,6 +4324,17 @@ local function makeVision(d)
  return fog,clear
 end
 
+local function sceneEqual(a,b)
+  if type(a)~=type(b) then return false end
+  if type(a)~="table" then return a==b end
+  for k,v in pairs(a) do if not sceneEqual(v,b[k]) then return false end end
+  for k in pairs(b) do if a[k]==nil then return false end end
+  return true
+end
+local function sceneCopy(a)
+  if type(a)~="table" then return a end
+  local b={};for k,v in pairs(a) do b[k]=sceneCopy(v) end;return b
+end
 function GTV.render(d)
   if not d then return end
   local architecture=GTV.architecture(d)
@@ -4352,7 +4378,8 @@ function GTV.render(d)
   local sub = (outdoor or tonumber(d.daylight) ~= nil) and (" &lt;span style='color:#8890a4'&gt;(" .. (tnames[tone] or "") .. (weather ~= "clear" and (" · " .. weather) or "") .. ")&lt;/span&gt;") or ""
   if tonumber(d.daylight) then sub=sub .. " &lt;span style='color:#aebca0'&gt;· 비닐 채광&lt;/span&gt;" end
   if d._fullw then sub = sub .. " &lt;span style='color:#778397'&gt;[" .. w .. "×" .. h .. " 근거리 / 전체 " .. d._fullw .. "×" .. d._fullh .. "]&lt;/span&gt;" end
-  GTV.hdr:echo("&lt;b style='color:#9fc6ef'&gt;⌖ " .. nm .. "&lt;/b&gt;" .. sub .. " &lt;span style='color:#667'&gt;[타일뷰]&lt;/span&gt;")
+  local header="&lt;b style='color:#9fc6ef'&gt;⌖ " .. nm .. "&lt;/b&gt;" .. sub .. " &lt;span style='color:#667'&gt;[타일뷰]&lt;/span&gt;"
+  if GTV._header~=header then GTV._header=header;GTV.hdr:echo(header) end
 
   local stmap, tmap = {}, {}
   for _, s in ipairs(d.struct or {}) do stmap[tonumber(s.x) .. "," .. tonumber(s.y)] = s.t end
@@ -4471,6 +4498,9 @@ function GTV.render(d)
     end
   end
 
+  local scene={rid=d.rid,w=w,h=h,cs=CS,vx=d._vx,vy=d._vy,biome=biome,
+    floor=d.floor,struct=d.struct,cover=d.cover,terrain=d.terrain,ground=d.ground,art=architecture}
+  if not sceneEqual(scene,GTV.groundScene) then
   -- ① ground (+풀셀 struct)
   local gi = 0
   for y = 0, h - 1 do
@@ -4553,6 +4583,12 @@ function GTV.render(d)
     end
   end
   hideRest("shade", si)
+
+  GTV.groundScene=sceneCopy(scene)
+  GTV.groundWater=GTV.A.water
+  else
+    GTV.A.water=GTV.groundWater or {}
+  end
 
   -- ④ 오브젝트(가구/차량/투명 struct)
   local oi = 0
@@ -4924,6 +4960,7 @@ end
 
 -- 룸 전환 시 풀 라벨의 모든 캐시 무효화 (잔상/스테일 방지 — 룸 바뀔 때만 1회 전체 재도색)
 function GTV.flushCaches()
+  GTV.groundScene=nil;GTV.groundWater=nil
   GTV.resetMotion()
   GTV.motionCamera=nil
   for ly, pool in pairs(GTV.P or {}) do
@@ -5116,7 +5153,16 @@ function GK.go(tag)
   end
   -- 손전등 빔 방향 추적 (이동 방향 기억 → 타일뷰 삼지창 빔)
   local DV = {N={0,-1}, S={0,1}, W={-1,0}, E={1,0}, NW={-1,-1}, NE={1,-1}, SW={-1,1}, SE={1,1}}
-  if DV[tag] then GaldamTileView.faceDir = DV[tag] end
+  if DV[tag] then
+    -- Consume physical repeats at a bounded rate; never queue delayed commands.
+    local now=getEpoch and getEpoch() or os.clock()
+    local speed=tonumber(((gmcp.Char or {}).Vitals or {}).speed) or 0
+    local interval=speed==2 and .12 or (speed==1 and .16 or .20)
+    if GK.lastMoveTag~=tag then interval=.04 end
+    if GK.lastMoveAt and now>=GK.lastMoveAt and now-GK.lastMoveAt<interval then return end
+    GK.lastMoveAt=now;GK.lastMoveTag=tag
+    GaldamTileView.faceDir = DV[tag]
+  end
   send(GK.MOV[tag])
 end
 local function gk(tag) return "GaldamKeys.go(\"" .. tag .. "\")" end
@@ -5124,6 +5170,7 @@ local SPC = [[if GaldamQuick then GaldamQuick.toggle() end]]
 local WASD = {{0x57,gk("N")},{0x53,gk("S")},{0x41,gk("W")},{0x44,gk("E")},{0x51,gk("NW")},{0x45,gk("NE")},{0x5A,gk("SW")},{0x43,gk("SE")},{0x46,gk("SR")},{0x52,gk("LK")},{0x20,SPC},{0x56,SPC}}
 local NUM = {{0x38,gk("N")},{0x35,gk("S")},{0x34,gk("W")},{0x36,gk("E")},{0x37,gk("NW")},{0x39,gk("NE")},{0x31,gk("SW")},{0x33,gk("SE")},{0x32,gk("LK")},{0x30,gk("SR")}}
 function GK.unbind()
+  GK.lastMoveAt=nil
   for _, id in ipairs(GK.ids) do pcall(killKey, id) end
   GK.ids = {}
 end
