@@ -105,7 +105,7 @@ if GaldamUI._handlers then
   for _, id in ipairs(GaldamUI._handlers) do pcall(killAnonymousEventHandler, id) end
 end
 GaldamUI._handlers = {}
-GaldamUI.VERSION = "v73"   -- 한국 해안 월드 · 전술 타일 개편
+GaldamUI.VERSION = "v74"   -- 한국 해안 월드 · 전술 타일 개편
 
 local PANEL_W = 0.20      -- 우측 탭 패널 폭
 local BOTTOM_H = 148      -- 하단 HUD 바 높이
@@ -292,6 +292,7 @@ function H.layout(width,height)
   local sw=narrow and width-32 or width-sx-16
   H.place(U.stance,sx,sy,sw,narrow and 25 or 66)
   H.place(U.stanceCd,sx,sy,sw,narrow and 25 or 66)
+  U.renderStanceButton()
   -- Menu is a top-level surface: its six choices never cover or get clipped by the HUD.
   H.place(U.stanceMenu,math.max(4,width-238),math.max(0,select(2,getMainWindowSize())-height-120),230,116)
   H.renderStatus()
@@ -1348,7 +1349,9 @@ function GaldamUI.renderStanceButton()
   GaldamUI.stance:setStyleSheet("background-color:#141a16;border:0;border-radius:4px;color:#e4e8d9;qproperty-alignment:'AlignCenter';")
   local narrow=(GaldamUI.HUD.width or 1400)&lt;760
   local label=GaldamUI.stanceLabel(pos,spd)
-  GaldamUI.stance:echo("&lt;center&gt;&lt;span style='font-size:13px;color:#e4e8d9;'&gt;"..label.."  ▾&lt;/span&gt;"..(narrow and "" or "&lt;br&gt;&lt;span style='font-size:11px;color:#a0ad9d;'&gt;자세 · 이동 속도&lt;/span&gt;").."&lt;/center&gt;")
+  local iconSize=narrow and 20 or 44
+  local caption="&lt;span style='font-size:13px;color:#e4e8d9;'&gt;"..label.."  ▾&lt;/span&gt;"..(narrow and "" or "&lt;br&gt;&lt;span style='font-size:11px;color:#a0ad9d;'&gt;자세 · 이동 속도&lt;/span&gt;")
+  GaldamUI.stance:echo("&lt;table align='center' cellspacing='0' cellpadding='0'&gt;&lt;tr&gt;&lt;td valign='middle'&gt;&lt;img src='"..GaldamUI.HUD.escape(imgPath(it.icon)).."' width='"..iconSize.."' height='"..iconSize.."'&gt;&lt;/td&gt;&lt;td width='8'&gt;&lt;/td&gt;&lt;td valign='middle'&gt;"..caption.."&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;")
   GaldamUI.attachTip(GaldamUI.stance, GaldamUI.stanceLabel(pos, spd) .. " · 변경")
   GaldamUI.renderStanceMenu()
 end
