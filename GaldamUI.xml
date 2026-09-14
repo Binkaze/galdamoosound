@@ -105,7 +105,7 @@ if GaldamUI._handlers then
   for _, id in ipairs(GaldamUI._handlers) do pcall(killAnonymousEventHandler, id) end
 end
 GaldamUI._handlers = {}
-GaldamUI.VERSION = "v75"   -- 한국 해안 월드 · 전술 타일 개편
+GaldamUI.VERSION = "v76"   -- 한국 해안 월드 · 전술 타일 개편
 
 local PANEL_W = 0.20      -- 우측 탭 패널 폭
 local BOTTOM_H = 148      -- 하단 HUD 바 높이
@@ -608,12 +608,17 @@ function GaldamUI.relayout()
     GaldamUI.rpanel:move(w - rw, 0); GaldamUI.rpanel:resize(rw, ph)
     -- 상하분할: [헤더] / [방 패널] / [탭 버튼] / [탭 콘텐츠]
     local headH, tabH, gap = 44, 60, 6
-    local avail = ph - headH - tabH - gap * 4
+    local miniH=0
+    if GaldamMinimap then
+      miniH=GaldamMinimap.height(rw,ph)
+      GaldamMinimap.layout(rw,ph,headH+gap)
+    end
+    local avail = ph - headH - miniH - tabH - gap * 4
     if avail &lt; 80 then avail = 80 end
     local roomH = math.floor(avail * 0.52)   -- 상단: 실시간 방 패널
     local contentH = avail - roomH           -- 하단: 탭 콘텐츠
     GaldamUI.locHeader:move(0, 0); GaldamUI.locHeader:resize(rw, headH)
-    local roomY = headH + gap
+    local roomY = headH + miniH + gap
     -- 신체 탭 = 확장 모드: 방 패널을 숨기고 탭열을 위로, 신체 뷰가 나머지 전체 사용
     local bodyMode = (GaldamUI.activeTab == "body")
     local tabY
@@ -5708,6 +5713,7 @@ function A.acceptSnapshot(rows,revision)
  if not m.views[A.view]then A.view=m.views.village and 'village' or 'all'end
  for _,path in pairs(previous)do pcall(os.remove,path)end
  if A.active then A.render()end
+ if GaldamMinimap then GaldamMinimap.synced=true;GaldamMinimap.render() end
  return true
 end
 function A.receiveWorld(d)
@@ -5880,6 +5886,114 @@ A.handlers[#A.handlers+1]=registerAnonymousEventHandler('gmcp.Galdam.Room',funct
 A.handlers[#A.handlers+1]=registerAnonymousEventHandler('sysWindowResizeEvent',function()if A.active then A.render()end end)
 if GaldamUI.verTag then GaldamUI.verTag:echo('&lt;span style="font-size:8pt;"&gt;'..GaldamUI.VERSION..'&lt;/span&gt;')end
 
+
+-- World location only: shares the live atlas model and its single overview image.
+GaldamMinimap=GaldamMinimap or {}
+local M=GaldamMinimap
+for _,id in ipairs(M.handlers or {}) do pcall(killAnonymousEventHandler,id) end
+if M.timer then pcall(killTimer,M.timer) end
+if M.startTimer then pcall(killTimer,M.startTimer) end
+if M.nodes then for _,node in pairs(M.nodes) do node:hide() end end
+M.handlers={};M.nodes={};M.timer=nil;M.startTimer=nil;M.connected=true;M.synced=false;M.lastRequest=nil
+local function roomId(v) return tonumber((tostring(v or ''):gsub('#',''))) end
+M.rid=roomId((gmcp.Galdam and gmcp.Galdam.Room or {}).roomid)
+  or roomId((gmcp.Galdam and gmcp.Galdam.Tac or {}).rid)
+local function escape(v)
+  local s=tostring(v or ''):gsub('&amp;','&amp;amp;'):gsub('&lt;','&amp;lt;'):gsub('&gt;','&amp;gt;'):gsub('"','&amp;quot;')
+  return s
+end
+function M.height(rw,ph)
+  if ph&lt;420 then return 72,56 end
+  local size=math.max(108,math.min(196,rw-28,math.floor((ph-250)*.45)))
+  return size+42,size
+end
+function M.open()
+  A.show('all')
+  A.requestWorld(true)
+end
+local function widget(key,x,y,w,h,css,html)
+  local node=M.nodes[key]
+  if not node then
+    node=Geyser.Label:new({name='GaldamWorldMini_'..key,x=x,y=y,width=w,height=h},GaldamUI.rpanel)
+    node:setClickCallback(M.open);M.nodes[key]=node
+  end
+  local geometry=table.concat({x,y,w,h},',')
+  if node._miniGeo~=geometry then node._miniGeo=geometry;node:move(x,y);node:resize(w,h) end
+  if node._miniCSS~=css then node._miniCSS=css;node:setStyleSheet(css) end
+  if html and node._miniHTML~=html then node._miniHTML=html;node:echo(html,'#e4e8d9') end
+  node:show()
+  return node
+end
+function M.layout(rw,ph,y)
+  M.rw,M.ph,M.y=rw,ph,y
+  M.render()
+end
+function M.render()
+  if not (M.rw and GaldamUI.rpanel) then return end
+  local height,size=M.height(M.rw,M.ph)
+  local compact=height==72
+  local x=compact and 12 or math.floor((M.rw-size)/2)
+  local y=M.y+(compact and 8 or 24)
+  local ink='background:transparent;color:#aebca3;font-size:10px;'
+  widget('surface',8,M.y,M.rw-16,height-4,'background:#1b251f;border:1px solid #3f5140;border-radius:7px;')
+  local titleX=compact and 80 or 16
+  widget('title',titleX,M.y+5,M.rw-titleX-18,16,ink,'&lt;b&gt;월드맵&lt;/b&gt; &lt;span style="color:#819783"&gt;· 전체 보기 ↗&lt;/span&gt;')
+  local ready=M.connected and M.synced and A.ready and A.data.views.all and A.mapFiles and A.mapFiles.all
+  local style=ready and ('border-image:url("'..A.mapFiles.all..'");background:#203842;border:0;') or 'background:#263b3c;border:0;'
+  widget('map',x,y,size,size,style)
+  local p=ready and A.data.positions[tostring(M.rid)]
+  local caption=not M.connected and '연결 대기' or (not ready and '월드맵 불러오는 중…' or (p and p[3] or '지도 밖 · 위치 미확인'))
+  local cy=compact and M.y+29 or y+size+3
+  local cx=compact and 80 or 12
+  widget('caption',cx,cy,M.rw-cx-12,compact and 34 or 16,ink..'qproperty-alignment:AlignCenter;',
+    '&lt;span style="color:#f1dfa0"&gt;●&lt;/span&gt; '..escape(caption))
+  if M.nodes.halo then M.nodes.halo:hide();M.nodes.self:hide() end
+  if M.nodes.north then M.nodes.north:hide() end
+  if ready then
+    if not compact then widget('north',x+size-21,y+4,18,21,'background:#223d3d;color:#dde9d5;font-size:10px;qproperty-alignment:AlignCenter;','↑N') end
+    if p then
+      local view=A.data.views.all;local b=view.bounds
+      local px=x+(p[1]-b[1]+view.offset[1]+.5)/view.span*size
+      local py=y+(p[2]-b[2]+view.offset[2]+.5)/view.span*size
+      widget('halo',px-9,py-9,18,18,'background:rgba(255,226,132,55);border:1px solid #fff1bf;border-radius:9px;')
+      widget('self',px-4,py-4,8,8,'background:#ffe49b;border:2px solid #243e35;border-radius:4px;')
+    end
+  end
+end
+function M.request(force)
+  if not M.connected or type(send)~='function' then return end
+  local now=os.time()
+  if M.lastRequest and now-M.lastRequest&lt;10 then return end
+  if A.pending and now-A.pending.at&lt;35 then return end
+  M.lastRequest=now
+  send((force or not M.synced or not A.ready) and 'atlasminimap' or 'atlasrefresh',false)
+end
+function M.refreshLater()
+  if M.timer then pcall(killTimer,M.timer) end
+  M.timer=tempTimer(60,function() M.timer=nil;if not A.active then M.request(false) end;M.refreshLater() end)
+end
+function M.onRoom()
+  if not M.connected then return end
+  local rid=roomId((gmcp.Galdam and gmcp.Galdam.Room or {}).roomid)
+  if rid~=M.rid then M.rid=rid;M.render() end
+end
+function M.onTac()
+  if not M.connected then return end
+  local rid=roomId((gmcp.Galdam and gmcp.Galdam.Tac or {}).rid)
+  if rid~=M.rid then M.rid=rid;M.render() end
+end
+local function on(event,fn) M.handlers[#M.handlers+1]=registerAnonymousEventHandler(event,fn) end
+on('gmcp.Galdam.Room',M.onRoom)
+on('gmcp.Galdam.Tac',M.onTac)
+on('sysDisconnectionEvent',function() M.connected=false;M.synced=false;M.rid=nil;M.render() end)
+on('sysConnectionEvent',function()
+  M.connected=true;M.synced=false;M.lastRequest=nil;M.rid=nil;M.render()
+  if M.startTimer then pcall(killTimer,M.startTimer) end
+  M.startTimer=tempTimer(1,function() M.startTimer=nil;M.request(true) end)
+end)
+M.refreshLater()
+M.startTimer=tempTimer(1,function() M.startTimer=nil;M.request(true) end)
+if GaldamUI.built then GaldamUI.relayout() end
 </script><eventHandlerList /></Script>
 <Script isActive="yes" isFolder="no"><name>GaldamWork</name><packageName></packageName><script>
 if GaldamWork then
