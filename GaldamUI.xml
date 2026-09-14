@@ -105,7 +105,7 @@ if GaldamUI._handlers then
   for _, id in ipairs(GaldamUI._handlers) do pcall(killAnonymousEventHandler, id) end
 end
 GaldamUI._handlers = {}
-GaldamUI.VERSION = "v71"   -- 한국 해안 월드 · 전술 타일 개편
+GaldamUI.VERSION = "v72"   -- 한국 해안 월드 · 전술 타일 개편
 
 local PANEL_W = 0.20      -- 우측 탭 패널 폭
 local BOTTOM_H = 148      -- 하단 HUD 바 높이
@@ -239,6 +239,7 @@ function H.build()
   H.widgets={}; H.primary={}; H.needs={}; H.statusPage=1
   H.background=H.label("GaldamHUDSurface",U.bottom)
   H.background:setStyleSheet("background-color:"..H.theme.panel..";border:0;border-top:1px solid "..H.theme.line..";")
+  H.background:lower()
   H.identity=H.label("GaldamHUDIdentity",U.bottom)
   H.detail=H.label("GaldamHUDDetail",U.bottom)
   H.detail:echo("신체 · 장비  ↗"); H.detail:setClickCallback(function() U.selectTab("body") end)
@@ -509,6 +510,7 @@ function GaldamUI.build()
   GaldamUI.panelSurface = GaldamUI.HUD.label("GaldamPanelSurface",GaldamUI.rpanel)
   GaldamUI.panelSurface:resize("100%","100%")
   GaldamUI.panelSurface:setStyleSheet("background-color:#171d19;border:0;border-left:1px solid #394536;")
+  GaldamUI.panelSurface:lower()
   -- 위치 헤더
   GaldamUI.locHeader = Geyser.Label:new({name="GaldamLoc", x=0, y=0, width="100%", height=40}, GaldamUI.rpanel)
   GaldamUI.locHeader:setStyleSheet("background-color:#202720;border:0;border-bottom:1px solid #394536;color:#e4e8d9; qproperty-alignment:'AlignCenter';")
